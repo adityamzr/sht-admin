@@ -1,35 +1,41 @@
 # sht-admin
 
-Backend + Admin Dashboard **Sudut Haramain Tour (SHT)** — Umroh Private, Sesuai Cara Anda.
+Backend API + Admin Dashboard **Sudut Haramain Tour (SHT)** — Umroh Private, Sesuai Cara Anda.
 
 "Simple for Customer, Powerful for Internal Team."
 
-## Tech Stack
+## Tech Stack (locked revisi — menggantikan Laravel)
 
-- **Laravel 13** (PHP 8.4)
-- **PostgreSQL** via [Neon](https://neon.tech) (region Singapore)
-- **Filament** admin panel (M1)
-- REST API `/api/v1` → dikonsumsi `sht-web` (Nuxt 3)
+- **Nuxt 3 full-stack** (Vue 3 + Nitro) — satu bahasa TypeScript dengan `sht-web`
+- **REST API** via Nitro server routes (`server/api/**`) — deployable ke **Vercel**
+- **PostgreSQL** via [Neon](https://neon.tech) + **Drizzle ORM**
+- **Tailwind CSS** — token warna selaras brand SHT
 
 ## Setup
 
 ```bash
-composer install
-cp .env.example .env
-# isi DATABASE_URL dari Neon project (postgresql://...@...neon.tech/sht?sslmode=require)
-php artisan key:generate
-php artisan migrate
-php artisan serve
+npm install
+cp .env.example .env    # isi DATABASE_URL dari Neon (region Singapore)
+npm run dev             # dev server, UI di /, health check di /api/health
+npm run build           # validasi (wajib sebelum commit)
+```
+
+## Struktur
+
+```
+server/api/        REST endpoints (Nitro)
+server/utils/db.ts Neon client (server-only)
+layouts/admin.vue  Shell sidebar admin
+pages/[module].vue Placeholder modul (leads, hotels, pricing, ...)
 ```
 
 ## Dokumen
 
 - Development flow: [DEVFLOW.md](./DEVFLOW.md) (locked — mode interim pre-production)
-- Blueprint backend & admin MVP: `PLAN-admin-phase.md` di workspace root
-- Master context bisnis: SHT Master Project Context v0.3
+- Blueprint: `PLAN-admin-phase.md` di workspace root (revisi stack Node/Vue)
 
 ## Aturan Keras
 
-- `supplier_cost`, `markup_*`, internal notes **tidak boleh** keluar lewat API publik — gunakan whitelist di API Resource.
+- `supplier_cost`, `markup_*`, internal notes **tidak boleh** keluar lewat API publik.
 - Produk yang sudah dipakai estimasi: nonaktifkan/soft-delete, jangan hard delete.
 - Validasi & kalkulasi pricing = wilayah backend (source of truth).
