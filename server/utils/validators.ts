@@ -61,6 +61,12 @@ const roomTypeBase = z.object({
 })
 export const roomTypeInput = roomTypeBase
 export const roomTypePatch = roomTypeBase.omit({ hotelId: true }).partial()
+/**
+ * M3.2 — input untuk nested route POST /api/admin/hotels/:id/room-types:
+ * hotelId berasal dari route param, BUKAN dari body (UI admin tidak
+ * mengirim hotelId; dulu gagal 400 "Required").
+ */
+export const roomTypeCreateInput = roomTypeBase.omit({ hotelId: true })
 
 // ─── Flight ─────────────────────────────────────────────────────────────────
 const flightBase = z.object({
