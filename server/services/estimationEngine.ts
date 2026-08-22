@@ -133,8 +133,9 @@ export async function calculateTrip(db: DbLike, trip: TripInput): Promise<TripCa
   if (trip.makkahNights + trip.madinahNights !== trip.durationDays - 1) {
     throw new TripValidationError('Pembagian malam tidak sesuai durasi: Makkah + Madinah harus sama dengan durasi − 1.')
   }
+  // M3.1: durasi = hari kalender INKLUSIF → pulang = berangkat + (durasi − 1).
   const returnDate = new Date(date.getTime())
-  returnDate.setUTCDate(returnDate.getUTCDate() + trip.durationDays)
+  returnDate.setUTCDate(returnDate.getUTCDate() + (trip.durationDays - 1))
   const returnIso = returnDate.toISOString().slice(0, 10)
 
   // ─── 1. Kota keberangkatan ────────────────────────────────────────────────

@@ -444,6 +444,51 @@ describe('estimation engine (M3)', { skip: !HAS_DB ? 'DATABASE_URL tidak di-set'
     assert.equal(leftovers.length, 0, 'item tidak boleh tersisa setelah rollback')
   })
 
+  it('18. returnDate = departure + (durasi − 1) — Contoh A (M3.1)', async () => {
+    await inRollback(async (tx) => {
+      const trip = await baseTrip(tx, {
+        departureDate: '2026-10-01',
+        durationDays: 9,
+        makkahNights: 4,
+        madinahNights: 4,
+      })
+      const calc = await calculateTrip(tx, trip)
+      assert.equal(calc.returnDate, '2026-10-09')
+      assert.equal(trip.makkahNights + trip.madinahNights, 8)
+    })
+  })
+
+  it('19. returnDate = departure + (durasi − 1) — Contoh B (M3.1)', async () => {
+    await inRollback(async (tx) => {
+      // 20 Des 2026 jatuh di periode High Season seed — siapkan harga HS
+      // untuk flight & hotel Madinah agar kalkulasi lanjut sampai selesai.
+      const highSeasonPeriod = await periodId(tx, 'High Season')
+      await tx.insert(schema.pricingRecords).values([
+        {
+          entityType: 'flight', entityId: await flightId(tx, 'Garuda Indonesia'), periodId: highSeasonPeriod,
+          currency: 'IDR', pricingUnit: 'pax', strategy: 'manual', supplierCost: null, markupType: null,
+          markupValue: null, sellingPrice: '18000000', internalNotes: 'test', isActive: true,
+        },
+        {
+          entityType: 'hotel_room_type', entityId: await roomId(tx, await hotelId(tx, 'Sofitel Shahd Al Madinah'), 'Quad'),
+          periodId: highSeasonPeriod, currency: 'IDR', pricingUnit: 'room_night', strategy: 'manual',
+          supplierCost: null, markupType: null, markupValue: null, sellingPrice: '3100000',
+          internalNotes: 'test', isActive: true,
+        },
+      ])
+      const trip = await baseTrip(tx, {
+        departureDate: '2026-12-20',
+        durationDays: 12,
+        makkahNights: 6,
+        madinahNights: 5,
+        visa: 'owned',
+      })
+      const calc = await calculateTrip(tx, trip)
+      assert.equal(calc.returnDate, '2026-12-31')
+      assert.equal(trip.makkahNights + trip.madinahNights, 11)
+    })
+  })
+
   it('17. EST-ID: format EST-xxxxxx & unik', async () => {
     await inRollback(async (tx) => {
       const trip = await baseTrip(tx)

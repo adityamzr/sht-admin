@@ -239,7 +239,7 @@ async function main() {
       pilgrims: 6,
       departureCity: 'Bandung',
       departureDate: '2026-10-12',
-      returnDate: '2026-10-24',
+      returnDate: '2026-10-23', // M3.1: pulang = berangkat + (durasi - 1)
       durationDays: 12,
       makkahNights: 6,
       madinahNights: 5,
