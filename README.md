@@ -26,8 +26,11 @@ npm ci
 cp .env.example .env          # isi NUXT_DATABASE_URL (dan NUXT_SESSION_SECRET)
 npm run db:migrate            # terapkan migrasi Drizzle — baca .env otomatis
 npm run db:seed               # isi data development (idempotent)
-npm run dev                   # UI admin di /, health di /api/health
+npm run dev                   # admin UI + API di http://localhost:3001
 ```
+
+> Customer app (sht-web) berjalan di port 3000 dan memanggil API publik
+> `/api/v1` di port 3001 (lihat `CORS_ALLOWED_ORIGINS`).
 
 **Environment variables** (satu konvensi, tidak perlu export manual):
 
@@ -74,6 +77,16 @@ pages/                  UI admin: dashboard, leads, estimations, hotels, flights
 - **Estimasi:** snapshot immutabel (config trip + item + kurs) — nomor `EST-000123` dari DB sequence. Read-only di admin (M2).
 - **Lead:** `estimation` (terhubung estimasi) & `service_inquiry` (tanpa estimasi); lifecycle `NEW → CONTACTED → FOLLOW_UP → WON / LOST`.
 - **Auth:** session cookie HTTP-only (HMAC-sealed, `NUXT_SESSION_SECRET`), password scrypt, guard global `/api/admin/*`.
+
+## API publik customer (M3)
+
+| Endpoint | Fungsi |
+|---|---|
+| `POST /api/v1/estimations` | Submit Trip Builder — validasi ulang + kalkulasi otoritatif (tanggal perjalanan) + snapshot + lead + EST-ID, **transaksi atomik**. Payload = ID + konfigurasi + kontak (tanpa harga). Fail-closed: komponen tak ter-resolve ke IDR → 422, tidak ada estimasi parsial. |
+| `POST /api/v1/leads` | Service inquiry (Service Buyer) — lead `service_inquiry` tanpa estimasi. |
+| `GET /api/v1/hotels`, `flights`, `transportation`, `services`, `departure-cities` | Katalog publik (serializer eksplisit — tanpa data internal). |
+
+CORS `/api/v1` dibatasi ke origin customer (`CORS_ALLOWED_ORIGINS`).
 
 ## Aturan Keras
 
