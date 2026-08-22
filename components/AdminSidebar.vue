@@ -11,12 +11,18 @@ const menu = [
   { label: 'Transport', to: '/transport', icon: 'car' },
   { label: 'Services', to: '/services', icon: 'sparkle' },
   { label: 'Pricing', to: '/pricing', icon: 'tag' },
+  { label: 'Pricing Periods', to: '/pricing-periods', icon: 'calendar' },
   { label: 'Exchange Rates', to: '/exchange-rates', icon: 'currency' },
   { label: 'Departure Cities', to: '/departure-cities', icon: 'map' },
   { label: 'Settings', to: '/settings', icon: 'cog' },
 ]
 
 watch(() => route.fullPath, () => (isOpen.value = false))
+
+async function logout() {
+  await $fetch('/api/admin/auth/logout', { method: 'POST' }).catch(() => {})
+  navigateTo('/login')
+}
 </script>
 
 <template>
@@ -66,6 +72,7 @@ watch(() => route.fullPath, () => (isOpen.value = false))
           <path v-else-if="item.icon === 'tag'" stroke-linecap="round" stroke-linejoin="round" d="M20 13 13 20a2 2 0 0 1-2.83 0L4 13.83V4h9.83L20 10.17A2 2 0 0 1 20 13ZM7.5 8.5h.01"/>
           <path v-else-if="item.icon === 'currency'" stroke-linecap="round" stroke-linejoin="round" d="M7 21V10m10 4V3M4 7l3-4 3 4m10 14 3-4m-6 4-3-4"/>
           <path v-else-if="item.icon === 'map'" stroke-linecap="round" stroke-linejoin="round" d="M9 4 3 6v14l6-2 6 2 6-2V4l-6 2-6-2Zm0 0v14m6-12v14"/>
+          <path v-else-if="item.icon === 'calendar'" stroke-linecap="round" stroke-linejoin="round" d="M6.5 3v3m11-3v3M4 6.5h16V19a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6.5Zm3 4h.01M12 10.5h.01m5 0h.01M7 15h.01m5 0h.01m5 0h.01"/>
           <path v-else stroke-linecap="round" stroke-linejoin="round" d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Zm7.4-3a7.4 7.4 0 0 0-.1-1.2l2-1.6-2-3.4-2.4 1a7.6 7.6 0 0 0-2-1.2L14.5 3h-5l-.4 2.6a7.6 7.6 0 0 0-2 1.2l-2.4-1-2 3.4 2 1.6a7.4 7.4 0 0 0 0 2.4l-2 1.6 2 3.4 2.4-1a7.6 7.6 0 0 0 2 1.2l.4 2.6h5l.4-2.6a7.6 7.6 0 0 0 2-1.2l2.4 1 2-3.4-2-1.6c.06-.4.1-.8.1-1.2Z"/>
         </svg>
         {{ item.label }}
@@ -73,7 +80,15 @@ watch(() => route.fullPath, () => (isOpen.value = false))
     </nav>
 
     <div class="border-t border-neutral-line p-4">
-      <p class="text-xs text-neutral-charcoal/50">v0.1.0 — scaffold M0'</p>
+      <button
+        type="button"
+        class="mb-2 flex min-h-[40px] w-full items-center justify-center gap-2 rounded-xl border border-neutral-line px-3 text-sm font-medium text-neutral-charcoal/70 hover:border-brand-green/40 hover:text-brand-green"
+        @click="logout"
+      >
+        <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 8.25V6a2.25 2.25 0 0 0-2.25-2.25h-6A2.25 2.25 0 0 0 5.25 6v12a2.25 2.25 0 0 0 2.25 2.25h6A2.25 2.25 0 0 0 15.75 18v-2.25m3-6.75 3 3m0 0-3 3m3-3h-9"/></svg>
+        Logout
+      </button>
+      <p class="text-xs text-neutral-charcoal/50">v0.2.0 — M2 backend foundation</p>
     </div>
   </aside>
 </template>

@@ -1,23 +1,25 @@
 <script setup lang="ts">
-definePageMeta({ layout: 'admin' })
+import type { AdminSummary } from '~/types'
+definePageMeta({ layout: 'admin', middleware: 'admin-auth' })
 
-const { data: health } = await useFetch('/api/health')
+const { data: health } = await useAdminFetch<{ status: string }>('/api/health')
+const { data: summary } = await useAdminFetch<AdminSummary>('/api/admin/summary')
 
-const stats = [
-  { label: 'Leads Baru', value: '—', hint: 'terhubung M8' },
-  { label: 'Estimasi Terkirim', value: '—', hint: 'terhubung M8' },
-  { label: 'Produk Aktif', value: '—', hint: 'terhubung M5' },
-  { label: 'Kurs Hari Ini', value: '—', hint: 'terhubung M4' },
-]
+const stats = computed(() => [
+  { label: 'Leads Baru', value: String(summary.value?.newLeads ?? '—'), hint: 'status NEW' },
+  { label: 'Total Leads', value: String(summary.value?.totalLeads ?? '—'), hint: 'semua status' },
+  { label: 'Estimasi Tersimpan', value: String(summary.value?.totalEstimations ?? '—'), hint: 'snapshot historis' },
+  { label: 'Produk Aktif', value: String(summary.value?.activeProducts ?? '—'), hint: 'hotel + flight + service + kendaraan' },
+])
 
 const checklist = [
   { text: 'M0 — Architecture Cleanup & Baseline', done: true },
-  { text: 'M1 — Product Blueprint (intents, terminologi, scope, konversi)', done: false },
-  { text: 'M2 — Information Architecture & Functional Specification', done: false },
-  { text: 'M3 — Domain Model & Database (schema Drizzle + seeder)', done: false },
+  { text: 'M1 — Product Blueprint (intents, terminologi, scope, konversi)', done: true },
+  { text: 'M2 — Backend Foundation (schema, auth, katalog, pricing, leads)', done: true },
+  { text: 'M3 — Domain Model & Database (estimator end-to-end)', done: false },
   { text: 'M4 — Pricing Engine (strategi, periode, kurs, snapshot)', done: false },
-  { text: 'M5 — Core Admin Operations (CRUD produk, leads, estimasi, auth)', done: false },
-  { text: 'M6 — Public API Layer (/api/v1 untuk sht-web)', done: false },
+  { text: 'M5 — Core Admin Operations (workflow produk & leads)', done: false },
+  { text: 'M6 — Public API Layer (kontrak stabil sht-web)', done: false },
   { text: 'M7 — Customer Integration & Trip Builder (ganti mock ke API)', done: false },
   { text: 'M8 — Estimation, Lead & Consultation (EST-ID + WhatsApp)', done: false },
   { text: 'M9 — Individual Services + Content Platform', done: false },
@@ -47,7 +49,7 @@ const checklist = [
 
     <div class="mt-8 rounded-2xl border border-neutral-line bg-white p-6">
       <h2 class="font-heading text-lg font-semibold">Roadmap milestone</h2>
-      <p class="mt-1 text-sm text-neutral-charcoal/60">Pekerjaan berikutnya dikerjakan berurutan oleh agent.</p>
+      <p class="mt-1 text-sm text-neutral-charcoal/60">Roadmap master M0–M10 — satu-satunya roadmap aktif.</p>
       <ul class="mt-4 space-y-2.5">
         <li v-for="item in checklist" :key="item.text" class="flex items-start gap-2.5 text-sm">
           <span
