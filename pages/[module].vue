@@ -4,16 +4,16 @@ definePageMeta({ layout: 'admin' })
 const route = useRoute()
 
 const modules: Record<string, { title: string; description: string; milestone: string }> = {
-  leads: { title: 'Leads', description: 'Calon jamaah dari estimator — pipeline konsultasi.', milestone: "M6'" },
-  estimations: { title: 'Estimations', description: 'Riwayat estimasi tersimpan beserta snapshot harga.', milestone: "M6'" },
-  hotels: { title: 'Hotels', description: 'Katalog hotel Makkah & Madinah beserta tipe kamar.', milestone: "M2'" },
-  flights: { title: 'Flights', description: 'Opsi penerbangan yang dikelola admin (bukan live GDS).', milestone: "M2'" },
-  transport: { title: 'Transport', description: 'Rute & kendaraan transportasi darat.', milestone: "M2'" },
-  services: { title: 'Services', description: 'Layanan tambahan: muthowwif, perlengkapan, handling.', milestone: "M2'" },
-  pricing: { title: 'Pricing', description: 'Supplier cost, markup, dan selling price per produk & periode.', milestone: "M3'" },
-  'exchange-rates': { title: 'Exchange Rates', description: 'Kurs mata uang — di-snapshot ke setiap estimasi.', milestone: "M4'" },
-  'departure-cities': { title: 'Departure Cities', description: 'Kota keberangkatan & fee per jamaah.', milestone: "M2'" },
-  settings: { title: 'Settings', description: 'Preferensi panel & nomor WhatsApp resmi.', milestone: "M7'" },
+  leads: { title: 'Leads', description: 'Calon jamaah dari estimator — pipeline konsultasi.', milestone: 'M8' },
+  estimations: { title: 'Estimations', description: 'Riwayat estimasi tersimpan beserta snapshot harga.', milestone: 'M8' },
+  hotels: { title: 'Hotels', description: 'Katalog hotel Makkah & Madinah beserta tipe kamar.', milestone: 'M5' },
+  flights: { title: 'Flights', description: 'Opsi penerbangan yang dikelola admin (bukan live GDS).', milestone: 'M5' },
+  transport: { title: 'Transport', description: 'Rute & kendaraan transportasi darat.', milestone: 'M5' },
+  services: { title: 'Services', description: 'Layanan tambahan: muthowwif, perlengkapan, handling.', milestone: 'M5' },
+  pricing: { title: 'Pricing', description: 'Supplier cost, markup, dan selling price per produk & periode.', milestone: 'M4' },
+  'exchange-rates': { title: 'Exchange Rates', description: 'Kurs mata uang — di-snapshot ke setiap estimasi.', milestone: 'M4' },
+  'departure-cities': { title: 'Departure Cities', description: 'Kota keberangkatan & fee per jamaah.', milestone: 'M5' },
+  settings: { title: 'Settings', description: 'Preferensi panel & nomor WhatsApp resmi.', milestone: 'M10' },
 }
 
 const name = computed(() => String(route.params.module))

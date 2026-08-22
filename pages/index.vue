@@ -4,21 +4,24 @@ definePageMeta({ layout: 'admin' })
 const { data: health } = await useFetch('/api/health')
 
 const stats = [
-  { label: 'Leads Baru', value: '—', hint: 'terhubung M6\'' },
-  { label: 'Estimasi Terkirim', value: '—', hint: 'terhubung M6\'' },
-  { label: 'Produk Aktif', value: '—', hint: 'terhubung M2\'' },
-  { label: 'Kurs Hari Ini', value: '—', hint: 'terhubung M4\'' },
+  { label: 'Leads Baru', value: '—', hint: 'terhubung M8' },
+  { label: 'Estimasi Terkirim', value: '—', hint: 'terhubung M8' },
+  { label: 'Produk Aktif', value: '—', hint: 'terhubung M5' },
+  { label: 'Kurs Hari Ini', value: '—', hint: 'terhubung M4' },
 ]
 
 const checklist = [
-  { text: "M0' — Scaffold Nuxt full-stack + deployable Vercel", done: true },
-  { text: "M1' — Auth admin (session) + middleware guard", done: false },
-  { text: "M2' — Database schema (Drizzle) + seeder data = mock frontend", done: false },
-  { text: "M3' — CRUD produk (hotel, flight, transport, service)", done: false },
-  { text: "M4' — Pricing engine + periods + kurs + parity tests", done: false },
-  { text: "M5' — Public API /api/v1 untuk sht-web", done: false },
-  { text: "M6' — Submit estimation → lead → WhatsApp dinamis", done: false },
-  { text: "M7' — Dashboard widgets & lead pipeline", done: false },
+  { text: 'M0 — Architecture Cleanup & Baseline', done: true },
+  { text: 'M1 — Product Blueprint (intents, terminologi, scope, konversi)', done: false },
+  { text: 'M2 — Information Architecture & Functional Specification', done: false },
+  { text: 'M3 — Domain Model & Database (schema Drizzle + seeder)', done: false },
+  { text: 'M4 — Pricing Engine (strategi, periode, kurs, snapshot)', done: false },
+  { text: 'M5 — Core Admin Operations (CRUD produk, leads, estimasi, auth)', done: false },
+  { text: 'M6 — Public API Layer (/api/v1 untuk sht-web)', done: false },
+  { text: 'M7 — Customer Integration & Trip Builder (ganti mock ke API)', done: false },
+  { text: 'M8 — Estimation, Lead & Consultation (EST-ID + WhatsApp)', done: false },
+  { text: 'M9 — Individual Services + Content Platform', done: false },
+  { text: 'M10 — UX/UI, Quality & Production Readiness', done: false },
 ]
 </script>
 

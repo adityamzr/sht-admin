@@ -4,12 +4,20 @@ Backend API + Admin Dashboard **Sudut Haramain Tour (SHT)** — Umroh Private, S
 
 "Simple for Customer, Powerful for Internal Team."
 
-## Tech Stack (locked revisi — menggantikan Laravel)
+## Branch Baseline
+
+- **`dev`** = baseline pengembangan aktif (mode interim pre-production, lihat [DEVFLOW.md](./DEVFLOW.md)).
+- **`main`** = production, protected — jangan push/merge langsung.
+
+## Tech Stack (locked)
 
 - **Nuxt 3 full-stack** (Vue 3 + Nitro) — satu bahasa TypeScript dengan `sht-web`
 - **REST API** via Nitro server routes (`server/api/**`) — deployable ke **Vercel**
 - **PostgreSQL** via [Neon](https://neon.tech) + **Drizzle ORM**
 - **Tailwind CSS** — token warna selaras brand SHT
+
+> Arsitektur sebelumnya (Laravel + Filament) dihapus pada M0 — **legacy / removed**.
+> Riwayatnya tetap tersedia di git history.
 
 ## Setup
 
@@ -20,6 +28,9 @@ npm run dev             # dev server, UI di /, health check di /api/health
 npm run build           # validasi (wajib sebelum commit)
 ```
 
+Catatan: `DATABASE_URL` baru dibutuhkan mulai milestone M3 (database).
+`/api/health` dan dashboard tetap berjalan tanpa konfigurasi database.
+
 ## Struktur
 
 ```
@@ -29,10 +40,10 @@ layouts/admin.vue  Shell sidebar admin
 pages/[module].vue Placeholder modul (leads, hotels, pricing, ...)
 ```
 
-## Dokumen
+## Roadmap
 
-- Development flow: [DEVFLOW.md](./DEVFLOW.md) (locked — mode interim pre-production)
-- Blueprint: `PLAN-admin-phase.md` di workspace root (revisi stack Node/Vue)
+Roadmap master M0–M10 (lihat halaman Dashboard panel admin) adalah **satu-satunya
+roadmap aktif**. Penomoran milestone lama admin (M0'–M7') sudah tidak berlaku.
 
 ## Aturan Keras
 
