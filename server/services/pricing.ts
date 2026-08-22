@@ -45,6 +45,25 @@ export function toIdr(amount: number, rate: number): number {
   return Math.round(amount * rate)
 }
 
+/**
+ * FAIL-CLOSED (M2.1): konversi ke IDR dengan kurs eksplisit.
+ * - Mata uang IDR → tidak butuh kurs, kembalikan nilai normal.
+ * - Non-IDR (SAR/USD/dst.) → WAJIB ada kurs aktif; bila kurs hilang,
+ *   kembalikan null — TIDAK PERNAH 1:1.
+ * Invariant: angka non-IDR tidak boleh direpresentasikan sebagai IDR
+ * tanpa kurs eksplisit (100 SAR ≠ 100 IDR).
+ * M3: submit estimasi WAJIB gagal bila komponen tidak bisa di-resolve ke IDR.
+ */
+export function convertToIdrOrNull(
+  amount: number,
+  currency: string,
+  rate: number | null | undefined,
+): number | null {
+  if (currency === 'IDR') return roundMoney(amount)
+  if (!rate || rate <= 0) return null
+  return toIdr(amount, rate)
+}
+
 // ─── Pure: resolusi periode harga (highest priority wins) ───────────────────
 export function resolvePricingPeriod<
   T extends { startDate: Date | string; endDate: Date | string; priority: number; isActive: boolean },
@@ -133,7 +152,8 @@ export interface PriceRef {
 export interface ResolvedPrice {
   record: typeof pricingRecords.$inferSelect
   sellingPrice: number
-  sellingPriceIdr: number
+  /** null = mata uang non-IDR tanpa kurs aktif (fail-closed, bukan 1:1) */
+  sellingPriceIdr: number | null
   currency: string
 }
 
@@ -154,7 +174,10 @@ export async function resolvePrice(db: Db, ref: PriceRef, date: Date | string): 
   const period = resolvePricingPeriod(periods, date)
   if (!period) return null
 
-  const record = records.find((r) => r.periodId === period.id && (!ref.currency || r.currency === ref.currency)) ?? null
+  // Deterministik: utamakan record IDR (mata uang tampilan customer);
+  // non-IDR hanya dipakai bila tidak ada harga IDR.
+  const inPeriod = records.filter((r) => r.periodId === period.id && (!ref.currency || r.currency === ref.currency))
+  const record = inPeriod.find((r) => r.currency === 'IDR') ?? inPeriod[0] ?? null
   if (!record) return null
 
   const sellingPrice = calculateSellingPrice({
@@ -165,11 +188,9 @@ export async function resolvePrice(db: Db, ref: PriceRef, date: Date | string): 
     sellingPrice: record.sellingPrice === null ? null : Number(record.sellingPrice),
   })
 
-  let sellingPriceIdr = sellingPrice
-  if (record.currency !== 'IDR') {
-    const rate = await getActiveRate(db, record.currency, 'IDR')
-    sellingPriceIdr = rate ? toIdr(sellingPrice, Number(rate.rate)) : sellingPrice
-  }
+  // Fail-closed: non-IDR tanpa kurs aktif → sellingPriceIdr = null (bukan 1:1).
+  const rateRow = record.currency === 'IDR' ? null : await getActiveRate(db, record.currency, 'IDR')
+  const sellingPriceIdr = convertToIdrOrNull(sellingPrice, record.currency, rateRow ? Number(rateRow.rate) : null)
 
   return { record, sellingPrice, sellingPriceIdr, currency: record.currency }
 }
@@ -191,7 +212,9 @@ export async function resolvePricesForEntities(
   const period = resolvePricingPeriod(periods, date)
   if (!period) return result
   for (const id of entityIds) {
-    const record = records.find((r) => r.entityId === id && r.periodId === period.id) ?? null
+    // Deterministik: utamakan record IDR, baru non-IDR (fail-closed bila tanpa kurs).
+    const inPeriod = records.filter((r) => r.entityId === id && r.periodId === period.id)
+    const record = inPeriod.find((r) => r.currency === 'IDR') ?? inPeriod[0] ?? null
     if (!record) continue
     const sellingPrice = calculateSellingPrice({
       strategy: record.strategy as PricingStrategy,
@@ -200,11 +223,9 @@ export async function resolvePricesForEntities(
       markupValue: record.markupValue === null ? null : Number(record.markupValue),
       sellingPrice: record.sellingPrice === null ? null : Number(record.sellingPrice),
     })
-    let sellingPriceIdr = sellingPrice
-    if (record.currency !== 'IDR') {
-      const rate = await getActiveRate(db, record.currency, 'IDR')
-      sellingPriceIdr = rate ? toIdr(sellingPrice, Number(rate.rate)) : sellingPrice
-    }
+    // Fail-closed: non-IDR tanpa kurs aktif → sellingPriceIdr = null (bukan 1:1).
+    const rateRow = record.currency === 'IDR' ? null : await getActiveRate(db, record.currency, 'IDR')
+    const sellingPriceIdr = convertToIdrOrNull(sellingPrice, record.currency, rateRow ? Number(rateRow.rate) : null)
     result.set(id, { record, sellingPrice, sellingPriceIdr, currency: record.currency })
   }
   return result

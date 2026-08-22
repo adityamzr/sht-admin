@@ -61,7 +61,7 @@ pages/                  UI admin: dashboard, leads, estimations, hotels, flights
 
 - **Katalog:** departure cities, hotels + room types, flights (CGK→JED), transport vehicles/routes/route×vehicle, services (visa dimodelkan sebagai service).
 - **Pricing:** satu tabel `pricing_records` (entity × period × currency × strategy). Strategi: `manual`, `cost_plus_fixed`, `cost_plus_percentage`. Periode harga: prioritas numerik unik — **prioritas tertinggi menang** saat overlap.
-- **Kurs:** admin-managed, satu kurs aktif per pasangan (USD/SAR → IDR); di-snapshot ke estimasi.
+- **Kurs:** admin-managed, satu kurs aktif per pasangan (USD/SAR → IDR); di-snapshot ke estimasi. **Fail-closed (M2.1):** harga non-IDR tanpa kurs aktif TIDAK PERNAH jatuh ke 1:1 — IDR price = `null` di API publik; submit estimasi (M3) wajib gagal bila komponen tidak bisa di-resolve ke IDR.
 - **Estimasi:** snapshot immutabel (config trip + item + kurs) — nomor `EST-000123` dari DB sequence. Read-only di admin (M2).
 - **Lead:** `estimation` (terhubung estimasi) & `service_inquiry` (tanpa estimasi); lifecycle `NEW → CONTACTED → FOLLOW_UP → WON / LOST`.
 - **Auth:** session cookie HTTP-only (HMAC-sealed, `NUXT_SESSION_SECRET`), password scrypt, guard global `/api/admin/*`.

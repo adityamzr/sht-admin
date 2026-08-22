@@ -19,7 +19,8 @@ import type {
 export interface PublicPrice {
   sellingPrice: number
   currency: string
-  sellingPriceIdr: number
+  /** null = mata uang non-IDR tanpa kurs aktif — jangan pernah tampilkan 1:1 */
+  sellingPriceIdr: number | null
 }
 
 export function toNumber(v: unknown): number {
