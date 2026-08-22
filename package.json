@@ -7,7 +7,12 @@
     "build": "nuxt build",
     "dev": "nuxt dev --host 0.0.0.0",
     "preview": "nuxt preview",
-    "postinstall": "nuxt prepare"
+    "postinstall": "nuxt prepare",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
+    "db:seed": "tsx server/db/seed.ts",
+    "admin:create": "tsx server/db/create-admin.ts",
+    "test": "tsx --test tests/*.test.ts"
   },
   "dependencies": {
     "@pinia/nuxt": "^0.5.5",
@@ -16,11 +21,14 @@
     "pinia": "^2.2.6",
     "postgres": "^3.4.5",
     "vue": "^3.5.13",
-    "vue-router": "^4.4.5"
+    "vue-router": "^4.4.5",
+    "zod": "^3.25.76"
   },
   "devDependencies": {
     "@nuxtjs/tailwindcss": "^6.12.2",
     "@types/node": "^22.20.1",
+    "drizzle-kit": "^0.28.1",
+    "tsx": "^4.23.12",
     "typescript": "^5.6.3",
     "vue-tsc": "^2.2.12"
   }
