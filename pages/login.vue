@@ -10,8 +10,11 @@ async function onSubmit() {
   error.value = null
   pending.value = true
   try {
-    // M1': hubungkan ke /api/auth/login (session). Sekarang placeholder guard.
-    error.value = 'Autentikasi aktif di milestone berikutnya (M1\').'
+    await $fetch('/api/admin/auth/login', { method: 'POST', body: { email: email.value, password: password.value } })
+    await navigateTo('/')
+  } catch (err: unknown) {
+    const e = err as { data?: { statusMessage?: string } }
+    error.value = e.data?.statusMessage ?? 'Login gagal. Periksa email & password.'
   } finally {
     pending.value = false
   }
@@ -65,7 +68,7 @@ async function onSubmit() {
           :disabled="pending"
           class="min-h-[44px] w-full rounded-xl bg-brand-green py-2.5 font-semibold text-white transition-colors hover:bg-[#0b3230] disabled:opacity-50"
         >
-          Masuk
+          {{ pending ? 'Memproses…' : 'Masuk' }}
         </button>
       </form>
     </div>
