@@ -1,6 +1,6 @@
 import { and, desc, eq, inArray } from 'drizzle-orm'
 import { exchangeRates, pricingPeriods, pricingRecords } from '../db/schema'
-import type { Db } from '../db'
+import type { DbLike } from '../db'
 
 /**
  * PRICING FOUNDATION — primitives reusable untuk M3+.
@@ -103,24 +103,24 @@ export function pickActiveRate(
 }
 
 // ─── DB: periode ────────────────────────────────────────────────────────────
-export async function listPeriods(db: Db) {
+export async function listPeriods(db: DbLike) {
   return db.select().from(pricingPeriods).orderBy(pricingPeriods.priority)
 }
 
-export async function getPeriod(db: Db, id: number) {
+export async function getPeriod(db: DbLike, id: number) {
   const rows = await db.select().from(pricingPeriods).where(eq(pricingPeriods.id, id)).limit(1)
   return rows[0] ?? null
 }
 
 // ─── DB: kurs ───────────────────────────────────────────────────────────────
-export async function listRates(db: Db) {
+export async function listRates(db: DbLike) {
   return db
     .select()
     .from(exchangeRates)
     .orderBy(desc(exchangeRates.effectiveAt))
 }
 
-export async function getActiveRate(db: Db, from: string, to: string) {
+export async function getActiveRate(db: DbLike, from: string, to: string) {
   const rows = await db
     .select()
     .from(exchangeRates)
@@ -131,14 +131,14 @@ export async function getActiveRate(db: Db, from: string, to: string) {
 }
 
 // ─── DB: pricing records ────────────────────────────────────────────────────
-export async function listPricingRecords(db: Db, entityType?: string, entityId?: number) {
+export async function listPricingRecords(db: DbLike, entityType?: string, entityId?: number) {
   const cond = []
   if (entityType) cond.push(eq(pricingRecords.entityType, entityType))
   if (entityId !== undefined) cond.push(eq(pricingRecords.entityId, entityId))
   return db.select().from(pricingRecords).where(cond.length ? and(...cond) : undefined)
 }
 
-export async function getPricingRecord(db: Db, id: number) {
+export async function getPricingRecord(db: DbLike, id: number) {
   const rows = await db.select().from(pricingRecords).where(eq(pricingRecords.id, id)).limit(1)
   return rows[0] ?? null
 }
@@ -155,6 +155,8 @@ export interface ResolvedPrice {
   /** null = mata uang non-IDR tanpa kurs aktif (fail-closed, bukan 1:1) */
   sellingPriceIdr: number | null
   currency: string
+  /** kurs yang dipakai untuk konversi (null bila IDR / kurs tidak ada) */
+  rateUsed: number | null
 }
 
 /**
@@ -164,7 +166,7 @@ export interface ResolvedPrice {
  * 3) periode prioritas tertinggi menang,
  * 4) kalkulasi strategi → konversi IDR via kurs aktif.
  */
-export async function resolvePrice(db: Db, ref: PriceRef, date: Date | string): Promise<ResolvedPrice | null> {
+export async function resolvePrice(db: DbLike, ref: PriceRef, date: Date | string): Promise<ResolvedPrice | null> {
   const records = await db
     .select()
     .from(pricingRecords)
@@ -192,12 +194,18 @@ export async function resolvePrice(db: Db, ref: PriceRef, date: Date | string): 
   const rateRow = record.currency === 'IDR' ? null : await getActiveRate(db, record.currency, 'IDR')
   const sellingPriceIdr = convertToIdrOrNull(sellingPrice, record.currency, rateRow ? Number(rateRow.rate) : null)
 
-  return { record, sellingPrice, sellingPriceIdr, currency: record.currency }
+  return {
+    record,
+    sellingPrice,
+    sellingPriceIdr,
+    currency: record.currency,
+    rateUsed: rateRow ? Number(rateRow.rate) : null,
+  }
 }
 
 /** Resolusi massal (katalog publik): Map<entityId, ResolvedPrice>. */
 export async function resolvePricesForEntities(
-  db: Db,
+  db: DbLike,
   entityType: string,
   entityIds: number[],
   date: Date | string,
@@ -226,13 +234,19 @@ export async function resolvePricesForEntities(
     // Fail-closed: non-IDR tanpa kurs aktif → sellingPriceIdr = null (bukan 1:1).
     const rateRow = record.currency === 'IDR' ? null : await getActiveRate(db, record.currency, 'IDR')
     const sellingPriceIdr = convertToIdrOrNull(sellingPrice, record.currency, rateRow ? Number(rateRow.rate) : null)
-    result.set(id, { record, sellingPrice, sellingPriceIdr, currency: record.currency })
+    result.set(id, {
+      record,
+      sellingPrice,
+      sellingPriceIdr,
+      currency: record.currency,
+      rateUsed: rateRow ? Number(rateRow.rate) : null,
+    })
   }
   return result
 }
 
 /** Snapshot kurs aktif yang sedang berlaku (untuk estimasi). */
-export async function activeRateSnapshot(db: Db) {
+export async function activeRateSnapshot(db: DbLike) {
   const rates = await listRates(db)
   const snapshot = new Map<string, number>()
   for (const r of rates) {

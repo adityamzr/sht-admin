@@ -2,7 +2,7 @@ import { randomBytes, scrypt as _scrypt, timingSafeEqual } from 'node:crypto'
 import { promisify } from 'node:util'
 import { eq } from 'drizzle-orm'
 import { adminUsers } from '../db/schema'
-import type { Db } from '../db'
+import type { DbLike } from '../db'
 
 /**
  * Password admin: scrypt (node:crypto, tanpa dependency native).
@@ -45,13 +45,13 @@ export interface AuthAdmin {
   isActive: boolean
 }
 
-export async function findAdminByEmail(db: Db, email: string) {
+export async function findAdminByEmail(db: DbLike, email: string) {
   const rows = await db.select().from(adminUsers).where(eq(adminUsers.email, email.toLowerCase().trim())).limit(1)
   return rows[0] ?? null
 }
 
 /** Autentikasi email+password; null bila gagal/nonaktif. */
-export async function authenticateAdmin(db: Db, email: string, password: string) {
+export async function authenticateAdmin(db: DbLike, email: string, password: string) {
   const user = await findAdminByEmail(db, email)
   if (!user || !user.isActive) return null
   const ok = await verifyPassword(password, user.passwordHash)

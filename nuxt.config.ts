@@ -12,6 +12,11 @@ export default defineNuxtConfig({
     cssPath: '~/assets/css/main.css',
   },
 
+  // Port 3001 agar tidak bentrok dengan sht-web (dev server customer = 3000).
+  devServer: {
+    port: 3001,
+  },
+
   app: {
     head: {
       htmlAttrs: { lang: 'id' },

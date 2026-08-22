@@ -31,3 +31,6 @@ export function useDb() {
 }
 
 export type Db = ReturnType<typeof useDb>
+
+/** Bisa database biasa atau transaksi (PgTransaction) — dipakai service layer. */
+export type DbLike = Db | Parameters<Parameters<Db['transaction']>[0]>[0]

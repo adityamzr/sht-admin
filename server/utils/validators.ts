@@ -258,3 +258,55 @@ export const estimationInput = z.object({
   currency,
   perPersonAmount: numStr.nonnegative().nullable().optional(),
 })
+
+// ─── M3: Submit estimasi customer (PUBLIK — strict; TIDAK ada harga dari client) ──
+const roomSelection = z.object({
+  roomTypeId: int(1, 999999999),
+  quantity: int(1, 20),
+})
+const transportSelection = z.object({
+  routeId: int(1, 999999999),
+  vehicleId: int(1, 999999999),
+})
+const serviceSelection = z.object({
+  serviceId: int(1, 999999999),
+  quantity: int(1, 10),
+})
+
+export const estimationSubmitInput = z.object({
+  contact: z.object({
+    name: z.string().min(2, 'Nama minimal 2 karakter').max(100),
+    whatsapp: z
+      .string()
+      .regex(/^[0-9]{8,18}$/, 'Nomor WhatsApp tidak valid (angka saja, tanpa + atau spasi)'),
+    email: z.string().email('Email tidak valid').max(255).nullable().optional(),
+    notes: z.string().max(1000).nullable().optional(),
+  }),
+  trip: z.object({
+    pilgrims: int(1, 30),
+    departureCity: z.string().min(2).max(20),
+    departureDate: isoDate,
+    durationDays: int(3, 45),
+    makkahNights: int(1, 45),
+    madinahNights: int(1, 45),
+    flightId: int(1, 999999999),
+    makkahHotelId: int(1, 999999999),
+    makkahRooms: z.array(roomSelection).min(1).max(10),
+    madinahHotelId: int(1, 999999999),
+    madinahRooms: z.array(roomSelection).min(1).max(10),
+    transport: z.array(transportSelection).max(20),
+    visa: z.enum(['needed', 'owned']),
+    services: z.array(serviceSelection).max(20),
+  }),
+})
+
+// ─── M3: Service inquiry (Service Buyer, tanpa estimasi) ────────────────────
+export const serviceInquiryInput = z.object({
+  serviceId: int(1, 999999999).nullable().optional(),
+  name: z.string().min(2, 'Nama minimal 2 karakter').max(100),
+  whatsapp: z
+    .string()
+    .regex(/^[0-9]{8,18}$/, 'Nomor WhatsApp tidak valid (angka saja, tanpa + atau spasi)'),
+  email: z.string().email('Email tidak valid').max(255).nullable().optional(),
+  notes: z.string().max(1000).nullable().optional(),
+})

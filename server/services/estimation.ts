@@ -1,6 +1,6 @@
 import { desc, eq } from 'drizzle-orm'
 import { estimationItems, estimationRates, estimations } from '../db/schema'
-import type { Db } from '../db'
+import type { DbLike } from '../db'
 
 /**
  * ESTIMATION FOUNDATION (M2): persistensi snapshot immutabel.
@@ -41,7 +41,7 @@ export interface EstimationSnapshotInput {
 }
 
 /** Simpan snapshot estimasi (immutable). Nomor EST-xxxxx digenerate DB-side dari sequence. */
-export async function createEstimation(db: Db, input: EstimationSnapshotInput) {
+export async function createEstimation(db: DbLike, input: EstimationSnapshotInput) {
   const [estimation] = await db
     .insert(estimations)
     .values({
@@ -90,11 +90,11 @@ export async function createEstimation(db: Db, input: EstimationSnapshotInput) {
   return getEstimation(db, estimation.id)
 }
 
-export async function listEstimations(db: Db) {
+export async function listEstimations(db: DbLike) {
   return db.select().from(estimations).orderBy(desc(estimations.submittedAt))
 }
 
-export async function getEstimation(db: Db, id: number) {
+export async function getEstimation(db: DbLike, id: number) {
   const rows = await db.select().from(estimations).where(eq(estimations.id, id)).limit(1)
   const estimation = rows[0] ?? null
   if (!estimation) return null
