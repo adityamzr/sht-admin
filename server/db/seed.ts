@@ -14,12 +14,9 @@ import { drizzle } from 'drizzle-orm/postgres-js'
 import * as schema from './schema'
 import { hashPassword } from '../services/auth'
 import { createEstimation } from '../services/estimation'
+import { getDbUrl } from './env'
 
-const DATABASE_URL = process.env.DATABASE_URL
-if (!DATABASE_URL) {
-  console.error('DATABASE_URL belum di-set.')
-  process.exit(1)
-}
+const DATABASE_URL = getDbUrl()
 
 const client = postgres(DATABASE_URL, { ssl: /neon\.tech|sslmode=require/.test(DATABASE_URL) ? 'require' : false, max: 5, prepare: false })
 const db = drizzle(client, { schema })

@@ -18,7 +18,8 @@ export function useDb() {
   if (!databaseUrl) {
     throw createError({
       statusCode: 500,
-      statusMessage: 'DATABASE_URL belum dikonfigurasi (isi dari Neon project / PostgreSQL lokal).',
+      statusMessage:
+        'NUXT_DATABASE_URL belum dikonfigurasi. Tambahkan ke file .env (lihat .env.example) atau environment Vercel.',
     })
   }
   if (!_db) {

@@ -9,14 +9,15 @@ import postgres from 'postgres'
 import { drizzle } from 'drizzle-orm/postgres-js'
 import * as schema from './schema'
 import { hashPassword } from '../services/auth'
+import { getDbUrl } from './env'
 
-const DATABASE_URL = process.env.DATABASE_URL
+const DATABASE_URL = getDbUrl()
 const emailEnv = process.env.ADMIN_EMAIL
 const passwordEnv = process.env.ADMIN_PASSWORD
 const name = process.env.ADMIN_NAME || 'Admin SHT'
 
-if (!DATABASE_URL || !emailEnv || !passwordEnv) {
-  console.error('Wajib: DATABASE_URL, ADMIN_EMAIL, ADMIN_PASSWORD (min. 12 karakter).')
+if (!emailEnv || !passwordEnv) {
+  console.error('Wajib: ADMIN_EMAIL dan ADMIN_PASSWORD (min. 12 karakter) — bisa diisi di file .env.')
   process.exit(1)
 }
 if (passwordEnv.length < 12) {

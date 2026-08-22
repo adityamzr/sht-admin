@@ -22,26 +22,35 @@ Backend API + Admin Dashboard **Sudut Haramain Tour (SHT)** — Umroh Private, S
 ## Setup
 
 ```bash
-npm install
-cp .env.example .env          # isi DATABASE_URL (dan NUXT_SESSION_SECRET untuk runtime)
-npm run db:migrate            # terapkan migrasi Drizzle (DATABASE_URL)
+npm ci
+cp .env.example .env          # isi NUXT_DATABASE_URL (dan NUXT_SESSION_SECRET)
+npm run db:migrate            # terapkan migrasi Drizzle — baca .env otomatis
 npm run db:seed               # isi data development (idempotent)
 npm run dev                   # UI admin di /, health di /api/health
 ```
 
-- **Runtime app** membaca `NUXT_DATABASE_URL` (konvensi Nitro) dan `NUXT_SESSION_SECRET`.
-- **CLI tools** (`db:migrate`, `db:seed`, `admin:create`) membaca `DATABASE_URL`.
-- Di Vercel: set `NUXT_DATABASE_URL` + `NUXT_SESSION_SECRET` via Environment Variables.
+**Environment variables** (satu konvensi, tidak perlu export manual):
+
+| Variabel | Konteks |
+|---|---|
+| `NUXT_DATABASE_URL` | **Resmi** — dipakai CLI (`db:migrate`, `db:seed`, `admin:create`), dev server Nuxt, dan environment Vercel. |
+| `DATABASE_URL` | Opsional — fallback kompatibilitas CLI saja (mis. copy-paste Neon). |
+| `NUXT_SESSION_SECRET` | Wajib ≥ 32 karakter — seal cookie session admin. |
+| `ADMIN_DEV_PASSWORD` | Opsional — password admin yang dibuat `db:seed`. |
+| `ADMIN_EMAIL` / `ADMIN_PASSWORD` / `ADMIN_NAME` | Untuk `npm run admin:create` (bisa diisi di `.env`). |
+
+Skrip CLI (tsx) dan drizzle-kit memuat root `.env` otomatis — di Vercel,
+set `NUXT_DATABASE_URL` + `NUXT_SESSION_SECRET` di Environment Variables.
 
 ## Scripts
 
 | Perintah | Fungsi |
 |---|---|
 | `npm run db:generate` | Generate migrasi dari schema (`drizzle-kit generate`) |
-| `npm run db:migrate` | Terapkan migrasi ke database |
+| `npm run db:migrate` | Terapkan migrasi ke database (baca `.env` otomatis) |
 | `npm run db:seed` | Seed data development (idempotent; admin dev: `admin@sudutharamain.id`) |
-| `npm run admin:create` | Buat admin production (env: `ADMIN_EMAIL`, `ADMIN_PASSWORD`, `ADMIN_NAME`) |
-| `npm test` | Test kritis backend (pricing, periode, kurs, serializer, validasi, auth hash, EST-ID) |
+| `npm run admin:create` | Buat admin production (env: `ADMIN_EMAIL`, `ADMIN_PASSWORD`, `ADMIN_NAME` — bisa di `.env`) |
+| `npm test` | Test kritis backend (pricing, periode, kurs, serializer, validasi, auth hash, EST-ID, env CLI, fail-closed IDR) |
 | `npm run build` | Build + typecheck (vue-tsc) — wajib sebelum commit |
 
 ## Struktur (M2)

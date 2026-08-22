@@ -24,7 +24,9 @@ export default defineNuxtConfig({
 
   runtimeConfig: {
     // Private (server-only) — jangan pernah expose ke client.
-    databaseUrl: process.env.DATABASE_URL ?? '',
+    // NUXT_DATABASE_URL = variabel resmi (CLI + runtime + Vercel);
+    // DATABASE_URL diterima sebagai fallback build-time.
+    databaseUrl: process.env.NUXT_DATABASE_URL ?? process.env.DATABASE_URL ?? '',
   },
 
   typescript: {
