@@ -26,4 +26,9 @@ export default defineNuxtConfig({
     // Private (server-only) — jangan pernah expose ke client.
     databaseUrl: process.env.DATABASE_URL ?? '',
   },
+
+  typescript: {
+    strict: true,
+    typeCheck: true, // diaktifkan M0 — baseline typecheck bersih
+  },
 })
