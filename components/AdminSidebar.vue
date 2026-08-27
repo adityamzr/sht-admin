@@ -2,7 +2,13 @@
 const route = useRoute()
 const isOpen = ref(false)
 
-const menu = [
+const { data: workspaceResponse } = await useAdminFetch<{ data: WorkspaceOption[] }>('/api/admin/workspaces')
+const isWorkspaceMenuOpen = ref(false)
+type WorkspaceKey = 'media' | 'tour'
+type WorkspaceOption = { id: number; key: string; name: string; description: string | null; role: string }
+type SidebarItem = { label: string; to?: string; icon: string; disabled?: boolean; status?: string }
+
+const tourMenu: SidebarItem[] = [
   { label: 'Dashboard', to: '/', icon: 'grid' },
   { label: 'Leads', to: '/leads', icon: 'users' },
   { label: 'Estimations', to: '/estimations', icon: 'calc' },
@@ -16,8 +22,24 @@ const menu = [
   { label: 'Departure Cities', to: '/departure-cities', icon: 'map' },
   { label: 'Settings', to: '/settings', icon: 'cog' },
 ]
+const mediaMenu: SidebarItem[] = [
+  { label: 'Dashboard', to: '/media', icon: 'grid' },
+  { label: 'Artikel', icon: 'doc', disabled: true, status: 'Segera' },
+  { label: 'Visual Haramain', icon: 'sparkle', disabled: true, status: 'Segera' },
+  { label: 'Lokasi', icon: 'map', disabled: true, status: 'Segera' },
+  { label: 'Kontribusi', icon: 'users', disabled: true, status: 'Segera' },
+  { label: 'Feedback', icon: 'chat', disabled: true, status: 'Segera' },
+]
+const workspaceOptions = computed(() => workspaceResponse.value?.data ?? [])
+const currentWorkspaceKey = computed<WorkspaceKey>(() => route.path === '/media' || route.path.startsWith('/media/') ? 'media' : 'tour')
+const currentWorkspace = computed(() => workspaceOptions.value.find((workspace) => workspace.key === currentWorkspaceKey.value) ?? { name: currentWorkspaceKey.value === 'media' ? 'Sudut Haramain Media' : 'Sudut Haramain Tour', key: currentWorkspaceKey.value })
+const menu = computed(() => currentWorkspaceKey.value === 'media' ? mediaMenu : tourMenu)
 
-watch(() => route.fullPath, () => (isOpen.value = false))
+function workspacePath(key: string) { return key === 'media' ? '/media' : '/tour' }
+function workspaceActive(to?: string) { return Boolean(to && (route.path === to || (to !== '/' && route.path.startsWith(`${to}/`)))) }
+
+
+watch(() => route.fullPath, () => { isOpen.value = false; isWorkspaceMenuOpen.value = false })
 
 async function logout() {
   await $fetch('/api/admin/auth/logout', { method: 'POST' }).catch(() => {})
@@ -53,13 +75,25 @@ async function logout() {
       </div>
     </div>
 
+    <div class="border-b border-neutral-line px-3 py-3">
+      <button type="button" class="flex min-h-[44px] w-full items-center justify-between rounded-xl border border-neutral-line px-3 text-left hover:border-brand-green/40" :aria-expanded="isWorkspaceMenuOpen" @click="isWorkspaceMenuOpen = !isWorkspaceMenuOpen">
+        <span class="min-w-0"><span class="block text-[10px] font-semibold uppercase tracking-[0.18em] text-gold">Workspace</span><span class="mt-0.5 block truncate text-sm font-semibold text-brand-green">{{ currentWorkspace.name }}</span></span>
+        <svg class="h-4 w-4 shrink-0 text-neutral-charcoal/50" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m6 9 6 6 6-6"/></svg>
+      </button>
+      <div v-if="isWorkspaceMenuOpen" class="mt-2 rounded-xl border border-neutral-line bg-white p-1 shadow-sm">
+        <NuxtLink v-for="workspace in workspaceOptions" :key="workspace.key" :to="workspacePath(workspace.key)" class="block rounded-lg px-3 py-2.5 text-sm hover:bg-brand-green/5" :class="workspace.key === currentWorkspaceKey ? 'font-semibold text-brand-green' : 'text-neutral-charcoal/70'" @click="isWorkspaceMenuOpen = false">{{ workspace.name }}</NuxtLink>
+      </div>
+    </div>
+
     <nav class="flex-1 overflow-y-auto p-3" aria-label="Menu admin">
       <NuxtLink
         v-for="item in menu"
-        :key="item.to"
-        :to="item.to"
+        :key="item.label"
+        :to="item.to || route.path"
+        :aria-disabled="item.disabled ? 'true' : undefined"
         class="mb-0.5 flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-medium text-neutral-charcoal/70 transition-colors hover:bg-brand-green/5 hover:text-brand-green"
-        :class="{ 'bg-brand-green text-white hover:bg-brand-green hover:text-white': route.path === item.to }"
+        :class="{ 'bg-brand-green text-white hover:bg-brand-green hover:text-white': workspaceActive(item.to), 'pointer-events-none opacity-50': item.disabled }"
+        @click="item.disabled ? $event.preventDefault() : undefined"
       >
         <svg class="h-[18px] w-[18px] shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
           <path v-if="item.icon === 'grid'" stroke-linecap="round" stroke-linejoin="round" d="M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z"/>
@@ -75,7 +109,8 @@ async function logout() {
           <path v-else-if="item.icon === 'calendar'" stroke-linecap="round" stroke-linejoin="round" d="M6.5 3v3m11-3v3M4 6.5h16V19a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6.5Zm3 4h.01M12 10.5h.01m5 0h.01M7 15h.01m5 0h.01m5 0h.01"/>
           <path v-else stroke-linecap="round" stroke-linejoin="round" d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Zm7.4-3a7.4 7.4 0 0 0-.1-1.2l2-1.6-2-3.4-2.4 1a7.6 7.6 0 0 0-2-1.2L14.5 3h-5l-.4 2.6a7.6 7.6 0 0 0-2 1.2l-2.4-1-2 3.4 2 1.6a7.4 7.4 0 0 0 0 2.4l-2 1.6 2 3.4 2.4-1a7.6 7.6 0 0 0 2 1.2l.4 2.6h5l.4-2.6a7.6 7.6 0 0 0 2-1.2l2.4 1 2-3.4-2-1.6c.06-.4.1-.8.1-1.2Z"/>
         </svg>
-        {{ item.label }}
+        <span class="min-w-0 flex-1">{{ item.label }}</span>
+        <span v-if="item.status" class="text-[10px] font-medium text-neutral-charcoal/45">{{ item.status }}</span>
       </NuxtLink>
     </nav>
 

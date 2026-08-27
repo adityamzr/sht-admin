@@ -38,6 +38,7 @@ export const PRICING_ENTITY_TYPES = ['hotel_room_type', 'flight', 'route_vehicle
 export const SERVICE_CATEGORIES = ['core_journey', 'assisted', 'additional'] as const
 export const HOTEL_CITIES = ['Makkah', 'Madinah'] as const
 export const FLIGHT_TYPES = ['Direct', 'Transit'] as const
+export const WORKSPACE_ROLES = ['OWNER', 'ADMIN', 'EDITOR', 'STAFF', 'VIEWER'] as const
 
 // ─── Admin User ─────────────────────────────────────────────────────────────
 export const adminUsers = pgTable('admin_users', {
@@ -49,6 +50,30 @@ export const adminUsers = pgTable('admin_users', {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 })
+
+// ─── Unified Admin Workspaces ───────────────────────────────────────────────
+export const workspaces = pgTable('workspaces', {
+  id: serial('id').primaryKey(),
+  key: text('key').notNull().unique(),
+  name: text('name').notNull(),
+  description: text('description'),
+  isActive: boolean('is_active').notNull().default(true),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+})
+
+export const workspaceMemberships = pgTable(
+  'workspace_memberships',
+  {
+    id: serial('id').primaryKey(),
+    userId: integer('user_id').notNull().references(() => adminUsers.id, { onDelete: 'cascade' }),
+    workspaceId: integer('workspace_id').notNull().references(() => workspaces.id, { onDelete: 'cascade' }),
+    role: text('role').notNull().default('VIEWER'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [unique('workspace_memberships_user_workspace_unique').on(t.userId, t.workspaceId)],
+)
 
 // ─── Departure City ─────────────────────────────────────────────────────────
 export const departureCities = pgTable('departure_cities', {

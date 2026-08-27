@@ -1,16 +1,20 @@
-/**
- * Route middleware admin: redirect ke /login bila tidak ada session.
- * Server-side: cek session langsung dari cookie request (tanpa roundtrip API).
- */
-export default defineNuxtRouteMiddleware(async () => {
-  let ok = false
+/** Route middleware admin: login + workspace access guard. */
+export default defineNuxtRouteMiddleware(async (to) => {
+  let response: { user?: unknown } | null = null
   try {
-    const data = await $fetch<{ user?: unknown }>('/api/admin/auth/me', {
+    response = await $fetch<{ user?: unknown }>('/api/admin/auth/me', {
       headers: import.meta.server ? useRequestHeaders(['cookie']) : undefined,
     }).catch(() => null)
-    ok = Boolean(data && (data as { user?: unknown }).user)
   } catch {
-    ok = false
+    response = null
   }
-  if (!ok) return navigateTo('/login')
+  if (!response?.user) return navigateTo('/login')
+
+  const workspaceKey = to.path === '/media' || to.path.startsWith('/media/') ? 'media' : 'tour'
+  const workspaces = await $fetch<{ data?: Array<{ key: string }> }>('/api/admin/workspaces', {
+    headers: import.meta.server ? useRequestHeaders(['cookie']) : undefined,
+  }).catch(() => ({ data: [] }))
+  if (!workspaces.data?.some((workspace) => workspace.key === workspaceKey)) {
+    return abortNavigation(createError({ statusCode: 403, statusMessage: 'Akses workspace tidak diizinkan.' }))
+  }
 })

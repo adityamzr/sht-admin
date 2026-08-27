@@ -11,7 +11,9 @@ async function onSubmit() {
   pending.value = true
   try {
     await $fetch('/api/admin/auth/login', { method: 'POST', body: { email: email.value, password: password.value } })
-    await navigateTo('/')
+    const response = await $fetch<{ data?: Array<{ key: string }> }>('/api/admin/workspaces')
+    const landing = response.data?.some((workspace) => workspace.key === 'tour') ? '/' : '/media'
+    await navigateTo(landing)
   } catch (err: unknown) {
     const e = err as { data?: { statusMessage?: string } }
     error.value = e.data?.statusMessage ?? 'Login gagal. Periksa email & password.'

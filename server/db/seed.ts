@@ -8,7 +8,7 @@
  * Admin dev:  admin@sudutharamain.id / password dari env ADMIN_DEV_PASSWORD
  *             (fallback dev-only bila env kosong).
  */
-import { count, eq } from 'drizzle-orm'
+import { and, count, eq } from 'drizzle-orm'
 import postgres from 'postgres'
 import { drizzle } from 'drizzle-orm/postgres-js'
 import * as schema from './schema'
@@ -43,6 +43,29 @@ async function main() {
     })
     console.log('  ✔ admin dev: admin@sudutharamain.id')
   }
+
+  // ─── Unified Workspaces & Memberships ─────────────────────────────────────
+  const workspaceSeed = [
+    { key: 'media', name: 'Sudut Haramain Media', description: 'Mengelola sudutharamain.id' },
+    { key: 'tour', name: 'Sudut Haramain Tour', description: 'Mengelola tour.sudutharamain.id' },
+  ] as const
+  for (const workspace of workspaceSeed) {
+    const existing = await db.select().from(schema.workspaces).where(eq(schema.workspaces.key, workspace.key)).limit(1)
+    if (!existing[0]) {
+      await db.insert(schema.workspaces).values({ ...workspace, isActive: true })
+    }
+  }
+  const workspaceRows = await db.select().from(schema.workspaces)
+  const userRows = await db.select({ id: schema.adminUsers.id }).from(schema.adminUsers)
+  for (const user of userRows) {
+    for (const workspace of workspaceRows.filter((row) => row.key === 'media' || row.key === 'tour')) {
+      const membership = await db.select({ id: schema.workspaceMemberships.id }).from(schema.workspaceMemberships).where(and(eq(schema.workspaceMemberships.userId, user.id), eq(schema.workspaceMemberships.workspaceId, workspace.id))).limit(1)
+      if (!membership[0]) {
+        await db.insert(schema.workspaceMemberships).values({ userId: user.id, workspaceId: workspace.id, role: 'OWNER' })
+      }
+    }
+  }
+  console.log('  ✔ workspaces: Media, Tour + memberships for existing admins')
 
   // ─── Departure Cities ─────────────────────────────────────────────────────
   if ((await tableCount(schema.departureCities)) === 0) {
