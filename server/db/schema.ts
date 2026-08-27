@@ -39,6 +39,10 @@ export const SERVICE_CATEGORIES = ['core_journey', 'assisted', 'additional'] as 
 export const HOTEL_CITIES = ['Makkah', 'Madinah'] as const
 export const FLIGHT_TYPES = ['Direct', 'Transit'] as const
 export const WORKSPACE_ROLES = ['OWNER', 'ADMIN', 'EDITOR', 'STAFF', 'VIEWER'] as const
+export const ARTICLE_CITIES = ['GENERAL', 'MAKKAH', 'MADINAH'] as const
+export const ARTICLE_STATUSES = ['DRAFT', 'PUBLISHED', 'ARCHIVED'] as const
+export const ARTICLE_CONTENT_TYPES = ['article', 'update', 'practical'] as const
+export const ARTICLE_CATEGORIES = ['Kehidupan', 'Panduan', 'Transportasi', 'Masjid', 'Makkah', 'Madinah'] as const
 
 // ─── Admin User ─────────────────────────────────────────────────────────────
 export const adminUsers = pgTable('admin_users', {
@@ -74,6 +78,29 @@ export const workspaceMemberships = pgTable(
   },
   (t) => [unique('workspace_memberships_user_workspace_unique').on(t.userId, t.workspaceId)],
 )
+
+// ─── Media Article ──────────────────────────────────────────────────────────
+export const articles = pgTable('articles', {
+  id: serial('id').primaryKey(),
+  title: text('title').notNull(),
+  slug: text('slug').notNull().unique(),
+  excerpt: text('excerpt').notNull().default(''),
+  heroImage: text('hero_image').notNull().default(''),
+  heroImageAlt: text('hero_image_alt').notNull().default(''),
+  body: jsonb('body').$type<unknown[]>().notNull().default(sql`'[]'::jsonb`),
+  city: text('city').notNull().default('GENERAL'),
+  contentType: text('content_type').notNull().default('article'),
+  category: text('category').notNull().default(''),
+  tags: jsonb('tags').$type<string[]>().notNull().default(sql`'[]'::jsonb`),
+  status: text('status').notNull().default('DRAFT'),
+  priority: integer('priority').notNull().default(0),
+  publishedAt: timestamp('published_at', { withTimezone: true }),
+  seoTitle: text('seo_title'),
+  seoDescription: text('seo_description'),
+  ogImage: text('og_image'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [index('articles_status_priority_idx').on(t.status, t.priority), index('articles_city_idx').on(t.city)])
 
 // ─── Departure City ─────────────────────────────────────────────────────────
 export const departureCities = pgTable('departure_cities', {

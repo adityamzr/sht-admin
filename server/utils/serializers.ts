@@ -1,3 +1,4 @@
+import { articles } from '../db/schema'
 import type {
   DepartureCityRow,
   FlightRow,
@@ -257,5 +258,52 @@ export function adminPricingRecord(r: PricingRecordRow, sellingPrice: number) {
     internalNotes: r.internalNotes,
     isActive: r.isActive,
     computedSellingPrice: sellingPrice,
+  }
+}
+
+export type ArticleRow = typeof articles.$inferSelect
+
+export function adminArticle(row: ArticleRow) {
+  return {
+    id: row.id,
+    title: row.title,
+    slug: row.slug,
+    excerpt: row.excerpt,
+    heroImage: row.heroImage,
+    heroImageAlt: row.heroImageAlt,
+    body: row.body,
+    city: row.city,
+    contentType: row.contentType,
+    category: row.category,
+    tags: row.tags,
+    status: row.status,
+    priority: row.priority,
+    publishedAt: row.publishedAt,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+    seoTitle: row.seoTitle,
+    seoDescription: row.seoDescription,
+    ogImage: row.ogImage,
+  }
+}
+
+export function publicArticle(row: ArticleRow) {
+  return {
+    id: row.id,
+    slug: row.slug,
+    title: row.title,
+    excerpt: row.excerpt,
+    heroImage: row.heroImage,
+    heroImageAlt: row.heroImageAlt,
+    body: row.body,
+    city: row.city,
+    contentType: row.contentType,
+    category: row.category,
+    tags: row.tags,
+    publishedAt: row.publishedAt,
+    updatedAt: row.updatedAt,
+    seoTitle: row.seoTitle,
+    seoDescription: row.seoDescription,
+    ogImage: row.ogImage,
   }
 }

@@ -10,6 +10,10 @@ import {
   PRICING_STRATEGIES,
   PRICING_UNITS,
   SERVICE_CATEGORIES,
+  ARTICLE_CITIES,
+  ARTICLE_CONTENT_TYPES,
+  ARTICLE_STATUSES,
+  ARTICLE_CATEGORIES,
 } from '../db/schema'
 
 /** Validasi server untuk SEMUA write — client validation tidak dipercaya. */
@@ -316,3 +320,25 @@ export const serviceInquiryInput = z.object({
   email: z.string().email('Email tidak valid').max(255).nullable().optional(),
   notes: z.string().max(1000).nullable().optional(),
 })
+
+// ─── Media Article ──────────────────────────────────────────────────────────
+const articleBase = z.object({
+  title: z.string().min(3).max(240),
+  slug: z.string().min(3).max(180).regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, 'Slug hanya boleh berisi huruf kecil, angka, dan tanda hubung.'),
+  excerpt: z.string().max(600),
+  heroImage: z.string().max(500),
+  heroImageAlt: z.string().max(300),
+  body: z.array(z.record(z.unknown())).max(100),
+  city: z.enum(ARTICLE_CITIES),
+  contentType: z.enum(ARTICLE_CONTENT_TYPES),
+  category: z.enum(ARTICLE_CATEGORIES),
+  tags: z.array(z.string().min(1).max(40)).max(30),
+  status: z.enum(ARTICLE_STATUSES),
+  priority: int(-9999, 9999),
+  publishedAt: z.string().datetime().nullable().optional(),
+  seoTitle: z.string().max(240).nullable().optional(),
+  seoDescription: z.string().max(600).nullable().optional(),
+  ogImage: z.string().max(500).nullable().optional(),
+})
+export const articleInput = articleBase
+export const articlePatch = articleBase.partial()

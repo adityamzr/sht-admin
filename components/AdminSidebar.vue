@@ -6,7 +6,7 @@ const { data: workspaceResponse } = await useAdminFetch<{ data: WorkspaceOption[
 const isWorkspaceMenuOpen = ref(false)
 type WorkspaceKey = 'media' | 'tour'
 type WorkspaceOption = { id: number; key: string; name: string; description: string | null; role: string }
-type SidebarItem = { label: string; to?: string; icon: string; disabled?: boolean; status?: string }
+type SidebarItem = { label: string; to?: string; icon: string; disabled?: boolean; status?: string; section?: string }
 
 const tourMenu: SidebarItem[] = [
   { label: 'Dashboard', to: '/', icon: 'grid' },
@@ -24,11 +24,15 @@ const tourMenu: SidebarItem[] = [
 ]
 const mediaMenu: SidebarItem[] = [
   { label: 'Dashboard', to: '/media', icon: 'grid' },
-  { label: 'Artikel', icon: 'doc', disabled: true, status: 'Segera' },
-  { label: 'Visual Haramain', icon: 'sparkle', disabled: true, status: 'Segera' },
-  { label: 'Lokasi', icon: 'map', disabled: true, status: 'Segera' },
-  { label: 'Kontribusi', icon: 'users', disabled: true, status: 'Segera' },
-  { label: 'Feedback', icon: 'chat', disabled: true, status: 'Segera' },
+  { label: 'Home', icon: 'grid', disabled: true, status: 'Segera', section: 'PAGE SETTINGS' },
+  { label: 'Makkah', icon: 'map', disabled: true, status: 'Segera' },
+  { label: 'Madinah', icon: 'map', disabled: true, status: 'Segera' },
+  { label: 'Moderasi Kontribusi', icon: 'users', disabled: true, status: 'Segera', section: 'INTERAKSI' },
+  { label: 'Feedback Artikel', icon: 'chat', disabled: true, status: 'Segera' },
+  { label: 'Artikel', to: '/media/articles', icon: 'doc', section: 'CONTENT LIBRARY' },
+  { label: 'Panduan', icon: 'doc', disabled: true, status: 'Segera' },
+  { label: 'Gallery', icon: 'sparkle', disabled: true, status: 'Segera' },
+  { label: 'Map Locations', icon: 'map', disabled: true, status: 'Segera' },
 ]
 const workspaceOptions = computed(() => workspaceResponse.value?.data ?? [])
 const currentWorkspaceKey = computed<WorkspaceKey>(() => route.path === '/media' || route.path.startsWith('/media/') ? 'media' : 'tour')
@@ -86,9 +90,9 @@ async function logout() {
     </div>
 
     <nav class="flex-1 overflow-y-auto p-3" aria-label="Menu admin">
+      <template v-for="(item, index) in menu" :key="item.label">
+      <p v-if="item.section && (index === 0 || menu[index - 1]?.section !== item.section)" class="mb-2 mt-5 px-3 text-[10px] font-semibold uppercase tracking-[0.18em] text-neutral-charcoal/45 first:mt-0">{{ item.section }}</p>
       <NuxtLink
-        v-for="item in menu"
-        :key="item.label"
         :to="item.to || route.path"
         :aria-disabled="item.disabled ? 'true' : undefined"
         class="mb-0.5 flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-medium text-neutral-charcoal/70 transition-colors hover:bg-brand-green/5 hover:text-brand-green"
@@ -112,6 +116,7 @@ async function logout() {
         <span class="min-w-0 flex-1">{{ item.label }}</span>
         <span v-if="item.status" class="text-[10px] font-medium text-neutral-charcoal/45">{{ item.status }}</span>
       </NuxtLink>
+      </template>
     </nav>
 
     <div class="border-t border-neutral-line p-4">

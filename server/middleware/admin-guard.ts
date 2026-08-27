@@ -15,5 +15,5 @@ export default defineEventHandler(async (event) => {
   const session = requireAdminSession(event)
   if (path.startsWith('/api/admin/auth/logout') || path.startsWith('/api/admin/auth/me') || path.startsWith('/api/admin/workspaces')) return
 
-  await requireWorkspaceAccess(useDb(), session.userId, 'tour')
+  await requireWorkspaceAccess(useDb(), session.userId, path.startsWith('/api/admin/media/') ? 'media' : 'tour')
 })
