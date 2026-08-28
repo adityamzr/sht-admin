@@ -69,22 +69,21 @@ async function main() {
 
   // ─── Media Guide taxonomy (idempotent; existing edited content is preserved) ─
   const guideSeed = [
-    ['MULAI DI SINI', ['Tentang Panduan', 'Informasi Penting', 'Persiapan Dasar']],
-    ['KEHIDUPAN DI HARAMAIN', ['Kultur Lokal', 'Bahasa Sehari-hari', 'Cuaca', 'Belanja', 'Kuliner']],
-    ['TRANSPORTASI', ['Dari Bandara', 'Taksi', 'Bus', 'Kereta Haramain']],
-    ['HOTEL', ['Memilih Area Hotel', 'Check-in', 'Fasilitas Hotel']],
-    ['MAKKAH', ['Sekitar Masjidil Haram', 'Area Hotel', 'Transportasi Lokal', 'Tempat Makan']],
-    ['MADINAH', ['Sekitar Masjid Nabawi', 'Rawdhah', 'Transportasi Lokal', 'Tempat Makan']],
-    ['PERJALANAN', ['Paspor', 'Visa', 'Nusuk', 'Internet', 'Pembayaran']],
-    ['IBADAH', ['Gambaran Umrah', 'Ihram', 'Miqat', 'Tawaf', 'Sa’i', 'Tahallul']],
+    ['MULAI DI SINI', [['tentang-panduan', 'Tentang Panduan'], ['informasi-penting', 'Informasi Penting'], ['persiapan-dasar', 'Persiapan Dasar']]],
+    ['KEHIDUPAN DI HARAMAIN', [['kultur-lokal', 'Kultur Lokal'], ['bahasa-sehari-hari', 'Bahasa Sehari-hari'], ['cuaca', 'Cuaca'], ['belanja', 'Belanja'], ['kuliner', 'Kuliner']]],
+    ['TRANSPORTASI', [['dari-bandara', 'Dari Bandara'], ['taksi', 'Taksi'], ['bus', 'Bus'], ['kereta-haramain', 'Kereta Haramain']]],
+    ['HOTEL', [['memilih-area-hotel', 'Memilih Area Hotel'], ['check-in', 'Check-in'], ['fasilitas-hotel', 'Fasilitas Hotel']]],
+    ['MAKKAH', [['sekitar-masjidil-haram', 'Sekitar Masjidil Haram'], ['area-hotel-makkah', 'Area Hotel'], ['transportasi-lokal-makkah', 'Transportasi Lokal'], ['tempat-makan-makkah', 'Tempat Makan']]],
+    ['MADINAH', [['sekitar-masjid-nabawi', 'Sekitar Masjid Nabawi'], ['rawdhah', 'Rawdhah'], ['transportasi-lokal-madinah', 'Transportasi Lokal'], ['tempat-makan-madinah', 'Tempat Makan']]],
+    ['PERJALANAN', [['paspor', 'Paspor'], ['visa', 'Visa'], ['nusuk', 'Nusuk'], ['internet', 'Internet'], ['pembayaran', 'Pembayaran']]],
+    ['IBADAH', [['gambaran-umrah', 'Gambaran Umrah'], ['ihram', 'Ihram'], ['miqat', 'Miqat'], ['tawaf', 'Tawaf'], ['sai', 'Sa’i'], ['tahallul', 'Tahallul']]],
   ] as const
-  const slugifyGuide = (value: string) => value.toLocaleLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
-  for (const [group, titles] of guideSeed) {
-    for (const [index, title] of titles.entries()) {
-      const slug = slugifyGuide(`${group} ${title}`)
+  for (const [group, topics] of guideSeed) {
+    for (const [index, [slug, title]] of topics.entries()) {
       const existing = await db.select({ id: schema.guides.id }).from(schema.guides).where(eq(schema.guides.slug, slug)).limit(1)
-      if (!existing[0]) {
-        await db.insert(schema.guides).values({ title, slug, group, summary: null, body: [{ type: 'paragraph', text: 'Konten panduan sedang disusun.' }], sortOrder: (index + 1) * 10, status: 'DRAFT' })
+      const legacy = existing[0] ?? (await db.select({ id: schema.guides.id }).from(schema.guides).where(and(eq(schema.guides.group, group), eq(schema.guides.title, title))).limit(1))[0]
+      if (!legacy) {
+        await db.insert(schema.guides).values({ title, slug, group, summary: null, body: [], sortOrder: (index + 1) * 10, status: 'DRAFT' })
       }
     }
   }

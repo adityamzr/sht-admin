@@ -1,4 +1,4 @@
-import { articles, guides } from '../db/schema'
+import { articles, guides, galleryItems } from '../db/schema'
 import type {
   DepartureCityRow,
   FlightRow,
@@ -339,3 +339,7 @@ export function publicGuide(row: GuideRow) {
     updatedAt: row.updatedAt,
   }
 }
+
+export type GalleryRow = typeof galleryItems.$inferSelect
+export function adminGallery(row: GalleryRow) { return { ...row, latitude: row.latitude === null ? null : Number(row.latitude), longitude: row.longitude === null ? null : Number(row.longitude) } }
+export function publicGallery(row: GalleryRow) { return { id: row.id, imageUrl: row.imageUrl, altText: row.altText, title: row.title, description: row.description, city: row.city, category: row.category, locationName: row.locationName, coordinates: row.latitude !== null && row.longitude !== null ? { latitude: Number(row.latitude), longitude: Number(row.longitude) } : null, tags: row.tags, priority: row.priority, takenAt: row.takenAt, publishedAt: row.publishedAt } }
