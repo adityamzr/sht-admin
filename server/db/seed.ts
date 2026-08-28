@@ -89,6 +89,39 @@ async function main() {
   }
   console.log('  ✔ guide taxonomy: 8 groups, approved topics seeded without overwriting existing content')
 
+  // ─── Media Map Locations (source: sh-web data/makkah.ts + data/madinah.ts; create-only)
+  const locationSeed = [
+    ['MAKKAH','HARAM','masjidil-haram','Masjidil Haram',21.4245589,39.8248709,'Titik utama ibadah dan orientasi kawasan pusat Makkah','Pusat Makkah'],
+    ['MAKKAH','ZIARAH','masjid-al-jinn','Masjid Al-Jinn',21.4334542,39.8289656,'Masjid bersejarah di sekitar kawasan Haram.','Sulaimaniyah'],
+    ['MAKKAH','MIQAT','masjid-aisyah','Masjid Aisyah / Tan’im',21.4677052,39.8013681,'Salah satu titik miqat bagi jamaah yang hendak memulai Umrah.','At-Tan’im'],
+    ['MAKKAH','TRANSPORTASI','makkah-station','Stasiun Kereta Cepat Makkah',21.417613,39.7893122,'Hub Haramain High Speed Railway di kawasan Ar Rusayfah.','Ar Rusayfah'],
+    ['MAKKAH','TRANSPORTASI','al-shabeka','Al-Shabeka',21.422009,39.82124,'Titik transit bus yang berguna untuk memahami perjalanan sekitar pusat kota.','Sekitar Haram'],
+    ['MAKKAH','FASILITAS','hira-cultural-district','Hira Cultural District',21.4568541,39.8684542,'Kawasan budaya di sekitar Jabal An-Nour.','Jabal An-Nour'],
+    ['MAKKAH','ZIARAH','jabal-an-nour','Jabal An-Nour',21.4577836,39.8597322,'Kawasan bersejarah di sisi timur laut Makkah.','Jabal An-Nour'],
+    ['MAKKAH','ZIARAH','jabal-thawr','Jabal Thawr',21.3770009,39.8498682,'Salah satu lokasi bersejarah di bagian selatan Makkah.','Jabal Thawr'],
+    ['MAKKAH','KULINER','makkah-mall','Makkah Mall',21.3909367,39.8845719,'Pusat belanja dengan pilihan makan dan kebutuhan harian.','Al Jamiah'],
+    ['MAKKAH','FASILITAS','mina','Mina',21.4153556,39.8925058,'Kawasan tenda yang menjadi bagian penting dari lanskap ibadah Makkah.','Mina'],
+    ['MADINAH','NABAWI','masjid-nabawi','Masjid Nabawi',24.46721,39.611121,'Titik utama orientasi kawasan pusat Madinah dan tujuan ibadah jamaah.','Pusat Madinah'],
+    ['MADINAH','RAWDHAH','rawdhah','Rawdhah',24.467106,39.610935,'Bagian dari area Masjid Nabawi yang menjadi tujuan penting bagi jamaah.','Masjid Nabawi'],
+    ['MADINAH','ZIARAH','baqi-cemetery','Pemakaman Al-Baqi',24.466568,39.615604,'Pemakaman bersejarah yang berada di sisi timur Masjid Nabawi.','Sebelah timur Nabawi'],
+    ['MADINAH','ZIARAH','masjid-quba','Masjid Quba',24.439446,39.617289,'Masjid bersejarah di selatan Madinah dan salah satu tujuan ziarah yang dikenal luas.','Quba'],
+    ['MADINAH','ZIARAH','masjid-qiblatain','Masjid Qiblatain',24.485742,39.569232,'Masjid bersejarah di kawasan barat laut Madinah.','Al Qiblatayn'],
+    ['MADINAH','ZIARAH','mount-uhud','Jabal Uhud',24.51028,39.61389,'Kawasan bersejarah di utara Madinah dengan konteks penting dalam sirah.','Utara Madinah'],
+    ['MADINAH','TRANSPORTASI','madinah-station','Stasiun Kereta Cepat Madinah',24.4702,39.6994,'Hub Haramain High Speed Railway untuk perjalanan menuju dan dari Madinah.','Al Hadra'],
+    ['MADINAH','TRANSPORTASI','madinah-bus-station','Madinah Bus Station',24.476512,39.603831,'Titik transportasi publik di sekitar kawasan pusat Madinah.','Anbariya'],
+    ['MADINAH','KULINER','taiba-commercial-center','Taiba Commercial Center',24.473201,39.609504,'Pusat komersial dekat kawasan Nabawi dengan pilihan makan dan kebutuhan harian.','Sekitar Nabawi'],
+    ['MADINAH','FASILITAS','qiblatain-health-center','Al Ansar Hospital',24.472989,39.606777,'Fasilitas kesehatan publik di sekitar kawasan pusat Madinah.','Sekitar Nabawi'],
+  ] as const
+  let locationsCreated = 0
+  for (const [city, category, sourceKey, name, latitude, longitude, shortDescription, area] of locationSeed) {
+    const existing = await db.select({ id: schema.mapLocations.id }).from(schema.mapLocations).where(eq(schema.mapLocations.sourceKey, `${city.toLowerCase()}-${sourceKey}`)).limit(1)
+    if (!existing[0]) {
+      await db.insert(schema.mapLocations).values({ sourceKey: `${city.toLowerCase()}-${sourceKey}`, name, city, category, shortDescription, latitude: String(latitude), longitude: String(longitude), googleMapsUrl: `https://www.google.com/maps/dir/?api=1&destination=${latitude},${longitude}`, tags: [area.toLowerCase()], sortOrder: (locationSeed.filter((x) => x[0] === city).findIndex((x) => x[2] === sourceKey) + 1) * 10, isActive: true })
+      locationsCreated++
+    }
+  }
+  console.log(`  ✔ map locations: ${locationsCreated} created, ${locationSeed.length - locationsCreated} existing preserved (10 Makkah, 10 Madinah)`)
+
   // ─── Departure Cities ─────────────────────────────────────────────────────
   if ((await tableCount(schema.departureCities)) === 0) {
     await db.insert(schema.departureCities).values([
