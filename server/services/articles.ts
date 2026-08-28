@@ -1,4 +1,4 @@
-import { and, desc, eq, ilike, or } from 'drizzle-orm'
+import { and, count, desc, eq, ilike, or } from 'drizzle-orm'
 import { articles } from '../db/schema'
 import type { DbLike } from '../db'
 
@@ -21,7 +21,9 @@ export type ArticleInput = {
   ogImage?: string | null
 }
 
-export async function listArticles(db: DbLike, filters: { search?: string; status?: string; city?: string; category?: string }) {
+type ArticleFilters = { search?: string; status?: string; city?: string; category?: string; limit?: number; offset?: number }
+
+function conditionsFor(filters: ArticleFilters) {
   const conditions = []
   if (filters.status) conditions.push(eq(articles.status, filters.status))
   if (filters.city) conditions.push(eq(articles.city, filters.city))
@@ -29,7 +31,19 @@ export async function listArticles(db: DbLike, filters: { search?: string; statu
   if (filters.search) {
     conditions.push(or(ilike(articles.title, `%${filters.search}%`), ilike(articles.slug, `%${filters.search}%`), ilike(articles.category, `%${filters.search}%`)))
   }
-  return db.select().from(articles).where(conditions.length ? and(...conditions) : undefined).orderBy(desc(articles.priority), desc(articles.publishedAt), desc(articles.updatedAt))
+  return conditions.length ? and(...conditions) : undefined
+}
+
+export async function listArticles(db: DbLike, filters: ArticleFilters) {
+  const query = db.select().from(articles).where(conditionsFor(filters)).orderBy(desc(articles.priority), desc(articles.publishedAt), desc(articles.updatedAt))
+  if (filters.limit !== undefined) query.limit(filters.limit)
+  if (filters.offset !== undefined) query.offset(filters.offset)
+  return query
+}
+
+export async function countArticles(db: DbLike, filters: Omit<ArticleFilters, 'limit' | 'offset'>) {
+  const rows = await db.select({ value: count() }).from(articles).where(conditionsFor(filters))
+  return Number(rows[0]?.value ?? 0)
 }
 
 export async function getArticle(db: DbLike, id: number) {
