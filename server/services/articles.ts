@@ -7,6 +7,7 @@ export type ArticleInput = {
   slug: string
   excerpt: string
   heroImage: string
+  heroImageFileId?: string | null
   heroImageAlt: string
   body: unknown[]
   city: string

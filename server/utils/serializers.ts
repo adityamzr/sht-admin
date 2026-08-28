@@ -270,6 +270,7 @@ export function adminArticle(row: ArticleRow) {
     slug: row.slug,
     excerpt: row.excerpt,
     heroImage: row.heroImage,
+    heroImageFileId: row.heroImageFileId,
     heroImageAlt: row.heroImageAlt,
     body: row.body,
     city: row.city,

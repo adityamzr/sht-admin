@@ -329,6 +329,7 @@ const articleBase = z.object({
   slug: z.string().min(3).max(180).regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, 'Slug hanya boleh berisi huruf kecil, angka, dan tanda hubung.'),
   excerpt: z.string().max(600),
   heroImage: z.string().max(500),
+  heroImageFileId: z.string().max(255).nullable().optional(),
   heroImageAlt: z.string().max(300),
   body: z.array(z.record(z.unknown())).max(100),
   city: z.enum(ARTICLE_CITIES),

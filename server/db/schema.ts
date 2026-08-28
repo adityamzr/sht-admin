@@ -90,6 +90,7 @@ export const articles = pgTable('articles', {
   slug: text('slug').notNull().unique(),
   excerpt: text('excerpt').notNull().default(''),
   heroImage: text('hero_image').notNull().default(''),
+  heroImageFileId: text('hero_image_file_id'),
   heroImageAlt: text('hero_image_alt').notNull().default(''),
   body: jsonb('body').$type<unknown[]>().notNull().default(sql`'[]'::jsonb`),
   city: text('city').notNull().default('GENERAL'),
