@@ -42,7 +42,7 @@ export const WORKSPACE_ROLES = ['OWNER', 'ADMIN', 'EDITOR', 'STAFF', 'VIEWER'] a
 export const ARTICLE_CITIES = ['GENERAL', 'MAKKAH', 'MADINAH'] as const
 export const ARTICLE_STATUSES = ['DRAFT', 'PUBLISHED', 'ARCHIVED'] as const
 export const ARTICLE_CONTENT_TYPES = ['article', 'update', 'practical'] as const
-export const ARTICLE_CATEGORIES = ['Kehidupan', 'Panduan', 'Transportasi', 'Masjid', 'Makkah', 'Madinah'] as const
+export const ARTICLE_CATEGORIES = ['Ibadah', 'Panduan', 'Kehidupan', 'Sosial', 'Ekonomi', 'Bisnis', 'Kuliner', 'Transportasi', 'Akomodasi', 'Makkah', 'Madinah', 'Budaya', 'Sejarah', 'Berita / Update'] as const
 
 // ─── Admin User ─────────────────────────────────────────────────────────────
 export const adminUsers = pgTable('admin_users', {
