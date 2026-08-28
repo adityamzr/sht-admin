@@ -67,6 +67,29 @@ async function main() {
   }
   console.log('  ✔ workspaces: Media, Tour + memberships for existing admins')
 
+  // ─── Media Guide taxonomy (idempotent; existing edited content is preserved) ─
+  const guideSeed = [
+    ['MULAI DI SINI', ['Tentang Panduan', 'Informasi Penting', 'Persiapan Dasar']],
+    ['KEHIDUPAN DI HARAMAIN', ['Kultur Lokal', 'Bahasa Sehari-hari', 'Cuaca', 'Belanja', 'Kuliner']],
+    ['TRANSPORTASI', ['Dari Bandara', 'Taksi', 'Bus', 'Kereta Haramain']],
+    ['HOTEL', ['Memilih Area Hotel', 'Check-in', 'Fasilitas Hotel']],
+    ['MAKKAH', ['Sekitar Masjidil Haram', 'Area Hotel', 'Transportasi Lokal', 'Tempat Makan']],
+    ['MADINAH', ['Sekitar Masjid Nabawi', 'Rawdhah', 'Transportasi Lokal', 'Tempat Makan']],
+    ['PERJALANAN', ['Paspor', 'Visa', 'Nusuk', 'Internet', 'Pembayaran']],
+    ['IBADAH', ['Gambaran Umrah', 'Ihram', 'Miqat', 'Tawaf', 'Sa’i', 'Tahallul']],
+  ] as const
+  const slugifyGuide = (value: string) => value.toLocaleLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
+  for (const [group, titles] of guideSeed) {
+    for (const [index, title] of titles.entries()) {
+      const slug = slugifyGuide(`${group} ${title}`)
+      const existing = await db.select({ id: schema.guides.id }).from(schema.guides).where(eq(schema.guides.slug, slug)).limit(1)
+      if (!existing[0]) {
+        await db.insert(schema.guides).values({ title, slug, group, summary: null, body: [{ type: 'paragraph', text: 'Konten panduan sedang disusun.' }], sortOrder: (index + 1) * 10, status: 'DRAFT' })
+      }
+    }
+  }
+  console.log('  ✔ guide taxonomy: 8 groups, approved topics seeded without overwriting existing content')
+
   // ─── Departure Cities ─────────────────────────────────────────────────────
   if ((await tableCount(schema.departureCities)) === 0) {
     await db.insert(schema.departureCities).values([

@@ -1,4 +1,4 @@
-import { articles } from '../db/schema'
+import { articles, guides } from '../db/schema'
 import type {
   DepartureCityRow,
   FlightRow,
@@ -305,5 +305,37 @@ export function publicArticle(row: ArticleRow) {
     seoTitle: row.seoTitle,
     seoDescription: row.seoDescription,
     ogImage: row.ogImage,
+  }
+}
+
+export type GuideRow = typeof guides.$inferSelect
+
+export function adminGuide(row: GuideRow) {
+  return {
+    id: row.id,
+    title: row.title,
+    slug: row.slug,
+    group: row.group,
+    summary: row.summary,
+    body: row.body,
+    sortOrder: row.sortOrder,
+    status: row.status,
+    publishedAt: row.publishedAt,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+  }
+}
+
+export function publicGuide(row: GuideRow) {
+  return {
+    id: row.id,
+    title: row.title,
+    slug: row.slug,
+    group: row.group,
+    summary: row.summary,
+    body: row.body,
+    sortOrder: row.sortOrder,
+    publishedAt: row.publishedAt,
+    updatedAt: row.updatedAt,
   }
 }

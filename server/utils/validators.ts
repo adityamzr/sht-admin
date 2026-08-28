@@ -14,6 +14,7 @@ import {
   ARTICLE_CONTENT_TYPES,
   ARTICLE_STATUSES,
   ARTICLE_CATEGORIES,
+  GUIDE_GROUPS,
 } from '../db/schema'
 
 /** Validasi server untuk SEMUA write — client validation tidak dipercaya. */
@@ -342,3 +343,16 @@ const articleBase = z.object({
 })
 export const articleInput = articleBase
 export const articlePatch = articleBase.partial()
+
+// ─── Media Guide ────────────────────────────────────────────────────────────
+const guideBase = z.object({
+  title: z.string().min(3).max(240),
+  slug: z.string().min(3).max(180).regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, 'Slug hanya boleh berisi huruf kecil, angka, dan tanda hubung.'),
+  group: z.enum(GUIDE_GROUPS),
+  summary: z.string().max(600).nullable().optional(),
+  body: z.array(z.record(z.unknown())).max(100),
+  sortOrder: int(0, 9999),
+  status: z.enum(['DRAFT', 'PUBLISHED', 'ARCHIVED']),
+  publishedAt: z.string().datetime().nullable().optional(),
+})
+export const guideInput = guideBase

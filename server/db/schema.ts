@@ -43,6 +43,7 @@ export const ARTICLE_CITIES = ['GENERAL', 'MAKKAH', 'MADINAH'] as const
 export const ARTICLE_STATUSES = ['DRAFT', 'PUBLISHED', 'ARCHIVED'] as const
 export const ARTICLE_CONTENT_TYPES = ['article', 'update', 'practical'] as const
 export const ARTICLE_CATEGORIES = ['Ibadah', 'Panduan', 'Kehidupan', 'Sosial', 'Ekonomi', 'Bisnis', 'Kuliner', 'Transportasi', 'Akomodasi', 'Makkah', 'Madinah', 'Budaya', 'Sejarah', 'Berita / Update'] as const
+export const GUIDE_GROUPS = ['MULAI DI SINI', 'KEHIDUPAN DI HARAMAIN', 'TRANSPORTASI', 'HOTEL', 'MAKKAH', 'MADINAH', 'PERJALANAN', 'IBADAH'] as const
 
 // ─── Admin User ─────────────────────────────────────────────────────────────
 export const adminUsers = pgTable('admin_users', {
@@ -101,6 +102,21 @@ export const articles = pgTable('articles', {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [index('articles_status_priority_idx').on(t.status, t.priority), index('articles_city_idx').on(t.city)])
+
+// ─── Media Guide ─────────────────────────────────────────────────────────────
+export const guides = pgTable('guides', {
+  id: serial('id').primaryKey(),
+  title: text('title').notNull(),
+  slug: text('slug').notNull().unique(),
+  group: text('group').notNull(),
+  summary: text('summary'),
+  body: jsonb('body').$type<unknown[]>().notNull().default(sql`'[]'::jsonb`),
+  sortOrder: integer('sort_order').notNull().default(0),
+  status: text('status').notNull().default('DRAFT'),
+  publishedAt: timestamp('published_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [index('guides_group_sort_idx').on(t.group, t.sortOrder), index('guides_status_idx').on(t.status)])
 
 // ─── Departure City ─────────────────────────────────────────────────────────
 export const departureCities = pgTable('departure_cities', {

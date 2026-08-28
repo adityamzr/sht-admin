@@ -1,11 +1,6 @@
 <script setup lang="ts">
 const route = useRoute()
 const isOpen = ref(false)
-
-const { data: workspaceResponse } = await useAdminFetch<{ data: WorkspaceOption[] }>('/api/admin/workspaces')
-const isWorkspaceMenuOpen = ref(false)
-type WorkspaceKey = 'media' | 'tour'
-type WorkspaceOption = { id: number; key: string; name: string; description: string | null; role: string }
 type SidebarItem = { label: string; to?: string; icon: string; disabled?: boolean; status?: string; section?: string }
 
 const tourMenu: SidebarItem[] = [
@@ -30,25 +25,14 @@ const mediaMenu: SidebarItem[] = [
   { label: 'Moderasi Kontribusi', icon: 'users', disabled: true, status: 'Segera', section: 'INTERAKSI' },
   { label: 'Feedback Artikel', icon: 'chat', disabled: true, status: 'Segera' },
   { label: 'Artikel', to: '/media/articles', icon: 'doc', section: 'CONTENT LIBRARY' },
-  { label: 'Panduan', icon: 'doc', disabled: true, status: 'Segera' },
+  { label: 'Panduan', to: '/media/guides', icon: 'doc' },
   { label: 'Gallery', icon: 'sparkle', disabled: true, status: 'Segera' },
   { label: 'Map Locations', icon: 'map', disabled: true, status: 'Segera' },
 ]
-const workspaceOptions = computed(() => workspaceResponse.value?.data ?? [])
-const currentWorkspaceKey = computed<WorkspaceKey>(() => route.path === '/media' || route.path.startsWith('/media/') ? 'media' : 'tour')
-const currentWorkspace = computed(() => workspaceOptions.value.find((workspace) => workspace.key === currentWorkspaceKey.value) ?? { name: currentWorkspaceKey.value === 'media' ? 'Sudut Haramain Media' : 'Sudut Haramain Tour', key: currentWorkspaceKey.value })
+const currentWorkspaceKey = computed(() => route.path === '/media' || route.path.startsWith('/media/') ? 'media' : 'tour')
 const menu = computed(() => currentWorkspaceKey.value === 'media' ? mediaMenu : tourMenu)
-
-function workspacePath(key: string) { return key === 'media' ? '/media' : '/tour' }
 function workspaceActive(to?: string) { return Boolean(to && (route.path === to || (to !== '/' && route.path.startsWith(`${to}/`)))) }
-
-
-watch(() => route.fullPath, () => { isOpen.value = false; isWorkspaceMenuOpen.value = false })
-
-async function logout() {
-  await $fetch('/api/admin/auth/logout', { method: 'POST' }).catch(() => {})
-  navigateTo('/login')
-}
+watch(() => route.fullPath, () => { isOpen.value = false })
 </script>
 
 <template>
@@ -76,16 +60,6 @@ async function logout() {
       <div class="leading-tight">
         <p class="font-heading text-sm font-semibold text-brand-green">Sudut Haramain</p>
         <p class="text-[10px] font-medium uppercase tracking-[0.22em] text-gold">Admin</p>
-      </div>
-    </div>
-
-    <div class="border-b border-neutral-line px-3 py-3">
-      <button type="button" class="flex min-h-[44px] w-full items-center justify-between rounded-xl border border-neutral-line px-3 text-left hover:border-brand-green/40" :aria-expanded="isWorkspaceMenuOpen" @click="isWorkspaceMenuOpen = !isWorkspaceMenuOpen">
-        <span class="min-w-0"><span class="block text-[10px] font-semibold uppercase tracking-[0.18em] text-gold">Workspace</span><span class="mt-0.5 block truncate text-sm font-semibold text-brand-green">{{ currentWorkspace.name }}</span></span>
-        <svg class="h-4 w-4 shrink-0 text-neutral-charcoal/50" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m6 9 6 6 6-6"/></svg>
-      </button>
-      <div v-if="isWorkspaceMenuOpen" class="mt-2 rounded-xl border border-neutral-line bg-white p-1 shadow-sm">
-        <NuxtLink v-for="workspace in workspaceOptions" :key="workspace.key" :to="workspacePath(workspace.key)" class="block rounded-lg px-3 py-2.5 text-sm hover:bg-brand-green/5" :class="workspace.key === currentWorkspaceKey ? 'font-semibold text-brand-green' : 'text-neutral-charcoal/70'" @click="isWorkspaceMenuOpen = false">{{ workspace.name }}</NuxtLink>
       </div>
     </div>
 
@@ -119,16 +93,6 @@ async function logout() {
       </template>
     </nav>
 
-    <div class="border-t border-neutral-line p-4">
-      <button
-        type="button"
-        class="mb-2 flex min-h-[40px] w-full items-center justify-center gap-2 rounded-xl border border-neutral-line px-3 text-sm font-medium text-neutral-charcoal/70 hover:border-brand-green/40 hover:text-brand-green"
-        @click="logout"
-      >
-        <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 8.25V6a2.25 2.25 0 0 0-2.25-2.25h-6A2.25 2.25 0 0 0 5.25 6v12a2.25 2.25 0 0 0 2.25 2.25h6A2.25 2.25 0 0 0 15.75 18v-2.25m3-6.75 3 3m0 0-3 3m3-3h-9"/></svg>
-        Logout
-      </button>
-      <p class="text-xs text-neutral-charcoal/50">v0.2.0 — M2 backend foundation</p>
-    </div>
+    <div class="border-t border-neutral-line p-4"><p class="text-xs text-neutral-charcoal/50">v0.2.0 — M2 backend foundation</p></div>
   </aside>
 </template>
