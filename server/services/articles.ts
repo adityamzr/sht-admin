@@ -80,3 +80,8 @@ export async function updateArticleStatus(db: DbLike, id: number, status: string
   const rows = await db.update(articles).set({ status, publishedAt: status === 'PUBLISHED' ? existing.publishedAt ?? new Date() : null, updatedAt: new Date() }).where(eq(articles.id, id)).returning()
   return rows[0] ?? null
 }
+
+export async function deleteArticle(db: DbLike, id: number) {
+  const rows = await db.delete(articles).where(eq(articles.id, id)).returning({ id: articles.id })
+  return rows[0] ?? null
+}

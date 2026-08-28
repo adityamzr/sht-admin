@@ -1,0 +1,9 @@
+import { deleteArticle } from '~/server/services/articles'
+import { useDb } from '~/server/db'
+
+export default defineEventHandler(async (event) => {
+  const id = Number(getRouterParam(event, 'id'))
+  const deleted = await deleteArticle(useDb(), id)
+  if (!deleted) throw createError({ statusCode: 404, statusMessage: 'Artikel tidak ditemukan.' })
+  return { ok: true, id: deleted.id }
+})
