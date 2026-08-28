@@ -49,6 +49,8 @@ export const GALLERY_CATEGORIES = ['MASJID', 'LANDSCAPE', 'ARSITEKTUR', 'JALAN',
 export const GALLERY_STATUSES = ['DRAFT', 'PUBLISHED', 'ARCHIVED'] as const
 export const LOCATION_CITIES = ['MAKKAH', 'MADINAH'] as const
 export const LOCATION_CATEGORIES = ['HARAM', 'TRANSPORTASI', 'MIQAT', 'KULINER', 'FASILITAS', 'ZIARAH', 'NABAWI', 'RAWDHAH'] as const
+export const CONTRIBUTION_TYPES = ['INFORMATION_CORRECTION', 'PLACE_RECOMMENDATION', 'TIP_EXPERIENCE'] as const
+export const CONTRIBUTION_STATUSES = ['NEW', 'READ', 'FOLLOWED_UP', 'ARCHIVED'] as const
 
 // ─── Admin User ─────────────────────────────────────────────────────────────
 export const adminUsers = pgTable('admin_users', {
@@ -108,6 +110,11 @@ export const articles = pgTable('articles', {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [index('articles_status_priority_idx').on(t.status, t.priority), index('articles_city_idx').on(t.city)])
+
+// ─── Media Contribution Inbox ──────────────────────────────────────────────
+export const contributions = pgTable('contributions', {
+  id: serial('id').primaryKey(), type: text('type').notNull(), city: text('city'), subject: text('subject'), message: text('message').notNull(), name: text('name'), contact: text('contact'), sourcePage: text('source_page'), sourceUrl: text('source_url'), mapsUrl: text('maps_url'), status: text('status').notNull().default('NEW'), internalNote: text('internal_note'), createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(), updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(), readAt: timestamp('read_at', { withTimezone: true }), followedUpAt: timestamp('followed_up_at', { withTimezone: true }), archivedAt: timestamp('archived_at', { withTimezone: true }),
+}, (t) => [index('contributions_status_created_idx').on(t.status, t.createdAt), index('contributions_type_idx').on(t.type)])
 
 // ─── Media Map Location ─────────────────────────────────────────────────────
 export const mapLocations = pgTable('map_locations', {

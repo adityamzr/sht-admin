@@ -22,7 +22,7 @@ const mediaMenu: SidebarItem[] = [
   { label: 'Home', icon: 'grid', disabled: true, status: 'Segera', section: 'PAGE SETTINGS' },
   { label: 'Makkah', icon: 'map', disabled: true, status: 'Segera' },
   { label: 'Madinah', icon: 'map', disabled: true, status: 'Segera' },
-  { label: 'Moderasi Kontribusi', icon: 'users', disabled: true, status: 'Segera', section: 'INTERAKSI' },
+  { label: 'Kontribusi Pengguna', to: '/media/contributions', icon: 'users', section: 'INTERAKSI' },
   { label: 'Feedback Artikel', icon: 'chat', disabled: true, status: 'Segera' },
   { label: 'Artikel', to: '/media/articles', icon: 'doc', section: 'CONTENT LIBRARY' },
   { label: 'Panduan', to: '/media/guides', icon: 'doc' },

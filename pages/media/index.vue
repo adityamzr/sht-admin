@@ -5,7 +5,7 @@ const modules = [
   { label: 'Artikel', description: 'Kelola artikel dan catatan editorial.', status: 'Buka', to: '/media/articles' },
   { label: 'Visual Haramain', description: 'Kelola master gallery dan visual kota.', status: 'Segera Hadir' },
   { label: 'Lokasi', description: 'Kelola titik lokasi dan informasi kota.', status: 'Segera Hadir' },
-  { label: 'Kontribusi', description: 'Tinjau masukan dari pembaca.', status: 'Segera Hadir' },
+  { label: 'Kontribusi', description: 'Terima dan tindak lanjuti masukan dari pembaca.', status: 'Buka', to: '/media/contributions' },
   { label: 'Feedback', description: 'Pantau insight feedback editorial.', status: 'Segera Hadir' },
 ]
 </script>

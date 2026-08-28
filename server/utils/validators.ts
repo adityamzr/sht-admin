@@ -15,7 +15,7 @@ import {
   ARTICLE_STATUSES,
   ARTICLE_CATEGORIES,
   GUIDE_GROUPS,
-  GALLERY_CITIES, GALLERY_CATEGORIES, GALLERY_STATUSES, LOCATION_CITIES, LOCATION_CATEGORIES,
+  GALLERY_CITIES, GALLERY_CATEGORIES, GALLERY_STATUSES, LOCATION_CITIES, LOCATION_CATEGORIES, CONTRIBUTION_TYPES, CONTRIBUTION_STATUSES,
 } from '../db/schema'
 
 /** Validasi server untuk SEMUA write — client validation tidak dipercaya. */
@@ -373,3 +373,6 @@ export const galleryInput = galleryBase
 // ─── Media Map Locations ────────────────────────────────────────────────────
 const locationBase = z.object({ name:z.string().min(2).max(200), city:z.enum(LOCATION_CITIES), category:z.enum(LOCATION_CATEGORIES), shortDescription:z.string().max(1000), latitude:z.number().min(-90).max(90), longitude:z.number().min(-180).max(180), googleMapsUrl:z.string().url().max(1000).nullable().optional(), imageUrl:z.string().url().max(1000).nullable().optional(), imageFileId:z.string().max(255).nullable().optional(), altText:z.string().max(300).nullable().optional(), tags:z.array(z.string().trim().min(1).max(40)).max(30), sortOrder:z.number().int().min(0).max(99999), isActive:z.boolean() })
 export const locationInput=locationBase
+
+export const publicContributionInput=z.object({type:z.enum(CONTRIBUTION_TYPES),city:z.string().trim().max(80).nullable().optional(),subject:z.string().trim().max(240).nullable().optional(),message:z.string().trim().min(10).max(5000),name:z.string().trim().max(120).nullable().optional(),contact:z.string().trim().max(160).nullable().optional(),sourcePage:z.string().trim().max(240).nullable().optional(),sourceUrl:z.string().url().max(1000).nullable().optional(),mapsUrl:z.string().url().max(1000).nullable().optional()})
+export const contributionAdminPatch=z.object({status:z.enum(CONTRIBUTION_STATUSES).optional(),internalNote:z.string().max(3000).nullable().optional()})
