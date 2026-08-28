@@ -64,6 +64,13 @@
       "when": 1788300000000,
       "tag": "0007_contributions",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1788400000000,
+      "tag": "0008_article_feedback",
+      "breakpoints": true
     }
   ]
 }

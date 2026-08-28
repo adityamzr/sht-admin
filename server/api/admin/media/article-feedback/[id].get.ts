@@ -1,0 +1,2 @@
+import {getArticle} from '~/server/services/articles';import {getArticleFeedbackSummary} from '~/server/services/article-feedback';import {adminArticle} from '~/server/utils/serializers';import {useDb} from '~/server/db'
+export default defineEventHandler(async(e)=>{const db=useDb(),id=Number(getRouterParam(e,'id')),article=await getArticle(db,id);if(!article)throw createError({statusCode:404,statusMessage:'Artikel tidak ditemukan.'});return {data:{article:adminArticle(article),...(await getArticleFeedbackSummary(db,id))}}})

@@ -15,7 +15,7 @@ import {
   ARTICLE_STATUSES,
   ARTICLE_CATEGORIES,
   GUIDE_GROUPS,
-  GALLERY_CITIES, GALLERY_CATEGORIES, GALLERY_STATUSES, LOCATION_CITIES, LOCATION_CATEGORIES, CONTRIBUTION_TYPES, CONTRIBUTION_STATUSES,
+  GALLERY_CITIES, GALLERY_CATEGORIES, GALLERY_STATUSES, LOCATION_CITIES, LOCATION_CATEGORIES, CONTRIBUTION_TYPES, CONTRIBUTION_STATUSES, ARTICLE_FEEDBACK_VALUES,
 } from '../db/schema'
 
 /** Validasi server untuk SEMUA write — client validation tidak dipercaya. */
@@ -376,3 +376,5 @@ export const locationInput=locationBase
 
 export const publicContributionInput=z.object({type:z.enum(CONTRIBUTION_TYPES),city:z.string().trim().max(80).nullable().optional(),subject:z.string().trim().max(240).nullable().optional(),message:z.string().trim().min(10).max(5000),name:z.string().trim().max(120).nullable().optional(),contact:z.string().trim().max(160).nullable().optional(),sourcePage:z.string().trim().max(240).nullable().optional(),sourceUrl:z.string().url().max(1000).nullable().optional(),mapsUrl:z.string().url().max(1000).nullable().optional()})
 export const contributionAdminPatch=z.object({status:z.enum(CONTRIBUTION_STATUSES).optional(),internalNote:z.string().max(3000).nullable().optional()})
+
+export const articleFeedbackInput=z.object({value:z.enum(ARTICLE_FEEDBACK_VALUES)})

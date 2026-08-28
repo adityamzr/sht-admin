@@ -353,3 +353,5 @@ export type ContributionRow = typeof contributions.$inferSelect
 const contributionPublicFields = (r: ContributionRow) => ({ id:r.id, type:r.type, city:r.city, subject:r.subject, message:r.message, name:r.name, contact:r.contact, sourcePage:r.sourcePage, sourceUrl:r.sourceUrl, mapsUrl:r.mapsUrl, createdAt:r.createdAt })
 export function adminContribution(r: ContributionRow) { return { ...contributionPublicFields(r), status:r.status, internalNote:r.internalNote, updatedAt:r.updatedAt, readAt:r.readAt, followedUpAt:r.followedUpAt, archivedAt:r.archivedAt } }
 export function publicContribution(r: ContributionRow) { return contributionPublicFields(r) }
+
+export function publicArticleFeedback(value: string) { return { accepted: true, value } }
