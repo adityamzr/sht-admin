@@ -84,7 +84,7 @@ async function main() {
       const slug = slugifyGuide(`${group} ${title}`)
       const existing = await db.select({ id: schema.guides.id }).from(schema.guides).where(eq(schema.guides.slug, slug)).limit(1)
       if (!existing[0]) {
-        await db.insert(schema.guides).values({ title, slug, group, summary: null, body: [{ type: 'paragraph', text: 'Konten panduan sedang disusun.' }], sortOrder: (index + 1) * 10, status: 'DRAFT' })
+        await db.insert(schema.guides).values({ title, slug, group, summary: null, body: [], sortOrder: (index + 1) * 10, status: 'DRAFT' })
       }
     }
   }
