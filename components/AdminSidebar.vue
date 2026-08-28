@@ -27,7 +27,7 @@ const mediaMenu: SidebarItem[] = [
   { label: 'Artikel', to: '/media/articles', icon: 'doc', section: 'CONTENT LIBRARY' },
   { label: 'Panduan', to: '/media/guides', icon: 'doc' },
   { label: 'Gallery', to: '/media/gallery', icon: 'sparkle' },
-  { label: 'Map Locations', icon: 'map', disabled: true, status: 'Segera' },
+  { label: 'Map Locations', to: '/media/locations', icon: 'map' },
 ]
 const currentWorkspaceKey = computed(() => route.path === '/media' || route.path.startsWith('/media/') ? 'media' : 'tour')
 const menu = computed(() => currentWorkspaceKey.value === 'media' ? mediaMenu : tourMenu)

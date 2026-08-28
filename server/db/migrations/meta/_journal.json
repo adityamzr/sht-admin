@@ -50,6 +50,13 @@
       "when": 1788100000000,
       "tag": "0005_article_image_file_id",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1788200000000,
+      "tag": "0006_map_locations",
+      "breakpoints": true
     }
   ]
 }

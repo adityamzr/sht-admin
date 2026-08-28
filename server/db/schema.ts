@@ -47,6 +47,8 @@ export const GUIDE_GROUPS = ['MULAI DI SINI', 'KEHIDUPAN DI HARAMAIN', 'TRANSPOR
 export const GALLERY_CITIES = ['MAKKAH', 'MADINAH'] as const
 export const GALLERY_CATEGORIES = ['MASJID', 'LANDSCAPE', 'ARSITEKTUR', 'JALAN', 'TRANSPORTASI', 'KULINER'] as const
 export const GALLERY_STATUSES = ['DRAFT', 'PUBLISHED', 'ARCHIVED'] as const
+export const LOCATION_CITIES = ['MAKKAH', 'MADINAH'] as const
+export const LOCATION_CATEGORIES = ['HARAM', 'TRANSPORTASI', 'MIQAT', 'KULINER', 'FASILITAS', 'ZIARAH', 'NABAWI', 'RAWDHAH'] as const
 
 // ─── Admin User ─────────────────────────────────────────────────────────────
 export const adminUsers = pgTable('admin_users', {
@@ -106,6 +108,14 @@ export const articles = pgTable('articles', {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [index('articles_status_priority_idx').on(t.status, t.priority), index('articles_city_idx').on(t.city)])
+
+// ─── Media Map Location ─────────────────────────────────────────────────────
+export const mapLocations = pgTable('map_locations', {
+  id: serial('id').primaryKey(), sourceKey: text('source_key').unique(), name: text('name').notNull(), city: text('city').notNull(), category: text('category').notNull(),
+  shortDescription: text('short_description').notNull().default(''), latitude: numeric('latitude', { precision: 10, scale: 7 }).notNull(), longitude: numeric('longitude', { precision: 10, scale: 7 }).notNull(),
+  googleMapsUrl: text('google_maps_url'), imageUrl: text('image_url'), imageFileId: text('image_file_id'), altText: text('alt_text'), tags: jsonb('tags').$type<string[]>().notNull().default(sql`'[]'::jsonb`),
+  sortOrder: integer('sort_order').notNull().default(0), isActive: boolean('is_active').notNull().default(true), createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(), updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [index('map_locations_city_category_idx').on(t.city, t.category), index('map_locations_active_sort_idx').on(t.isActive, t.sortOrder)])
 
 // ─── Media Gallery ───────────────────────────────────────────────────────────
 export const galleryItems = pgTable('gallery_items', {
