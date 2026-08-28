@@ -15,6 +15,7 @@ import {
   ARTICLE_STATUSES,
   ARTICLE_CATEGORIES,
   GUIDE_GROUPS,
+  GALLERY_CITIES, GALLERY_CATEGORIES, GALLERY_STATUSES,
 } from '../db/schema'
 
 /** Validasi server untuk SEMUA write — client validation tidak dipercaya. */
@@ -356,3 +357,14 @@ const guideBase = z.object({
   publishedAt: z.string().datetime().nullable().optional(),
 })
 export const guideInput = guideBase
+
+// ─── Media Gallery ──────────────────────────────────────────────────────────
+const galleryBase = z.object({
+  imageUrl: z.string().url('URL image tidak valid').max(1000), imageFileId: z.string().max(255).nullable().optional(),
+  altText: z.string().min(3).max(300), title: z.string().max(240).nullable().optional(), description: z.string().max(2000).nullable().optional(),
+  city: z.enum(GALLERY_CITIES), category: z.enum(GALLERY_CATEGORIES), locationName: z.string().max(200).nullable().optional(),
+  latitude: z.number().min(-90).max(90).nullable().optional(), longitude: z.number().min(-180).max(180).nullable().optional(),
+  tags: z.array(z.string().trim().min(1).max(40)).max(30), priority: z.number().int().min(-9999).max(9999),
+  status: z.enum(GALLERY_STATUSES), takenAt: z.string().datetime().nullable().optional(), publishedAt: z.string().datetime().nullable().optional(),
+}).refine((v) => (v.latitude === null) === (v.longitude === null), { message: 'Latitude dan longitude harus diisi berpasangan.', path: ['latitude'] })
+export const galleryInput = galleryBase

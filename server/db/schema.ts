@@ -44,6 +44,9 @@ export const ARTICLE_STATUSES = ['DRAFT', 'PUBLISHED', 'ARCHIVED'] as const
 export const ARTICLE_CONTENT_TYPES = ['article', 'update', 'practical'] as const
 export const ARTICLE_CATEGORIES = ['Ibadah', 'Panduan', 'Kehidupan', 'Sosial', 'Ekonomi', 'Bisnis', 'Kuliner', 'Transportasi', 'Akomodasi', 'Makkah', 'Madinah', 'Budaya', 'Sejarah', 'Berita / Update'] as const
 export const GUIDE_GROUPS = ['MULAI DI SINI', 'KEHIDUPAN DI HARAMAIN', 'TRANSPORTASI', 'HOTEL', 'MAKKAH', 'MADINAH', 'PERJALANAN', 'IBADAH'] as const
+export const GALLERY_CITIES = ['MAKKAH', 'MADINAH'] as const
+export const GALLERY_CATEGORIES = ['MASJID', 'LANDSCAPE', 'ARSITEKTUR', 'JALAN', 'TRANSPORTASI', 'KULINER'] as const
+export const GALLERY_STATUSES = ['DRAFT', 'PUBLISHED', 'ARCHIVED'] as const
 
 // ─── Admin User ─────────────────────────────────────────────────────────────
 export const adminUsers = pgTable('admin_users', {
@@ -102,6 +105,17 @@ export const articles = pgTable('articles', {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [index('articles_status_priority_idx').on(t.status, t.priority), index('articles_city_idx').on(t.city)])
+
+// ─── Media Gallery ───────────────────────────────────────────────────────────
+export const galleryItems = pgTable('gallery_items', {
+  id: serial('id').primaryKey(),
+  imageUrl: text('image_url').notNull(), imageFileId: text('image_file_id'), altText: text('alt_text').notNull(),
+  title: text('title'), description: text('description'), city: text('city').notNull(), category: text('category').notNull(),
+  locationName: text('location_name'), latitude: numeric('latitude', { precision: 10, scale: 7 }), longitude: numeric('longitude', { precision: 10, scale: 7 }),
+  tags: jsonb('tags').$type<string[]>().notNull().default(sql`'[]'::jsonb`), priority: integer('priority').notNull().default(0), status: text('status').notNull().default('DRAFT'),
+  takenAt: timestamp('taken_at', { withTimezone: true }), publishedAt: timestamp('published_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(), updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [index('gallery_items_city_category_idx').on(t.city, t.category), index('gallery_items_status_priority_idx').on(t.status, t.priority)])
 
 // ─── Media Guide ─────────────────────────────────────────────────────────────
 export const guides = pgTable('guides', {

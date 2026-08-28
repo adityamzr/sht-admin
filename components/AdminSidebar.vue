@@ -26,7 +26,7 @@ const mediaMenu: SidebarItem[] = [
   { label: 'Feedback Artikel', icon: 'chat', disabled: true, status: 'Segera' },
   { label: 'Artikel', to: '/media/articles', icon: 'doc', section: 'CONTENT LIBRARY' },
   { label: 'Panduan', to: '/media/guides', icon: 'doc' },
-  { label: 'Gallery', icon: 'sparkle', disabled: true, status: 'Segera' },
+  { label: 'Gallery', to: '/media/gallery', icon: 'sparkle' },
   { label: 'Map Locations', icon: 'map', disabled: true, status: 'Segera' },
 ]
 const currentWorkspaceKey = computed(() => route.path === '/media' || route.path.startsWith('/media/') ? 'media' : 'tour')
