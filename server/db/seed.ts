@@ -116,7 +116,7 @@ async function main() {
   for (const [city, category, sourceKey, name, latitude, longitude, shortDescription, area] of locationSeed) {
     const existing = await db.select({ id: schema.mapLocations.id }).from(schema.mapLocations).where(eq(schema.mapLocations.sourceKey, `${city.toLowerCase()}-${sourceKey}`)).limit(1)
     if (!existing[0]) {
-      await db.insert(schema.mapLocations).values({ sourceKey: `${city.toLowerCase()}-${sourceKey}`, name, city, category, shortDescription, latitude: String(latitude), longitude: String(longitude), googleMapsUrl: `https://www.google.com/maps/dir/?api=1&destination=${latitude},${longitude}`, tags: [area.toLowerCase()], sortOrder: (locationSeed.filter((x) => x[0] === city).findIndex((x) => x[2] === sourceKey) + 1) * 10, isActive: true })
+      await db.insert(schema.mapLocations).values({ sourceKey: `${city.toLowerCase()}-${sourceKey}`, name, city, category, shortDescription, latitude: String(latitude), longitude: String(longitude), googleMapsUrl: sourceKey === 'madinah-station' ? 'https://www.google.com/maps/dir/?api=1&destination=24.553422,39.719883' : `https://www.google.com/maps/dir/?api=1&destination=${latitude},${longitude}`, tags: [area.toLowerCase()], sortOrder: (locationSeed.filter((x) => x[0] === city).findIndex((x) => x[2] === sourceKey) + 1) * 10, isActive: true })
       locationsCreated++
     }
   }
