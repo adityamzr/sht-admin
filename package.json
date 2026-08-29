@@ -19,6 +19,7 @@
     "@pinia/nuxt": "^0.5.5",
     "dotenv": "^16.6.1",
     "drizzle-orm": "^0.36.4",
+    "lucide-vue-next": "^1.0.0",
     "nuxt": "^3.13.2",
     "pinia": "^2.2.6",
     "postgres": "^3.4.5",
