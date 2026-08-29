@@ -122,6 +122,13 @@ export const articleFeedback = pgTable('article_feedback', {
   id: serial('id').primaryKey(), articleId: integer('article_id').notNull().references(() => articles.id, { onDelete: 'cascade' }), value: text('value').notNull(), createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [index('article_feedback_article_idx').on(t.articleId), index('article_feedback_created_idx').on(t.createdAt)])
 
+// ─── Media Page Settings ───────────────────────────────────────────────────
+export const mediaPageSettings = pgTable('media_page_settings', {
+  id: serial('id').primaryKey(), pageKey: text('page_key').notNull().unique(), featuredArticleId: integer('featured_article_id').references(() => articles.id, { onDelete: 'set null' }),
+  supportingArticleIds: jsonb('supporting_article_ids').$type<number[]>().notNull().default(sql`'[]'::jsonb`), editorialArticleIds: jsonb('editorial_article_ids').$type<number[]>().notNull().default(sql`'[]'::jsonb`),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(), updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+})
+
 // ─── Media Map Location ─────────────────────────────────────────────────────
 export const mapLocations = pgTable('map_locations', {
   id: serial('id').primaryKey(), sourceKey: text('source_key').unique(), name: text('name').notNull(), city: text('city').notNull(), category: text('category').notNull(),

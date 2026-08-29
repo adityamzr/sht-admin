@@ -378,3 +378,6 @@ export const publicContributionInput=z.object({type:z.enum(CONTRIBUTION_TYPES),c
 export const contributionAdminPatch=z.object({status:z.enum(CONTRIBUTION_STATUSES).optional(),internalNote:z.string().max(3000).nullable().optional()})
 
 export const articleFeedbackInput=z.object({value:z.enum(ARTICLE_FEEDBACK_VALUES)})
+
+export const pageSettingsKeys=['home','makkah','madinah'] as const
+export const pageSettingsInput=z.object({featuredArticleId:z.number().int().positive().nullable().optional(),supportingArticleIds:z.array(z.number().int().positive()).max(3),editorialArticleIds:z.array(z.number().int().positive()).max(6)})

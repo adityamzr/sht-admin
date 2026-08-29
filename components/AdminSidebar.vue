@@ -19,9 +19,9 @@ const tourMenu: SidebarItem[] = [
 ]
 const mediaMenu: SidebarItem[] = [
   { label: 'Dashboard', to: '/media', icon: 'grid' },
-  { label: 'Home', icon: 'grid', disabled: true, status: 'Segera', section: 'PAGE SETTINGS' },
-  { label: 'Makkah', icon: 'map', disabled: true, status: 'Segera' },
-  { label: 'Madinah', icon: 'map', disabled: true, status: 'Segera' },
+  { label: 'Home', to: '/media/settings/home', icon: 'grid', section: 'PAGE SETTINGS' },
+  { label: 'Makkah', to: '/media/settings/makkah', icon: 'map' },
+  { label: 'Madinah', to: '/media/settings/madinah', icon: 'map' },
   { label: 'Kontribusi Pengguna', to: '/media/contributions', icon: 'users', section: 'INTERAKSI' },
   { label: 'Feedback Artikel', to: '/media/article-feedback', icon: 'chat' },
   { label: 'Artikel', to: '/media/articles', icon: 'doc', section: 'CONTENT LIBRARY' },
