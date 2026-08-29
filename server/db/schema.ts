@@ -124,7 +124,7 @@ export const articleFeedback = pgTable('article_feedback', {
 
 // ─── Media Page Settings ───────────────────────────────────────────────────
 export const mediaPageSettings = pgTable('media_page_settings', {
-  id: serial('id').primaryKey(), pageKey: text('page_key').notNull().unique(), heroImageUrl: text('hero_image_url'), heroImageFileId: text('hero_image_file_id'), heroHeadline: text('hero_headline'), heroSubheadline: text('hero_subheadline'), featuredArticleId: integer('featured_article_id').references(() => articles.id, { onDelete: 'set null' }),
+  id: serial('id').primaryKey(), pageKey: text('page_key').notNull().unique(), heroImageUrl: text('hero_image_url'), heroImageFileId: text('hero_image_file_id'), heroHeadline: text('hero_headline'), heroSubheadline: text('hero_subheadline'), heroTopicOverride: jsonb('hero_topic_override').$type<Array<{ id: string; label: string; isActive: boolean; sortOrder: number }> | null>(), featuredArticleId: integer('featured_article_id').references(() => articles.id, { onDelete: 'set null' }),
   supportingArticleIds: jsonb('supporting_article_ids').$type<number[]>().notNull().default(sql`'[]'::jsonb`), editorialArticleIds: jsonb('editorial_article_ids').$type<number[]>().notNull().default(sql`'[]'::jsonb`),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(), updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 })
