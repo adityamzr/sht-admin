@@ -5,7 +5,7 @@
  * - TIDAK pakai `*` — hanya origin customer yang diizinkan.
  * - Tidak menyentuh /api/admin (admin = same-origin, dilindungi session cookie).
  */
-const DEV_ORIGINS = 'http://localhost:3000,http://127.0.0.1:3000'
+const DEV_ORIGINS = 'http://localhost:3003,http://localhost:3002,http://localhost:3000,http://127.0.0.1:3003,http://127.0.0.1:3002,http://127.0.0.1:3000'
 
 function allowedOrigins(): string[] {
   const raw = process.env.CORS_ALLOWED_ORIGINS || DEV_ORIGINS
