@@ -1,4 +1,4 @@
 <script setup lang="ts">
 definePageMeta({ layout: 'admin', middleware: 'admin-auth' })
 </script>
-<template><MediaPageSettingsEditor page-key="home" /></template>
+<template><HomePageSettingsEditor /></template>

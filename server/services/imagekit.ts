@@ -1,6 +1,6 @@
 import ImageKit from '@imagekit/nodejs'
 
-const allowedFolders = new Set(['articles', 'gallery', 'guides', 'locations'])
+const allowedFolders = new Set(['articles', 'gallery', 'guides', 'locations', 'home'])
 
 export function getImageKitConfig(folder = 'articles') {
   const config = useRuntimeConfig()
