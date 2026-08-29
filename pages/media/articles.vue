@@ -1,4 +1,5 @@
 <script setup lang="ts">
+const { show: showGlobalToast } = useAdminToast()
 definePageMeta({ layout: 'admin', middleware: 'admin-auth' })
 
 type ArticleStatus = 'DRAFT' | 'PUBLISHED' | 'ARCHIVED'
@@ -34,7 +35,7 @@ const pageNumbers = computed(() => Array.from({ length: pageCount.value }, (_, i
 function slugify(value: string) { return value.toLocaleLowerCase().trim().normalize('NFKD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 180) }
 function formatDate(value: string | null) { return value ? new Date(value).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) : '—' }
 function formatUpdated(value: string) { return new Date(value).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) }
-function showToast(message: string, type: Toast['type']) { if (toastTimer) clearTimeout(toastTimer); toast.value = { message, type }; toastTimer = setTimeout(() => { toast.value = null; toastTimer = null }, 4000) }
+function showToast(message: string, type: Toast['type']) { showGlobalToast(message, type === 'warning' ? 'warning' : type === 'error' ? 'error' : 'success') }
 function toastClass(type: Toast['type']) { return type === 'success' ? 'border-brand-green/30 bg-brand-green/5 text-brand-green' : type === 'error' ? 'border-red-200 bg-red-50 text-red-800' : type === 'warning' ? 'border-gold-soft bg-gold-sand text-neutral-charcoal' : 'border-neutral-line bg-neutral-soft text-neutral-charcoal' }
 function dismissToast() { if (toastTimer) clearTimeout(toastTimer); toast.value = null; toastTimer = null }
 function clearErrors() { Object.keys(fieldErrors).forEach((key) => delete fieldErrors[key]) }
@@ -67,7 +68,7 @@ watch(currentPage,()=>clear())
 <template>
   <div>
     <PageHead title="Artikel" subtitle="Media · Content Library"><template #actions><button type="button" class="rounded-full bg-brand-green px-4 py-2 text-sm font-semibold text-white hover:bg-[#0b3230]" @click="emptyForm">Artikel Baru</button></template></PageHead>
-    <div v-if="toast" class="fixed right-4 top-4 z-[80] flex max-w-[calc(100vw-2rem)] items-start gap-3 rounded-xl border px-4 py-3 text-sm shadow-lg sm:right-8" :class="toastClass(toast.type)" role="status"><span class="flex-1">{{ toast.message }}</span><button type="button" class="shrink-0 text-lg leading-none opacity-60 hover:opacity-100" aria-label="Tutup notifikasi" @click="dismissToast">×</button></div>
+
 
     <section class="mt-6 rounded-2xl border border-neutral-line bg-white p-5" aria-label="Filter artikel"><div class="grid gap-3 lg:grid-cols-[minmax(240px,1fr)_150px_150px_190px] lg:items-end"><label><span class="text-xs font-semibold uppercase tracking-[0.12em] text-neutral-charcoal/50">Cari</span><input v-model="search" type="search" placeholder="Cari judul atau slug..." class="mt-1.5 min-h-[42px] w-full rounded-xl border border-neutral-line px-3 text-sm focus:border-brand-green focus:outline-none focus:ring-2 focus:ring-brand-green/15" /></label><label><span class="text-xs font-semibold uppercase tracking-[0.12em] text-neutral-charcoal/50">Status</span><select v-model="statusFilter" class="mt-1.5 min-h-[42px] w-full rounded-xl border border-neutral-line px-3 text-sm"><option value="">Semua status</option><option>DRAFT</option><option>PUBLISHED</option><option>ARCHIVED</option></select></label><label><span class="text-xs font-semibold uppercase tracking-[0.12em] text-neutral-charcoal/50">City</span><select v-model="cityFilter" class="mt-1.5 min-h-[42px] w-full rounded-xl border border-neutral-line px-3 text-sm"><option value="">Semua city</option><option>GENERAL</option><option>MAKKAH</option><option>MADINAH</option></select></label><label><span class="text-xs font-semibold uppercase tracking-[0.12em] text-neutral-charcoal/50">Kategori</span><select v-model="categoryFilter" class="mt-1.5 min-h-[42px] w-full rounded-xl border border-neutral-line px-3 text-sm"><option value="">Semua kategori</option><option v-for="category in categoryOptions" :key="category">{{ category }}</option></select></label></div></section>
 

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+const { show: showGlobalToast } = useAdminToast()
 definePageMeta({ layout: 'admin', middleware: 'admin-auth' })
 
 type GuideStatus = 'DRAFT' | 'PUBLISHED' | 'ARCHIVED'
@@ -30,7 +31,7 @@ const pageNumbers = computed(() => Array.from({ length: pageCount.value }, (_, i
 
 function slugify(value: string) { return value.toLocaleLowerCase().trim().normalize('NFKD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 180) }
 function formatDate(value: string | null) { return value ? new Date(value).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) : '—' }
-function showToast(message: string, type: Toast['type']) { if (toastTimer) clearTimeout(toastTimer); toast.value = { message, type }; toastTimer = setTimeout(() => { toast.value = null; toastTimer = null }, 4000) }
+function showToast(message: string, type: Toast['type']) { showGlobalToast(message, type === 'warning' ? 'warning' : type === 'error' ? 'error' : 'success') }
 function dismissToast() { if (toastTimer) clearTimeout(toastTimer); toast.value = null; toastTimer = null }
 function clearErrors() { Object.keys(fieldErrors).forEach((key) => delete fieldErrors[key]) }
 function emptyForm() { editingId.value = null; slugTouched.value = false; clearErrors(); Object.assign(form, { title: '', slug: '', group: 'MULAI DI SINI', summary: '', sortOrder: 10, status: 'DRAFT', body: [{ type: 'paragraph', text: '' }] }); previewOpen.value = false }
