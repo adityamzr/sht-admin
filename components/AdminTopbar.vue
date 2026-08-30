@@ -16,6 +16,7 @@ type WorkspaceOption = {
 };
 type AdminUser = { id: number; email: string; name: string; isActive: boolean; avatarUrl?: string | null };
 const route = useRoute();
+const activeWorkspaceCookie = useCookie<'media' | 'tour'>('admin-active-workspace', { default: () => 'media' });
 const { data: workspaceResponse } = await useAdminFetch<{
     data: WorkspaceOption[];
 }>("/api/admin/workspaces");
@@ -33,7 +34,9 @@ const workspaces = computed(() => workspaceResponse.value?.data ?? []),
     currentKey = computed(() =>
         route.path === "/media" || route.path.startsWith("/media/")
             ? "media"
-            : "tour",
+            : route.path === "/tour" || route.path === "/" || !["/profile", "/notifications"].some((path) => route.path === path || route.path.startsWith(`${path}/`))
+                ? "tour"
+                : activeWorkspaceCookie.value,
     ),
     currentWorkspace = computed(
         () =>
@@ -54,6 +57,7 @@ const workspaces = computed(() => workspaceResponse.value?.data ?? []),
 function relativeDate(value: string) { const diff = Math.max(0, Date.now() - new Date(value).getTime()); const minutes = Math.floor(diff / 60000); if (minutes < 1) return 'Baru saja'; if (minutes < 60) return `${minutes} menit lalu`; const hours = Math.floor(minutes / 60); if (hours < 24) return `${hours} jam lalu`; return `${Math.floor(hours / 24)} hari lalu` }
 async function handleNotification(notification: any) { if (!notification.readAt) { await $fetch(`/api/admin/notifications/${notification.id}`, { method: 'PATCH' }).catch(() => {}); unread.value = Math.max(0, unread.value - 1); notification.readAt = new Date().toISOString() } closeMenus() }
 async function markAllRead(){await $fetch('/api/admin/notifications/read-all',{method:'PATCH',query:{workspace:currentKey.value}});notifications.value=notifications.value.map(n=>({...n,readAt:n.readAt||new Date().toISOString()}));unread.value=0}
+function selectWorkspace(key: "media" | "tour") { activeWorkspaceCookie.value = key; return workspacePath(key) }
 function workspacePath(key: string) {
     return key === "media" ? "/media" : "/tour";
 }
@@ -96,6 +100,7 @@ onBeforeUnmount(() => {
     window.removeEventListener("focus", refreshOnFocus); if (notificationTimer) clearInterval(notificationTimer);
 });
 watch(() => route.fullPath, closeMenus);
+watch(() => route.path, (path) => { if (path.startsWith("/media")) activeWorkspaceCookie.value = "media"; else if (path.startsWith("/tour") || path === "/") activeWorkspaceCookie.value = "tour" });
 </script>
 <template>
     <header
@@ -125,7 +130,7 @@ watch(() => route.fullPath, closeMenus);
                     <NuxtLink
                         v-for="workspace in workspaces"
                         :key="workspace.key"
-                        :to="workspacePath(workspace.key)"
+                        :to="selectWorkspace(workspace.key as 'media' | 'tour')"
                         class="flex items-start gap-2 rounded-lg px-3 py-2.5 text-sm hover:bg-neutral-soft"
                         @click="closeMenus"
                         ><span
