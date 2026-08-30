@@ -99,7 +99,7 @@ watch(() => route.fullPath, closeMenus);
             <div ref="workspaceEl" class="relative min-w-0">
                 <button
                     type="button"
-                    class="flex max-w-fit items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold"
+                    class="admin-workspace-trigger flex max-w-fit items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold"
                     :class="workspaceAccent"
                     :aria-expanded="workspaceOpen"
                     @click="open('workspace')"
@@ -162,7 +162,7 @@ watch(() => route.fullPath, closeMenus);
                 <div ref="accountEl" class="relative">
                     <button
                         type="button"
-                        class="flex max-w-fit items-center gap-2 rounded-xl px-2 py-1.5 text-left hover:bg-neutral-soft"
+                        class="admin-account-trigger flex max-w-fit items-center gap-2 rounded-xl px-2 py-1.5 text-left hover:bg-neutral-soft"
                         :aria-expanded="accountOpen"
                         aria-label="Menu akun"
                         @click="open('account')"

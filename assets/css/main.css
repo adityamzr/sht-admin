@@ -39,3 +39,15 @@
   @media (max-width: 639px) { .admin-page-title { font-size: 1.25rem; } }
   .admin-shell input:disabled, .admin-shell select:disabled, .admin-shell textarea:disabled { cursor: not-allowed; opacity: .6; }
 }
+
+
+/* Responsive admin guardrails: preserve page UX while preventing viewport overflow. */
+.admin-shell { min-width: 0; overflow-x: clip; }
+.admin-shell .overflow-x-auto { max-width: 100%; overscroll-behavior-x: contain; }
+.admin-shell table { max-width: 100%; }
+@media (max-width: 639px) {
+  .admin-workspace-trigger { max-width: 9.5rem; }
+  .admin-account-trigger { max-width: 3rem; }
+  .admin-shell { padding-left: 1rem; padding-right: 1rem; }
+  .admin-shell .fixed.inset-0 { padding-left: 1rem; padding-right: 1rem; }
+}
