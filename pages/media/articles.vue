@@ -101,6 +101,7 @@ const editingArticle = computed(() =>
           null)
         : null,
 );
+const previewLocale = ref<'id'|'en'>('id'); const previewTitle = computed(()=>previewLocale.value==='en'?enTranslation.title:form.title); const previewExcerpt = computed(()=>previewLocale.value==='en'?enTranslation.excerpt:form.excerpt); const previewBody = computed(()=>previewLocale.value==='en'?enTranslation.body:form.body);
 const pageNumbers = computed(() =>
     Array.from({ length: pageCount.value }, (_, index) => index + 1),
 );
@@ -684,7 +685,7 @@ watch(currentPage, () => clear());
                         Reset
                     </button>
                 </div>
-                <div class="mt-4 flex gap-2 border-b border-neutral-line pb-3"><button type="button" class="rounded-full px-4 py-2 text-sm font-semibold" :class="localeTab==='id'?'bg-sht-olive text-white':'border border-neutral-line'" @click="switchLocale('id')">Indonesia</button><button type="button" class="rounded-full px-4 py-2 text-sm font-semibold" :class="localeTab==='en'?'bg-sht-olive text-white':'border border-neutral-line'" @click="switchLocale('en')">English</button><span v-if="localeTab==='en'" class="self-center text-xs text-neutral-charcoal/55">Opsional · dapat disimpan partial</span></div><div v-if="localeTab==='en'" class="space-y-4 rounded-xl border border-sht-gold/30 bg-gold-sand/20 p-4"><label class="block text-sm font-semibold">Judul English<input v-model="enTranslation.title" class="mt-1 w-full rounded-xl border px-3 py-2 text-sm" placeholder="English title"/></label><label class="block text-sm font-semibold">Slug English<input v-model="enTranslation.slug" class="mt-1 w-full rounded-xl border px-3 py-2 text-sm" placeholder="english-slug (opsional untuk draft)"/></label><label class="block text-sm font-semibold">Excerpt English<textarea v-model="enTranslation.excerpt" rows="3" class="mt-1 w-full rounded-xl border px-3 py-2 text-sm"/></label><label class="block text-sm font-semibold">Body English<textarea :value="enTranslation.body.map((b:any)=>b.text||'').join('\n')" rows="6" class="mt-1 w-full rounded-xl border px-3 py-2 text-sm" placeholder="Satu paragraf per baris" @input="enTranslation.body=($event.target as HTMLTextAreaElement).value.split('\n').filter(Boolean).map(text=>({type:'paragraph',text}))"/></label><p class="text-xs text-neutral-charcoal/55">Completeness publik membutuhkan judul, slug, excerpt, dan body.</p></div><div v-else><div class="mt-5 space-y-4">
+                <div class="mt-4 flex gap-2 border-b border-neutral-line pb-3"><button type="button" class="rounded-full px-4 py-2 text-sm font-semibold" :class="localeTab==='id'?'bg-sht-olive text-white':'border border-neutral-line'" @click="switchLocale('id')">Indonesia</button><button type="button" class="rounded-full px-4 py-2 text-sm font-semibold" :class="localeTab==='en'?'bg-sht-olive text-white':'border border-neutral-line'" @click="switchLocale('en')">English</button><span v-if="localeTab==='en'" class="self-center text-xs text-neutral-charcoal/55">Opsional · dapat disimpan partial</span></div><div v-if="localeTab==='en'" class="space-y-4 rounded-xl border border-sht-gold/30 bg-gold-sand/20 p-4"><label class="block text-sm font-semibold">Judul English<input v-model="enTranslation.title" class="mt-1 w-full rounded-xl border px-3 py-2 text-sm" placeholder="English title"/></label><label class="block text-sm font-semibold">Slug English<input v-model="enTranslation.slug" class="mt-1 w-full rounded-xl border px-3 py-2 text-sm" placeholder="english-slug (opsional untuk draft)"/></label><label class="block text-sm font-semibold">Excerpt English<textarea v-model="enTranslation.excerpt" rows="3" class="mt-1 w-full rounded-xl border px-3 py-2 text-sm"/></label><label class="block text-sm font-semibold">Hero Alt English<input v-model="enTranslation.heroAlt" class="mt-1 w-full rounded-xl border px-3 py-2 text-sm"/></label><label class="block text-sm font-semibold">SEO Title English<input v-model="enTranslation.seoTitle" class="mt-1 w-full rounded-xl border px-3 py-2 text-sm"/></label><label class="block text-sm font-semibold">SEO Description English<textarea v-model="enTranslation.seoDescription" rows="2" class="mt-1 w-full rounded-xl border px-3 py-2 text-sm"/></label><MediaStructuredBlockEditor v-model="enTranslation.body" folder="articles"/><p class="text-xs text-neutral-charcoal/55">Completeness publik membutuhkan judul, slug, excerpt, dan body.</p></div><div v-else><div class="mt-5 space-y-4">
                     <label class="block text-sm font-semibold"
                         >Judul<input
                             data-field="title"
@@ -849,7 +850,7 @@ watch(currentPage, () => clear());
                         </div>
                         <div class="mt-4 space-y-3">
                             <div
-                                v-for="(block, index) in form.body"
+                                v-for="(block, index) in previewBody"
                                 :key="index"
                                 class="rounded-xl border border-neutral-line p-3"
                             >
@@ -964,7 +965,7 @@ watch(currentPage, () => clear());
                         <button
                             type="button"
                             class="rounded-full border border-neutral-line px-4 py-2 text-sm font-semibold hover:border-brand-green/40"
-                            @click="previewOpen = !previewOpen"
+                            @click="previewOpen = !previewOpen; previewLocale = localeTab"
                         >
                             {{
                                 previewOpen ? "Tutup Preview" : "Preview"
@@ -1021,17 +1022,17 @@ watch(currentPage, () => clear());
             <p
                 class="text-xs font-semibold uppercase tracking-[0.16em] text-gold"
             >
-                Preview · {{ form.city }} · {{ form.category }}
+                Preview {{ previewLocale === 'en' ? 'English' : 'Indonesia' }} · {{ form.city }} · {{ form.category }}
             </p>
             <h2
                 class="mt-3 font-heading text-3xl font-semibold text-neutral-charcoal"
             >
-                {{ form.title || "Judul artikel" }}
+                {{ previewTitle || "Judul artikel" }}
             </h2>
             <p
                 class="mt-3 max-w-2xl text-base leading-relaxed text-neutral-charcoal/65"
             >
-                {{ form.excerpt || "Excerpt artikel..." }}
+                {{ previewExcerpt || "Excerpt artikel..." }}
             </p>
             <img
                 v-if="form.heroImage"
