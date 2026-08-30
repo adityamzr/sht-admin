@@ -14,7 +14,7 @@ type WorkspaceOption = {
     description: string | null;
     role: string;
 };
-type AdminUser = { id: number; email: string; name: string; isActive: boolean };
+type AdminUser = { id: number; email: string; name: string; isActive: boolean; avatarUrl?: string | null };
 const route = useRoute();
 const { data: workspaceResponse } = await useAdminFetch<{
     data: WorkspaceOption[];
@@ -81,13 +81,17 @@ function outside(e: PointerEvent) {
 function key(e: KeyboardEvent) {
     if (e.key === "Escape") closeMenus();
 }
+let notificationTimer: ReturnType<typeof setInterval> | null = null;
+function refreshOnFocus(){ loadNotifications() }
 onMounted(() => {
+    loadNotifications(); notificationTimer = setInterval(loadNotifications, 30000); window.addEventListener("focus", refreshOnFocus);
     document.addEventListener("pointerdown", outside);
     document.addEventListener("keydown", key);
 });
 onBeforeUnmount(() => {
     document.removeEventListener("pointerdown", outside);
     document.removeEventListener("keydown", key);
+    window.removeEventListener("focus", refreshOnFocus); if (notificationTimer) clearInterval(notificationTimer);
 });
 watch(() => route.fullPath, closeMenus);
 </script>
@@ -168,10 +172,8 @@ watch(() => route.fullPath, closeMenus);
                         @click="open('account')"
                     >
                         <span
-                            class="flex h-8 w-8 items-center justify-center rounded-full bg-sht-olive-dark text-xs font-bold text-white"
-                            >{{
-                                user?.name?.charAt(0)?.toUpperCase() || "A"
-                            }}</span
+                            class="flex h-8 w-8 items-center justify-center overflow-hidden rounded-full bg-sht-olive-dark text-xs font-bold text-white"
+                            > <img v-if="user?.avatarUrl" :src="user.avatarUrl" alt="" class="h-full w-full object-cover" /><span v-else>{{ user?.name?.charAt(0)?.toUpperCase() || "A" }}</span></span
                         ><span class="hidden md:block"
                             ><span
                                 class="block truncate text-sm font-semibold"
@@ -189,10 +191,9 @@ watch(() => route.fullPath, closeMenus);
                         class="absolute right-0 top-full z-[60] mt-2 w-52 rounded-xl border bg-white p-1 shadow-lg"
                     >
                         <NuxtLink to="/profile" class="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm hover:bg-neutral-soft" @click="closeMenus">
-                            class="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm text-neutral-charcoal/40"
-                        >
-                            <UserPen class="h-4 w-4" />Profil</NuxtLink
-                        ><button
+                            <UserPen class="h-4 w-4" />Profil
+                        </NuxtLink>
+                        <button
                             type="button"
                             class="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm font-semibold text-red-700 hover:bg-red-50"
                             @click="logout"

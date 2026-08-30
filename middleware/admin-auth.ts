@@ -10,7 +10,9 @@ export default defineNuxtRouteMiddleware(async (to) => {
   }
   if (!response?.user) return navigateTo('/login')
 
-  const workspaceKey = to.path === '/media' || to.path.startsWith('/media/') ? 'media' : 'tour'
+  const workspaceKey = to.path === '/profile' ? null : to.path === '/' ? ((await $fetch<{ data?: Array<{ key: string }> }>('/api/admin/workspaces').catch(() => ({ data: [] }))).data?.some((workspace) => workspace.key === 'media') ? 'media' : 'tour') : to.path === '/media' || to.path.startsWith('/media/') ? 'media' : 'tour'
+  if (!workspaceKey) return
+
   const workspaces = await $fetch<{ data?: Array<{ key: string }> }>('/api/admin/workspaces', {
     headers: import.meta.server ? useRequestHeaders(['cookie']) : undefined,
   }).catch(() => ({ data: [] }))

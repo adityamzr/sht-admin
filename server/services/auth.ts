@@ -43,6 +43,7 @@ export interface AuthAdmin {
   email: string
   name: string
   isActive: boolean
+  avatarUrl?: string | null
 }
 
 export async function findAdminByEmail(db: DbLike, email: string) {
@@ -60,5 +61,5 @@ export async function authenticateAdmin(db: DbLike, email: string, password: str
 }
 
 export function publicAdmin(user: { id: number; email: string; name: string; isActive: boolean }): AuthAdmin {
-  return { id: user.id, email: user.email, name: user.name, isActive: user.isActive }
+  return { id: user.id, email: user.email, name: user.name, isActive: user.isActive, avatarUrl: (user as any).avatarUrl ?? null }
 }
