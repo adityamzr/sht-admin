@@ -1,4 +1,4 @@
-import { getArticle, getArticleTranslations, slugExists, updateArticle } from '~/server/services/articles'
+import { getArticle, getArticleTranslations, localizedSlugExists, slugExists, updateArticle } from '~/server/services/articles'
 import { useDb } from '~/server/db'
 import { articleInput } from '~/server/utils/validators'
 import { adminArticleWithTranslations } from '~/server/utils/serializers'
@@ -11,7 +11,7 @@ export default defineEventHandler(async (event) => {
   const existing = await getArticle(db, id)
   if (!existing) throw createError({ statusCode: 404, statusMessage: 'Artikel tidak ditemukan.' })
   if (existing.status === 'PUBLISHED' && existing.slug !== body.data.slug) throw createError({ statusCode: 409, statusMessage: 'Slug artikel terbit tidak dapat diubah.' })
-  if (await slugExists(db, body.data.slug, id)) throw createError({ statusCode: 409, statusMessage: 'Slug sudah digunakan artikel lain.' })
-  const row = await updateArticle(db, id, { ...body.data, publishedAt: body.data.publishedAt ? new Date(body.data.publishedAt) : null })
-  return { data: adminArticle(row!) }
+  if (await slugExists(db, body.data.slug, id) || await localizedSlugExists(db, 'id', body.data.translations?.id?.slug ?? body.data.slug, id) || await localizedSlugExists(db, 'en', body.data.translations?.en?.slug, id)) throw createError({ statusCode: 409, statusMessage: 'Slug sudah digunakan artikel lain.' })
+  const row = await db.transaction((tx) => updateArticle(tx, id, { ...body.data, publishedAt: body.data.publishedAt ? new Date(body.data.publishedAt) : null }))
+  return { data: adminArticleWithTranslations(row!, await getArticleTranslations(db, row!.id)) }
 })

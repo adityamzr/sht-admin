@@ -182,13 +182,14 @@ function editArticle(article: AdminArticle) {
     editingId.value = article.id;
     slugTouched.value = true;
     clearErrors();
+    const idTranslation = (article as any).translations?.id;
     Object.assign(form, {
-        title: article.title,
-        slug: article.slug,
-        excerpt: article.excerpt,
+        title: idTranslation?.title ?? article.title,
+        slug: idTranslation?.slug ?? article.slug,
+        excerpt: idTranslation?.excerpt ?? article.excerpt,
         heroImage: article.heroImage,
         heroImageFileId: (article as any).heroImageFileId ?? "",
-        heroImageAlt: article.heroImageAlt,
+        heroImageAlt: idTranslation?.heroAlt ?? article.heroImageAlt,
         city: article.city,
         contentType: article.contentType,
         category: article.category,
