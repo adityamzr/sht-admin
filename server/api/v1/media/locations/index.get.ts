@@ -1,0 +1,2 @@
+import {listLocations} from '~/server/services/map-locations';import {publicMapLocation} from '~/server/utils/serializers';import {useDb} from '~/server/db'
+export default defineEventHandler(async(e)=>{const q=getQuery(e);const rows=await listLocations(useDb(),{city:typeof q.city==='string'?q.city:undefined,category:typeof q.category==='string'?q.category:undefined,active:'true'});return {data:rows.map(publicMapLocation)}})

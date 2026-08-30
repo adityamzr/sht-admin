@@ -1,0 +1,378 @@
+<script setup lang="ts">
+const { show: showGlobalToast } = useAdminToast();
+const props = defineProps<{ pageKey: "home" | "makkah" | "madinah" }>();
+const title = computed(() =>
+    props.pageKey === "home"
+        ? "Home"
+        : props.pageKey === "makkah"
+          ? "Makkah"
+          : "Madinah",
+);
+const articles = ref<any[]>([]),
+    pending = ref(true),
+    saving = ref(false),
+    error = ref(""),
+    toast = ref("");
+const featured = ref<number | null>(null),
+    supporting = ref<number[]>([]),
+    editorial = ref<number[]>([]);
+const picker = ref<"featured" | "supporting" | "editorial" | null>(null),
+    pickerSearch = ref("");
+const available = computed(() =>
+    articles.value.filter(
+        (a) =>
+            a.status === "PUBLISHED" &&
+            (!["makkah", "madinah"].includes(props.pageKey) ||
+                a.city === props.pageKey.toUpperCase() ||
+                a.city === "GENERAL") &&
+            (!pickerSearch.value ||
+                a.title
+                    .toLowerCase()
+                    .includes(pickerSearch.value.toLowerCase())),
+    ),
+);
+function article(id: number) {
+    return articles.value.find((a) => a.id === id);
+}
+function list(slot: "supporting" | "editorial") {
+    return slot === "supporting" ? supporting.value : editorial.value;
+}
+function add(slot: "supporting" | "editorial", id: number) {
+    const target = list(slot);
+    if (
+        !target.includes(id) &&
+        (slot === "supporting" ? target.length < 3 : target.length < 6)
+    )
+        target.push(id);
+    picker.value = null;
+}
+function remove(slot: "supporting" | "editorial", id: number) {
+    const target = list(slot),
+        i = target.indexOf(id);
+    if (i >= 0) target.splice(i, 1);
+}
+function move(slot: "supporting" | "editorial", i: number, dir: number) {
+    const target = list(slot),
+        j = i + dir;
+    if (j < 0 || j >= target.length) return;
+    [target[i], target[j]] = [target[j], target[i]];
+}
+async function load() {
+    pending.value = true;
+    try {
+        const [a, s] = await Promise.all([
+            $fetch<any>("/api/admin/media/articles", {
+                query: { status: "PUBLISHED", page: 1, pageSize: 50 },
+            }),
+            $fetch<any>(`/api/admin/media/page-settings/${props.pageKey}`),
+        ]);
+        articles.value = a.data;
+        featured.value = s.data?.featuredArticleId ?? null;
+        supporting.value = [...(s.data?.supportingArticleIds || [])];
+        editorial.value = [...(s.data?.editorialArticleIds || [])];
+    } catch (e: any) {
+        error.value = e.data?.statusMessage || "Pengaturan gagal dimuat.";
+    } finally {
+        pending.value = false;
+    }
+}
+async function save() {
+    saving.value = true;
+    error.value = "";
+    try {
+        await $fetch(`/api/admin/media/page-settings/${props.pageKey}`, {
+            method: "PATCH",
+            body: {
+                featuredArticleId: featured.value,
+                supportingArticleIds: supporting.value,
+                editorialArticleIds: editorial.value,
+            },
+        });
+        showGlobalToast(
+            `Pengaturan ${title.value} berhasil disimpan.`,
+            "success",
+        );
+    } catch (e: any) {
+        error.value = e.data?.statusMessage || "Pengaturan gagal disimpan.";
+    } finally {
+        saving.value = false;
+    }
+}
+onMounted(load);
+</script>
+<template>
+    <div>
+        <PageHead
+            :title="`Settings · ${title}`"
+            subtitle="Media · Page Settings"
+        />
+        <p
+            v-if="error"
+            class="mt-4 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-800"
+        >
+            {{ error }}
+        </p>
+        <div
+            v-if="pending"
+            class="mt-8 rounded-2xl border bg-white p-8 text-sm text-neutral-charcoal/60"
+        >
+            Memuat artikel terbit dan pengaturan...
+        </div>
+        <div v-else class="mt-8 max-w-4xl space-y-6">
+            <section
+                v-if="pageKey === 'home'"
+                class="rounded-2xl border border-neutral-line bg-white p-5"
+            >
+                <h2 class="font-heading text-lg font-semibold">
+                    Sorotan Utama
+                </h2>
+                <p class="mt-1 text-sm text-neutral-charcoal/55">
+                    Pilih satu artikel terbit untuk slot highlight.
+                </p>
+                <div class="mt-4 flex items-center gap-3">
+                    <span
+                        v-if="featured"
+                        class="flex-1 rounded-xl border bg-neutral-soft p-3 text-sm"
+                        >{{
+                            article(featured)?.title ||
+                            "Artikel tidak lagi terbit"
+                        }}</span
+                    ><span
+                        v-else
+                        class="flex-1 rounded-xl border border-dashed p-3 text-sm text-neutral-charcoal/50"
+                        >Otomatis berdasarkan priority dan publishedAt</span
+                    ><button
+                        class="rounded-full border px-3 py-2 text-xs font-semibold"
+                        @click="picker = 'featured'"
+                    >
+                        {{ featured ? "Ganti" : "Pilih Artikel" }}</button
+                    ><button
+                        v-if="featured"
+                        class="text-xs text-red-700"
+                        @click="featured = null"
+                    >
+                        Hapus
+                    </button>
+                </div>
+            </section>
+            <section
+                v-if="
+                    pageKey === 'home' ||
+                    pageKey === 'makkah' ||
+                    pageKey === 'madinah'
+                "
+                class="rounded-2xl border border-neutral-line bg-white p-5"
+            >
+                <h2 class="font-heading text-lg font-semibold">
+                    {{
+                        pageKey === "home"
+                            ? "Artikel Pendukung"
+                            : pageKey === "makkah"
+                              ? "Makkah dari Dekat"
+                              : "Madinah dari Dekat"
+                    }}
+                </h2>
+                <p class="mt-1 text-sm text-neutral-charcoal/55">
+                    Pilih dan atur artikel terbit. Jika kosong, frontend memakai
+                    urutan otomatis.
+                </p>
+                <div class="mt-4 space-y-2">
+                    <div
+                        v-for="(id, i) in pageKey === 'home'
+                            ? supporting
+                            : editorial"
+                        :key="id"
+                        class="flex items-center gap-2 rounded-xl border p-3"
+                    >
+                        <span
+                            class="w-6 text-center text-xs text-neutral-charcoal/45"
+                            >{{ i + 1 }}</span
+                        ><span
+                            class="min-w-0 flex-1 truncate text-sm font-semibold"
+                            >{{
+                                article(id)?.title ||
+                                "Artikel tidak lagi terbit"
+                            }}</span
+                        ><button
+                            class="text-xs"
+                            :disabled="i === 0"
+                            @click="
+                                move(
+                                    pageKey === 'home'
+                                        ? 'supporting'
+                                        : 'editorial',
+                                    i,
+                                    -1,
+                                )
+                            "
+                        >
+                            Naik</button
+                        ><button
+                            class="text-xs"
+                            :disabled="
+                                i ===
+                                (pageKey === 'home'
+                                    ? supporting.length
+                                    : editorial.length) -
+                                    1
+                            "
+                            @click="
+                                move(
+                                    pageKey === 'home'
+                                        ? 'supporting'
+                                        : 'editorial',
+                                    i,
+                                    1,
+                                )
+                            "
+                        >
+                            Turun</button
+                        ><button
+                            class="text-xs text-red-700"
+                            @click="
+                                remove(
+                                    pageKey === 'home'
+                                        ? 'supporting'
+                                        : 'editorial',
+                                    id,
+                                )
+                            "
+                        >
+                            Hapus
+                        </button>
+                    </div>
+                </div>
+                <button
+                    class="mt-4 rounded-full border px-4 py-2 text-sm font-semibold"
+                    @click="
+                        picker = pageKey === 'home' ? 'supporting' : 'editorial'
+                    "
+                >
+                    Tambah Artikel
+                </button>
+            </section>
+            <section
+                v-if="pageKey === 'home'"
+                class="rounded-2xl border border-neutral-line bg-white p-5"
+            >
+                <h2 class="font-heading text-lg font-semibold">
+                    Editorial Selection
+                </h2>
+                <p class="mt-1 text-sm text-neutral-charcoal/55">
+                    Kurasi artikel tambahan tanpa mengatur feed terbaru
+                    otomatis.
+                </p>
+                <div class="mt-4 space-y-2">
+                    <div
+                        v-for="(id, i) in editorial"
+                        :key="id"
+                        class="flex items-center gap-2 rounded-xl border p-3"
+                    >
+                        <span class="w-6 text-center text-xs">{{ i + 1 }}</span
+                        ><span
+                            class="min-w-0 flex-1 truncate text-sm font-semibold"
+                            >{{
+                                article(id)?.title ||
+                                "Artikel tidak lagi terbit"
+                            }}</span
+                        ><button
+                            class="text-xs"
+                            :disabled="i === 0"
+                            @click="move('editorial', i, -1)"
+                        >
+                            Naik</button
+                        ><button
+                            class="text-xs"
+                            :disabled="i === editorial.length - 1"
+                            @click="move('editorial', i, 1)"
+                        >
+                            Turun</button
+                        ><button
+                            class="text-xs text-red-700"
+                            @click="remove('editorial', id)"
+                        >
+                            Hapus
+                        </button>
+                    </div>
+                </div>
+                <button
+                    class="mt-4 rounded-full border px-4 py-2 text-sm font-semibold"
+                    @click="picker = 'editorial'"
+                >
+                    Tambah Artikel
+                </button>
+            </section>
+            <button
+                class="rounded-full bg-sht-olive px-5 py-2.5 text-sm font-semibold text-white"
+                :disabled="saving"
+                @click="save"
+            >
+                {{ saving ? "Menyimpan..." : "Simpan Perubahan" }}
+            </button>
+        </div>
+        <div
+            v-if="picker"
+            class="fixed inset-0 z-50 flex items-center justify-center bg-neutral-charcoal/40 p-5"
+            @click.self="picker = null"
+        >
+            <section
+                class="flex max-h-[80vh] w-full max-w-2xl flex-col rounded-2xl bg-white p-6 shadow-xl"
+            >
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h2 class="font-heading text-xl font-semibold">
+                            Pilih Artikel Terbit
+                        </h2>
+                        <p class="mt-1 text-xs text-neutral-charcoal/55">
+                            Hanya artikel PUBLISHED yang tersedia.
+                        </p>
+                    </div>
+                    <button class="text-2xl" @click="picker = null">×</button>
+                </div>
+                <input
+                    v-model="pickerSearch"
+                    class="mt-5 rounded-xl border px-3 py-2 text-sm"
+                    placeholder="Cari judul..."
+                />
+                <div class="mt-4 min-h-0 space-y-2 overflow-y-auto">
+                    <button
+                        v-for="a in available"
+                        :key="a.id"
+                        class="flex w-full items-center gap-3 rounded-xl border p-3 text-left hover:bg-neutral-soft"
+                        :disabled="
+                            picker !== 'featured' &&
+                            (picker === 'supporting'
+                                ? supporting
+                                : editorial
+                            ).includes(a.id)
+                        "
+                        @click="
+                            picker === 'featured'
+                                ? ((featured = a.id), (picker = null))
+                                : add(picker, a.id)
+                        "
+                    >
+                        <div
+                            class="h-12 w-16 shrink-0 overflow-hidden rounded-lg bg-neutral-soft"
+                        >
+                            <img
+                                v-if="a.heroImage"
+                                :src="a.heroImage"
+                                :alt="a.heroImageAlt || a.title"
+                                class="h-full w-full object-cover"
+                            />
+                        </div>
+                        <span class="min-w-0 flex-1"
+                            ><b class="block truncate text-sm">{{ a.title }}</b
+                            ><small class="text-neutral-charcoal/55"
+                                >{{ a.city }} · {{ a.category }}</small
+                            ></span
+                        ><span class="text-xs font-semibold text-brand-green"
+                            >Pilih</span
+                        >
+                    </button>
+                </div>
+            </section>
+        </div>
+    </div>
+</template>

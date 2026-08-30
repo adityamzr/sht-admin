@@ -3,6 +3,19 @@
 > Status: **LOCKED** (21 Agustus 2026) — jadi aturan final project SHT.
 > Keputusan bootstrap: (1) agent diizinkan initial commit sekali; (2) PAT akan disiapkan kang untuk push ke `dev`; (3) stack dari dokumen bisnis.
 
+## ⏳ MODE INTERIM — PRE-PRODUCTION (AKTIF)
+
+Berlaku mulai 21 Agustus 2026, atas keputusan kang, **selama production belum live**:
+
+- Kerja & push boleh **langsung ke `dev`** — tanpa feature branch, tanpa PR.
+- Tetap wajib: `git pull --ff-only origin dev` dulu → implement → `npm run build` → commit konvensional (`feat/fix(scope): ...`) → push `dev` → report format §8 → STOP.
+- `main` **tetap protected** — tidak berubah, jangan pernah push/merge ke `main`.
+- Hotfix flow (§5) belum relevan sampai production ada.
+
+**Mode ini otomatis berakhir saat production live** → kembali ke flow penuh §2–§5 (feature branch wajib untuk setiap task).
+
+*(Flow lengkap di bawah tetap berlaku — bagian feature/hotfix branch di-skip sementara selama mode interim.)*
+
 ## 1. Repository Scope
 Jangan mencampur source code antar-repo.
 

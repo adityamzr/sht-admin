@@ -1,0 +1,104 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1787386067634,
+      "tag": "0000_clammy_peter_parker",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1787840924516,
+      "tag": "0001_yellow_kylun",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1787873281279,
+      "tag": "0002_tan_cyclops",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1787881672249,
+      "tag": "0003_chilly_millenium_guard",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1788000000000,
+      "tag": "0004_gallery_items",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1788000000000,
+      "tag": "0004_gallery_items",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1788100000000,
+      "tag": "0005_article_image_file_id",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1788200000000,
+      "tag": "0006_map_locations",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1788300000000,
+      "tag": "0007_contributions",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1788400000000,
+      "tag": "0008_article_feedback",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1788500000000,
+      "tag": "0009_media_page_settings",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1788600000000,
+      "tag": "0010_home_page_settings_fields",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1788700000000,
+      "tag": "0011_home_hero_topics",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1788800000000,
+      "tag": "0012_notifications_profile",
+      "breakpoints": true
+    }
+  ]
+}

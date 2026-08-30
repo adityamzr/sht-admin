@@ -1,0 +1,2 @@
+import {listNotifications,unreadNotificationCount} from '~/server/services/notifications';import {useDb} from '~/server/db';import {requireAdminSession} from '~/server/utils/session';import {requireWorkspaceAccess} from '~/server/services/workspace'
+export default defineEventHandler(async(e)=>{const s=requireAdminSession(e);const q=getQuery(e),key=typeof q.workspace==='string'?q.workspace:'media';await requireWorkspaceAccess(useDb(),s.userId,key);const db=useDb();return {data:await listNotifications(db,s.userId,key),unread:await unreadNotificationCount(db,s.userId,key)}})

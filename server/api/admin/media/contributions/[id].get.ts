@@ -1,0 +1,2 @@
+import {getContribution,updateContribution} from '~/server/services/contributions';import {adminContribution} from '~/server/utils/serializers';import {useDb} from '~/server/db'
+export default defineEventHandler(async(e)=>{const db=useDb(),id=Number(getRouterParam(e,'id'));let r=await getContribution(db,id);if(!r)throw createError({statusCode:404,statusMessage:'Kontribusi tidak ditemukan.'});if(r.status==='NEW'){const updated=await updateContribution(db,id,{status:'READ'});if(updated)r=updated}return {data:adminContribution(r)}})

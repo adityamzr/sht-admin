@@ -1,0 +1,3 @@
+import { inArray } from 'drizzle-orm'; import { mapLocations } from '~/server/db/schema'; import { useDb } from '~/server/db'; import { z } from 'zod'
+const input=z.object({ids:z.array(z.number().int().positive()).min(1).max(100),isActive:z.boolean()})
+export default defineEventHandler(async(e)=>{const b=await readValidatedBody(e,input.safeParse);if(!b.success)throw createError({statusCode:400,statusMessage:'Bulk status lokasi tidak valid.'});const rows=await useDb().update(mapLocations).set({isActive:b.data.isActive,updatedAt:new Date()}).where(inArray(mapLocations.id,b.data.ids)).returning({id:mapLocations.id});return {requested:b.data.ids.length,updated:rows.length,failed:b.data.ids.length-rows.length}})

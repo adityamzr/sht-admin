@@ -1,0 +1,2 @@
+import {eq} from 'drizzle-orm';import {notifications} from '~/server/db/schema';import {useDb} from '~/server/db';import {requireAdminSession} from '~/server/utils/session'
+export default defineEventHandler(async(e)=>{const s=requireAdminSession(e);const r=await useDb().update(notifications).set({readAt:new Date()}).where(eq(notifications.id,Number(getRouterParam(e,'id')))).returning({id:notifications.id});return {ok:Boolean(r[0])}})

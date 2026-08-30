@@ -1,0 +1,11 @@
+import { and, asc, count, desc, eq, ilike, or, sql } from 'drizzle-orm'
+import { contributions } from '../db/schema'
+import type { DbLike } from '../db'
+export type ContributionInput={type:string;city?:string|null;subject?:string|null;message:string;name?:string|null;contact?:string|null;sourcePage?:string|null;sourceUrl?:string|null;mapsUrl?:string|null}
+type F={search?:string;status?:string;type?:string;city?:string;limit?:number;offset?:number}
+function whereFor(f:F){const c=[];if(f.status)c.push(eq(contributions.status,f.status));if(f.type)c.push(eq(contributions.type,f.type));if(f.city)c.push(eq(contributions.city,f.city));if(f.search)c.push(or(ilike(contributions.subject,`%${f.search}%`),ilike(contributions.message,`%${f.search}%`),ilike(contributions.name,`%${f.search}%`)));return c.length?and(...c):undefined}
+export async function listContributions(db:DbLike,f:F){const q=db.select().from(contributions).where(whereFor(f)).orderBy(sql`CASE WHEN ${contributions.status} = 'NEW' THEN 0 WHEN ${contributions.status} = 'READ' THEN 1 WHEN ${contributions.status} = 'FOLLOWED_UP' THEN 2 ELSE 3 END`,desc(contributions.createdAt));if(f.limit!==undefined)q.limit(f.limit);if(f.offset!==undefined)q.offset(f.offset);return q}
+export async function countContributions(db:DbLike,f:Omit<F,'limit'|'offset'>){const r=await db.select({value:count()}).from(contributions).where(whereFor(f));return Number(r[0]?.value??0)}
+export async function getContribution(db:DbLike,id:number){const r=await db.select().from(contributions).where(eq(contributions.id,id)).limit(1);return r[0]??null}
+export async function createContribution(db:DbLike,i:ContributionInput){const r=await db.insert(contributions).values({...i,status:'NEW'}).returning();return r[0]}
+export async function updateContribution(db:DbLike,id:number,p:{status?:string;internalNote?:string|null}){const old=await getContribution(db,id);if(!old)return null;const now=new Date();const status=p.status??old.status;const r=await db.update(contributions).set({...p,status,readAt:status!=='NEW'?(old.readAt??now):old.readAt,followedUpAt:status==='FOLLOWED_UP'?(old.followedUpAt??now):old.followedUpAt,archivedAt:status==='ARCHIVED'?(old.archivedAt??now):old.archivedAt,updatedAt:now}).where(eq(contributions.id,id)).returning();return r[0]??null}

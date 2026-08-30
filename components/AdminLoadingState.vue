@@ -1,0 +1,1 @@
+<template><div class="flex items-center justify-center gap-2 py-10 text-sm text-neutral-charcoal/55" role="status"><span class="h-4 w-4 animate-spin rounded-full border-2 border-sht-stone border-t-sht-olive" />Memuat...</div></template>

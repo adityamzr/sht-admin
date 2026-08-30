@@ -1,0 +1,2 @@
+import { getPublishedGallery } from '~/server/services/gallery'; import { publicGallery } from '~/server/utils/serializers'; import { useDb } from '~/server/db'
+export default defineEventHandler(async(event)=>{const row=await getPublishedGallery(useDb(),Number(getRouterParam(event,'id')));if(!row)throw createError({statusCode:404,statusMessage:'Gallery item tidak ditemukan.'});return {data:publicGallery(row)}})
