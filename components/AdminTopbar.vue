@@ -31,13 +31,14 @@ const workspaceOpen = ref(false),
     accountEl = ref<HTMLElement | null>(null);
 const notifications=ref<any[]>([]),unread=ref(0);async function loadNotifications(){const r=await $fetch<any>('/api/admin/notifications',{query:{workspace:currentKey.value}}).catch(()=>({data:[],unread:0}));notifications.value=r.data||[];unread.value=r.unread||0}
 const workspaces = computed(() => workspaceResponse.value?.data ?? []),
-    currentKey = computed(() =>
-        route.path === "/media" || route.path.startsWith("/media/")
-            ? "media"
-            : route.path === "/tour" || route.path === "/" || !["/profile", "/notifications"].some((path) => route.path === path || route.path.startsWith(`${path}/`))
-                ? "tour"
-                : activeWorkspaceCookie.value,
-    ),
+    currentKey = computed(() => {
+        const queryWorkspace = route.query.workspace;
+        if (queryWorkspace === "media" || queryWorkspace === "tour") return queryWorkspace;
+        if (route.path === "/media" || route.path.startsWith("/media/")) return "media";
+        if (route.path === "/tour" || route.path === "/") return "tour";
+        if (["/profile", "/notifications"].some((path) => route.path === path || route.path.startsWith(`${path}/`))) return activeWorkspaceCookie.value;
+        return "tour";
+    }),
     currentWorkspace = computed(
         () =>
             workspaces.value.find((x) => x.key === currentKey.value) ?? {
@@ -197,7 +198,7 @@ watch(() => route.path, (path) => { if (path.startsWith("/media")) activeWorkspa
                         v-if="accountOpen"
                         class="absolute right-0 top-full z-[60] mt-2 w-52 rounded-xl border bg-white p-1 shadow-lg"
                     >
-                        <NuxtLink to="/profile" class="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm hover:bg-neutral-soft" @click="closeMenus">
+                        <NuxtLink :to="{ path: '/profile', query: { workspace: currentKey } }" class="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm hover:bg-neutral-soft" @click="closeMenus">
                             <UserPen class="h-4 w-4" />Profil
                         </NuxtLink>
                         <button

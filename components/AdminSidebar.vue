@@ -73,11 +73,15 @@ const mediaMenu: Item[] = [
     { label: "Gallery", to: "/media/gallery", icon: Images },
     { label: "Map Locations", to: "/media/locations", icon: MapPin },
 ];
-const menu = computed(() =>
-    route.path === "/media" || route.path.startsWith("/media/")
-        ? mediaMenu
-        : tourMenu,
-);
+const activeWorkspace = useCookie<"media" | "tour">("admin-active-workspace", { default: () => "media" });
+const currentWorkspaceKey = computed(() => {
+    if (route.path === "/media" || route.path.startsWith("/media/")) return "media";
+    if (route.path === "/tour" || route.path === "/") return "tour";
+    const queryWorkspace = route.query.workspace;
+    if (queryWorkspace === "media" || queryWorkspace === "tour") return queryWorkspace;
+    return activeWorkspace.value;
+});
+const menu = computed(() => currentWorkspaceKey.value === "media" ? mediaMenu : tourMenu);
 const activeTo = computed(() => {
     const matches = menu.value.filter((x) =>
         x.to === "/"
