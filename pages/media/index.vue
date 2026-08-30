@@ -90,11 +90,13 @@ onMounted(async () => {
         <PageHead
             title="Sudut Haramain Media"
             subtitle="Ringkasan operasional konten dan sinyal editorial."
-            ><template #actions
+        >
+            <!-- <template #actions
                 ><span
                     class="rounded-full border border-gold-soft bg-gold-sand/50 px-3 py-1.5 text-xs font-semibold text-neutral-charcoal/70"
                     >MEDIA</span
-                ></template
+                >
+            </template -->
             ></PageHead
         >
         <p
