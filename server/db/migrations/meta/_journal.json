@@ -106,6 +106,13 @@
       "when": 1788900000000,
       "tag": "0013_article_translations",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1789000000000,
+      "tag": "0014_article_translation_nullable_slug",
+      "breakpoints": true
     }
   ]
 }
