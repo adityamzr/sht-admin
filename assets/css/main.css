@@ -14,15 +14,28 @@
   .bg-kabah-gradient {
     background-image: linear-gradient(160deg, var(--sht-olive-dark) 0%, var(--sht-charcoal) 100%);
   }
+  .admin-page-title { font-size: 1.5rem; line-height: 1.25; font-weight: 600; }
+  .admin-page-subtitle { font-size: .875rem; line-height: 1.25rem; color: rgb(36 40 34 / 60%); }
+  .admin-section-title { font-size: 1.125rem; line-height: 1.5rem; font-weight: 600; color: var(--sht-olive-dark); }
+  .admin-card-title { font-size: 1rem; line-height: 1.5rem; font-weight: 600; color: var(--sht-charcoal); }
+  .admin-helper, .admin-meta { font-size: .75rem; line-height: 1rem; color: rgb(36 40 34 / 55%); }
+  .admin-table-header { font-size: .6875rem; line-height: 1rem; font-weight: 600; letter-spacing: .08em; color: rgb(36 40 34 / 55%); }
   .admin-shell input:not([type='checkbox']):not([type='radio']), .admin-shell select, .admin-shell textarea {
     border-color: #E4E3DE;
     background-color: #FFFFFF;
     color: #242822;
   }
+  .admin-page-title { font-size: 1.5rem; line-height: 1.25; font-weight: 600; }
+  .admin-page-subtitle { font-size: .875rem; line-height: 1.25rem; color: rgb(36 40 34 / 60%); }
+  .admin-section-title { font-size: 1.125rem; line-height: 1.5rem; font-weight: 600; color: var(--sht-olive-dark); }
+  .admin-card-title { font-size: 1rem; line-height: 1.5rem; font-weight: 600; color: var(--sht-charcoal); }
+  .admin-helper, .admin-meta { font-size: .75rem; line-height: 1rem; color: rgb(36 40 34 / 55%); }
+  .admin-table-header { font-size: .6875rem; line-height: 1rem; font-weight: 600; letter-spacing: .08em; color: rgb(36 40 34 / 55%); }
   .admin-shell input:not([type='checkbox']):not([type='radio']):focus, .admin-shell select:focus, .admin-shell textarea:focus {
     border-color: #7F8968;
     outline: none;
     box-shadow: 0 0 0 3px rgb(211 193 104 / 22%);
   }
+  @media (max-width: 639px) { .admin-page-title { font-size: 1.25rem; } }
   .admin-shell input:disabled, .admin-shell select:disabled, .admin-shell textarea:disabled { cursor: not-allowed; opacity: .6; }
 }
