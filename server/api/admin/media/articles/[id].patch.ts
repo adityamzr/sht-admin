@@ -1,7 +1,7 @@
-import { getArticle, slugExists, updateArticle } from '~/server/services/articles'
+import { getArticle, getArticleTranslations, slugExists, updateArticle } from '~/server/services/articles'
 import { useDb } from '~/server/db'
 import { articleInput } from '~/server/utils/validators'
-import { adminArticle } from '~/server/utils/serializers'
+import { adminArticleWithTranslations } from '~/server/utils/serializers'
 
 export default defineEventHandler(async (event) => {
   const id = Number(getRouterParam(event, 'id'))

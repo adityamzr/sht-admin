@@ -78,6 +78,7 @@ const slugTouched = ref(false);
 const fieldErrors = reactive<Record<string, string>>({});
 const toast = ref<Toast | null>(null);
 let toastTimer: ReturnType<typeof setTimeout> | null = null;
+const localeTab = ref<'id'|'en'>('id'); const enTranslation = reactive({ title:'', slug:'', excerpt:'', heroAlt:'', body:[] as ArticleBlock[], seoTitle:'', seoDescription:'' });
 const form = reactive({
     title: "",
     slug: "",
@@ -153,8 +154,11 @@ function dismissToast() {
 function clearErrors() {
     Object.keys(fieldErrors).forEach((key) => delete fieldErrors[key]);
 }
+function switchLocale(locale:'id'|'en'){localeTab.value=locale}
+function clearEnglish(){Object.assign(enTranslation,{title:'',slug:'',excerpt:'',heroAlt:'',body:[],seoTitle:'',seoDescription:''})}
 function emptyForm() {
     editingId.value = null;
+    localeTab.value = 'id'; clearEnglish();
     slugTouched.value = false;
     clearErrors();
     Object.assign(form, {
@@ -193,6 +197,7 @@ function editArticle(article: AdminArticle) {
         priority: article.priority,
         body: JSON.parse(JSON.stringify(article.body ?? [])),
     });
+    const english = (article as any).translations?.en; Object.assign(enTranslation, english ? { title: english.title || '', slug: english.slug || '', excerpt: english.excerpt || '', heroAlt: english.heroAlt || '', body: JSON.parse(JSON.stringify(english.body || [])), seoTitle: english.seoTitle || '', seoDescription: english.seoDescription || '' } : { title:'', slug:'', excerpt:'', heroAlt:'', body:[], seoTitle:'', seoDescription:'' }); localeTab.value = 'id';
     previewOpen.value = false;
     window.scrollTo({ top: 0, behavior: "smooth" });
 }
@@ -268,6 +273,7 @@ function payload(status: ArticleStatus) {
         seoTitle: null,
         seoDescription: null,
         ogImage: null,
+        translations: { id: { title: form.title.trim(), slug: form.slug.trim(), excerpt: form.excerpt.trim(), heroAlt: form.heroImageAlt.trim(), body: form.body.map(normalizeBlock), seoTitle: null, seoDescription: null }, en: { title: enTranslation.title.trim(), slug: enTranslation.slug.trim() || null, excerpt: enTranslation.excerpt.trim(), heroAlt: enTranslation.heroAlt.trim(), body: enTranslation.body.map(normalizeBlock), seoTitle: enTranslation.seoTitle.trim() || null, seoDescription: enTranslation.seoDescription.trim() || null } },
     };
 }
 async function loadArticles() {
@@ -676,7 +682,7 @@ watch(currentPage, () => clear());
                         Reset
                     </button>
                 </div>
-                <div class="mt-5 space-y-4">
+                <div class="mt-4 flex gap-2 border-b border-neutral-line pb-3"><button type="button" class="rounded-full px-4 py-2 text-sm font-semibold" :class="localeTab==='id'?'bg-sht-olive text-white':'border border-neutral-line'" @click="switchLocale('id')">Indonesia</button><button type="button" class="rounded-full px-4 py-2 text-sm font-semibold" :class="localeTab==='en'?'bg-sht-olive text-white':'border border-neutral-line'" @click="switchLocale('en')">English</button><span v-if="localeTab==='en'" class="self-center text-xs text-neutral-charcoal/55">Opsional · dapat disimpan partial</span></div><div v-if="localeTab==='en'" class="space-y-4 rounded-xl border border-sht-gold/30 bg-gold-sand/20 p-4"><label class="block text-sm font-semibold">Judul English<input v-model="enTranslation.title" class="mt-1 w-full rounded-xl border px-3 py-2 text-sm" placeholder="English title"/></label><label class="block text-sm font-semibold">Slug English<input v-model="enTranslation.slug" class="mt-1 w-full rounded-xl border px-3 py-2 text-sm" placeholder="english-slug (opsional untuk draft)"/></label><label class="block text-sm font-semibold">Excerpt English<textarea v-model="enTranslation.excerpt" rows="3" class="mt-1 w-full rounded-xl border px-3 py-2 text-sm"/></label><label class="block text-sm font-semibold">Body English<textarea :value="enTranslation.body.map((b:any)=>b.text||'').join('\n')" rows="6" class="mt-1 w-full rounded-xl border px-3 py-2 text-sm" placeholder="Satu paragraf per baris" @input="enTranslation.body=($event.target as HTMLTextAreaElement).value.split('\n').filter(Boolean).map(text=>({type:'paragraph',text}))"/></label><p class="text-xs text-neutral-charcoal/55">Completeness publik membutuhkan judul, slug, excerpt, dan body.</p></div><div v-else><div class="mt-5 space-y-4">
                     <label class="block text-sm font-semibold"
                         >Judul<input
                             data-field="title"
@@ -999,6 +1005,7 @@ watch(currentPage, () => clear());
                         >
                             Delete Artikel
                         </button>
+                    </div>
                     </div>
                 </div>
             </section>
