@@ -1,6 +1,300 @@
 <script setup lang="ts">
-import { ArrowDown, ArrowUp, Plus, RotateCcw, Trash2 } from 'lucide-vue-next'
-const { show: showGlobalToast } = useAdminToast()
-const articles=ref<any[]>([]),ids=ref<number[]>([]),draft=ref<number[]>([]),picker=ref(false),search=ref(''),preview=ref(false),device=ref<'desktop'|'mobile'>('desktop'),pending=ref(true),saving=ref(false),dirty=ref(false),error=ref(''),toast=ref('');const available=computed(()=>articles.value.filter(a=>a.status==='PUBLISHED'&&(a.city==='MADINAH'||a.city==='GENERAL')&&(!search.value||a.title.toLowerCase().includes(search.value.toLowerCase()))));function article(id:number){return articles.value.find(a=>a.id===id)}function mark(){dirty.value=true}function add(id:number){if(!draft.value.includes(id)&&draft.value.length<5){draft.value.push(id);mark()}picker.value=false}function remove(i:number){draft.value.splice(i,1);mark()}function move(i:number,d:number){const j=i+d;if(j<0||j>=draft.value.length)return;[draft.value[i],draft.value[j]]=[draft.value[j],draft.value[i]];mark()}function reset(){draft.value=[];mark()}async function load(){try{const [a,s]=await Promise.all([$fetch<any>('/api/admin/media/articles',{query:{status:'PUBLISHED',city:'MADINAH',page:1,pageSize:50}}),$fetch<any>('/api/admin/media/page-settings/madinah')]);articles.value=a.data;ids.value=s.data?.editorialArticleIds||[];draft.value=[...ids.value]}catch(e:any){error.value=e.data?.statusMessage||'Settings gagal dimuat.'}finally{pending.value=false}}async function save(){saving.value=true;try{await $fetch('/api/admin/media/page-settings/madinah',{method:'PATCH',body:{featuredArticleId:null,supportingArticleIds:[],editorialArticleIds:draft.value}});dirty.value=false;showGlobalToast('Pengaturan Madinah berhasil disimpan.','success')}catch(e:any){error.value=e.data?.statusMessage||'Gagal menyimpan.'}finally{saving.value=false}}onMounted(load)
+import { ArrowDown, ArrowUp, Plus, RotateCcw, Trash2 } from "lucide-vue-next";
+const { show: showGlobalToast } = useAdminToast();
+const articles = ref<any[]>([]),
+    ids = ref<number[]>([]),
+    draft = ref<number[]>([]),
+    picker = ref(false),
+    search = ref(""),
+    preview = ref(false),
+    device = ref<"desktop" | "mobile">("desktop"),
+    pending = ref(true),
+    saving = ref(false),
+    dirty = ref(false),
+    error = ref(""),
+    toast = ref("");
+const available = computed(() =>
+    articles.value.filter(
+        (a) =>
+            a.status === "PUBLISHED" &&
+            (a.city === "MADINAH" || a.city === "GENERAL") &&
+            (!search.value ||
+                a.title.toLowerCase().includes(search.value.toLowerCase())),
+    ),
+);
+function article(id: number) {
+    return articles.value.find((a) => a.id === id);
+}
+function mark() {
+    dirty.value = true;
+}
+function add(id: number) {
+    if (!draft.value.includes(id) && draft.value.length < 5) {
+        draft.value.push(id);
+        mark();
+    }
+    picker.value = false;
+}
+function remove(i: number) {
+    draft.value.splice(i, 1);
+    mark();
+}
+function move(i: number, d: number) {
+    const j = i + d;
+    if (j < 0 || j >= draft.value.length) return;
+    [draft.value[i], draft.value[j]] = [draft.value[j], draft.value[i]];
+    mark();
+}
+function reset() {
+    draft.value = [];
+    mark();
+}
+async function load() {
+    try {
+        const [a, s] = await Promise.all([
+            $fetch<any>("/api/admin/media/articles", {
+                query: {
+                    status: "PUBLISHED",
+                    city: "MADINAH",
+                    page: 1,
+                    pageSize: 50,
+                },
+            }),
+            $fetch<any>("/api/admin/media/page-settings/madinah"),
+        ]);
+        articles.value = a.data;
+        ids.value = s.data?.editorialArticleIds || [];
+        draft.value = [...ids.value];
+    } catch (e: any) {
+        error.value = e.data?.statusMessage || "Settings gagal dimuat.";
+    } finally {
+        pending.value = false;
+    }
+}
+async function save() {
+    saving.value = true;
+    try {
+        await $fetch("/api/admin/media/page-settings/madinah", {
+            method: "PATCH",
+            body: {
+                featuredArticleId: null,
+                supportingArticleIds: [],
+                editorialArticleIds: draft.value,
+            },
+        });
+        dirty.value = false;
+        showGlobalToast("Pengaturan Madinah berhasil disimpan.", "success");
+    } catch (e: any) {
+        error.value = e.data?.statusMessage || "Gagal menyimpan.";
+    } finally {
+        saving.value = false;
+    }
+}
+onMounted(load);
 </script>
-<template><div><PageHead title="Settings · Madinah" subtitle="Media · Page Settings"><template #actions><span v-if="dirty" class="rounded-full border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-700">Perubahan belum disimpan</span><button class="rounded-full border px-4 py-2 text-sm" @click="preview=true">Preview</button></template></PageHead><p v-if="error" class="mt-4 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-800">{{error}}</p><div v-if="pending" class="mt-8 rounded-2xl bg-white p-8 text-sm">Memuat...</div><div v-else class="mt-8 space-y-5"><section class="rounded-2xl border bg-white p-5"><div class="flex justify-between"><div><h2 class="font-heading text-lg font-semibold">Madinah dari Dekat</h2><p class="mt-1 text-sm text-neutral-charcoal/55">Editable · maksimal 5 Article terbit, atau otomatis jika kosong.</p></div><AdminStatusBadge status="EDITABLE" /></div><div class="mt-4 space-y-2"><div v-for="(id,i) in draft" :key="id" class="flex items-center gap-2 rounded-xl border p-3 text-sm"><b class="w-5">{{i+1}}</b><span class="min-w-0 flex-1 truncate">{{article(id)?.title}}</span><button type="button" class="rounded p-1 text-neutral-charcoal/60 hover:bg-neutral-soft disabled:opacity-30" title="Naikkan urutan" aria-label="Naikkan urutan" :disabled="i===0" @click="move(i,-1)"><ArrowUp class="h-4 w-4"/></button><button type="button" class="rounded p-1 text-neutral-charcoal/60 hover:bg-neutral-soft disabled:opacity-30" title="Turunkan urutan" aria-label="Turunkan urutan" :disabled="i===draft.length-1" @click="move(i,1)"><ArrowDown class="h-4 w-4"/></button><button type="button" class="rounded p-1 text-red-700 hover:bg-red-50" title="Hapus artikel" aria-label="Hapus artikel" @click="remove(i)"><Trash2 class="h-4 w-4"/></button></div></div><div class="mt-4 flex gap-2"><button class="inline-flex items-center gap-1 rounded-full border px-3 py-2 text-xs" @click="picker=true"><Plus class="h-4 w-4"/>Tambah Article</button><button class="inline-flex items-center gap-1 rounded-full border border-red-200 px-3 py-2 text-xs text-red-700" title="Reset ke otomatis" @click="reset"><RotateCcw class="h-4 w-4"/>Reset ke Otomatis</button></div></section><button class="mr-2 rounded-full border border-red-200 px-4 py-2 text-sm text-red-700" @click="reset">Reset Semua ke Default</button><button class="rounded-full bg-brand-green px-5 py-2.5 text-sm font-semibold text-white" :disabled="saving" @click="save">{{saving?'Menyimpan...':'Simpan Perubahan'}}</button></div><div v-if="picker" class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-5"><section class="max-h-[80vh] w-full max-w-xl overflow-auto rounded-2xl bg-white p-6"><h2 class="font-heading text-lg font-semibold">Pilih Article PUBLISHED</h2><input v-model="search" class="mt-4 w-full rounded-xl border px-3 py-2 text-sm" placeholder="Cari judul..."/><button v-for="a in available" :key="a.id" class="mt-2 flex w-full gap-3 rounded-xl border p-3 text-left" :disabled="draft.includes(a.id)" @click="add(a.id)"><img v-if="a.heroImage" :src="a.heroImage" class="h-12 w-16 rounded object-cover"/><span class="text-sm"><b class="block">{{a.title}}</b><small>{{a.city}} · {{a.category}}</small></span></button><button class="mt-4 rounded-full border px-4 py-2 text-sm" @click="picker=false">Tutup</button></section></div><div v-if="preview" class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"><section class="max-h-[90vh] w-full max-w-4xl overflow-auto rounded-2xl bg-neutral-soft p-4" :class="device==='mobile'?'max-w-[420px]':''"><div class="flex justify-between"><h2 class="font-heading font-semibold">Preview Madinah · draft</h2><div><button class="mr-2 rounded border px-2 py-1 text-xs" @click="device='desktop'">Desktop</button><button class="rounded border px-2 py-1 text-xs" @click="device='mobile'">Mobile</button><button class="ml-3 text-xl" @click="preview=false">×</button></div></div><div class="mt-4 rounded-2xl bg-brand-green p-6 text-white"><h3 class="font-heading text-2xl font-bold">Jelajahi Madinah dari satu tempat.</h3><p class="mt-2 text-sm opacity-80">Map dan filter lokasi</p></div><h3 class="mt-6 font-heading text-xl font-semibold">Madinah dari Dekat</h3><div class="mt-3 grid gap-3 sm:grid-cols-2"><div v-for="id in draft" :key="id" class="rounded-xl border bg-white p-3"><img v-if="article(id)?.heroImage" :src="article(id).heroImage" class="h-24 w-full rounded object-cover"/><b class="mt-2 block text-sm">{{article(id)?.title}}</b></div></div><p v-if="!draft.length" class="mt-3 text-sm text-neutral-charcoal/60">Otomatis berdasarkan Article API.</p></section></div></div></template>
+<template>
+    <div>
+        <PageHead title="Settings · Madinah" subtitle="Media · Page Settings"
+            ><template #actions
+                ><span
+                    v-if="dirty"
+                    class="rounded-full border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-700"
+                    >Perubahan belum disimpan</span
+                >
+                <!-- <button
+                    class="rounded-full border px-4 py-2 text-sm"
+                    @click="preview = true"
+                >
+                    Preview
+                </button> -->
+            </template></PageHead
+        >
+        <p
+            v-if="error"
+            class="mt-4 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-800"
+        >
+            {{ error }}
+        </p>
+        <div v-if="pending" class="mt-8 rounded-2xl bg-white p-8 text-sm">
+            Memuat...
+        </div>
+        <div v-else class="mt-8 space-y-5">
+            <section class="rounded-2xl border bg-white p-5">
+                <div class="flex justify-between">
+                    <div>
+                        <h2 class="font-heading text-lg font-semibold">
+                            Madinah dari Dekat
+                        </h2>
+                        <p class="mt-1 text-sm text-neutral-charcoal/55">
+                            Editable · maksimal 5 Article terbit, atau otomatis
+                            jika kosong.
+                        </p>
+                    </div>
+                    <AdminStatusBadge status="EDITABLE" />
+                </div>
+                <div class="mt-4 space-y-2">
+                    <div
+                        v-for="(id, i) in draft"
+                        :key="id"
+                        class="flex items-center gap-2 rounded-xl border p-3 text-sm"
+                    >
+                        <b class="w-5">{{ i + 1 }}</b
+                        ><span class="min-w-0 flex-1 truncate">{{
+                            article(id)?.title
+                        }}</span
+                        ><button
+                            type="button"
+                            class="rounded p-1 text-neutral-charcoal/60 hover:bg-neutral-soft disabled:opacity-30"
+                            title="Naikkan urutan"
+                            aria-label="Naikkan urutan"
+                            :disabled="i === 0"
+                            @click="move(i, -1)"
+                        >
+                            <ArrowUp class="h-4 w-4" /></button
+                        ><button
+                            type="button"
+                            class="rounded p-1 text-neutral-charcoal/60 hover:bg-neutral-soft disabled:opacity-30"
+                            title="Turunkan urutan"
+                            aria-label="Turunkan urutan"
+                            :disabled="i === draft.length - 1"
+                            @click="move(i, 1)"
+                        >
+                            <ArrowDown class="h-4 w-4" /></button
+                        ><button
+                            type="button"
+                            class="rounded p-1 text-red-700 hover:bg-red-50"
+                            title="Hapus artikel"
+                            aria-label="Hapus artikel"
+                            @click="remove(i)"
+                        >
+                            <Trash2 class="h-4 w-4" />
+                        </button>
+                    </div>
+                </div>
+                <div class="mt-4 flex gap-2">
+                    <button
+                        class="inline-flex items-center gap-1 rounded-full border px-3 py-2 text-xs"
+                        @click="picker = true"
+                    >
+                        <Plus class="h-4 w-4" />Tambah Article</button
+                    ><button
+                        class="inline-flex items-center gap-1 rounded-full border border-red-200 px-3 py-2 text-xs text-red-700"
+                        title="Reset ke otomatis"
+                        @click="reset"
+                    >
+                        <RotateCcw class="h-4 w-4" />Reset ke Otomatis
+                    </button>
+                </div>
+            </section>
+            <button
+                class="mr-2 rounded-full border border-red-200 px-4 py-2 text-sm text-red-700"
+                @click="reset"
+            >
+                Reset Semua ke Default</button
+            ><button
+                class="rounded-full bg-sht-olive px-5 py-2.5 text-sm font-semibold text-white"
+                :disabled="saving"
+                @click="save"
+            >
+                {{ saving ? "Menyimpan..." : "Simpan Perubahan" }}
+            </button>
+        </div>
+        <div
+            v-if="picker"
+            class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-5"
+        >
+            <section
+                class="max-h-[80vh] w-full max-w-xl overflow-auto rounded-2xl bg-white p-6"
+            >
+                <h2 class="font-heading text-lg font-semibold">
+                    Pilih Article PUBLISHED
+                </h2>
+                <input
+                    v-model="search"
+                    class="mt-4 w-full rounded-xl border px-3 py-2 text-sm"
+                    placeholder="Cari judul..."
+                /><button
+                    v-for="a in available"
+                    :key="a.id"
+                    class="mt-2 flex w-full gap-3 rounded-xl border p-3 text-left"
+                    :disabled="draft.includes(a.id)"
+                    @click="add(a.id)"
+                >
+                    <img
+                        v-if="a.heroImage"
+                        :src="a.heroImage"
+                        class="h-12 w-16 rounded object-cover"
+                    /><span class="text-sm"
+                        ><b class="block">{{ a.title }}</b
+                        ><small>{{ a.city }} · {{ a.category }}</small></span
+                    ></button
+                ><button
+                    class="mt-4 rounded-full border px-4 py-2 text-sm"
+                    @click="picker = false"
+                >
+                    Tutup
+                </button>
+            </section>
+        </div>
+        <div
+            v-if="preview"
+            class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+        >
+            <section
+                class="max-h-[90vh] w-full max-w-4xl overflow-auto rounded-2xl bg-neutral-soft p-4"
+                :class="device === 'mobile' ? 'max-w-[420px]' : ''"
+            >
+                <div class="flex justify-between">
+                    <h2 class="font-heading font-semibold">
+                        Preview Madinah · draft
+                    </h2>
+                    <div>
+                        <button
+                            class="mr-2 rounded border px-2 py-1 text-xs"
+                            @click="device = 'desktop'"
+                        >
+                            Desktop</button
+                        ><button
+                            class="rounded border px-2 py-1 text-xs"
+                            @click="device = 'mobile'"
+                        >
+                            Mobile</button
+                        ><button class="ml-3 text-xl" @click="preview = false">
+                            ×
+                        </button>
+                    </div>
+                </div>
+                <div class="mt-4 rounded-2xl bg-sht-olive p-6 text-white">
+                    <h3 class="font-heading text-2xl font-bold">
+                        Jelajahi Madinah dari satu tempat.
+                    </h3>
+                    <p class="mt-2 text-sm opacity-80">Map dan filter lokasi</p>
+                </div>
+                <h3 class="mt-6 font-heading text-xl font-semibold">
+                    Madinah dari Dekat
+                </h3>
+                <div class="mt-3 grid gap-3 sm:grid-cols-2">
+                    <div
+                        v-for="id in draft"
+                        :key="id"
+                        class="rounded-xl border bg-white p-3"
+                    >
+                        <img
+                            v-if="article(id)?.heroImage"
+                            :src="article(id).heroImage"
+                            class="h-24 w-full rounded object-cover"
+                        /><b class="mt-2 block text-sm">{{
+                            article(id)?.title
+                        }}</b>
+                    </div>
+                </div>
+                <p
+                    v-if="!draft.length"
+                    class="mt-3 text-sm text-neutral-charcoal/60"
+                >
+                    Otomatis berdasarkan Article API.
+                </p>
+            </section>
+        </div>
+    </div>
+</template>

@@ -1,26 +1,566 @@
 <script setup lang="ts">
-definePageMeta({ layout: 'admin', middleware: 'admin-auth' })
-type Status='DRAFT'|'PUBLISHED'|'ARCHIVED'; type Item={id:number;imageUrl:string;imageFileId:string|null;altText:string;title:string|null;description:string|null;city:string;category:string;locationName:string|null;latitude:number|null;longitude:number|null;tags:string[];priority:number;status:Status;takenAt:string|null;updatedAt:string}
-const {show}=useAdminToast();const cities=['MAKKAH','MADINAH'], categories=[['MASJID','Masjid'],['LANDSCAPE','Landscape'],['ARSITEKTUR','Arsitektur'],['JALAN','Jalan'],['TRANSPORTASI','Transportasi'],['KULINER','Kuliner']]
-const items=ref<Item[]>([]), pending=ref(false), total=ref(0), page=ref(1), pageSize=ref(12), search=ref(''), city=ref(''), category=ref(''), status=ref(''), editingId=ref<number|null>(null), confirmDelete=ref(false), toast=ref('')
-const form=reactive({imageUrl:'',imageFileId:'',altText:'',title:'',description:'',city:'MAKKAH',category:'MASJID',locationName:'',latitude:'',longitude:'',tags:'',priority:0,status:'DRAFT' as Status,takenAt:''})
-const pageCount=computed(()=>Math.ceil(total.value/pageSize.value)), editing=computed(()=>editingId.value!==null)
-function reset(){editingId.value=null;Object.assign(form,{imageUrl:'',imageFileId:'',altText:'',title:'',description:'',city:'MAKKAH',category:'MASJID',locationName:'',latitude:null,longitude:null,tags:'',priority:0,status:'DRAFT',takenAt:''})}
-function edit(x:Item){editingId.value=x.id;Object.assign(form,{...x,latitude:x.latitude===null?'':String(x.latitude),longitude:x.longitude===null?'':String(x.longitude),tags:x.tags.join(', '),takenAt:x.takenAt?x.takenAt.slice(0,10):''});window.scrollTo({top:0,behavior:'smooth'})}
-async function load(){pending.value=true;try{const r=await $fetch<any>('/api/admin/media/gallery',{query:{search:search.value||undefined,city:city.value||undefined,category:category.value||undefined,status:status.value||undefined,page:page.value,pageSize:pageSize.value}});items.value=r.data;total.value=r.meta.total}catch(e:any){show(e.data?.statusMessage||'Gallery gagal dimuat.','error')}finally{pending.value=false}}
-function coordinate(value:string){const normalized=value.trim().replace(',', '.');if(!normalized)return null;const parsed=Number(normalized);return Number.isFinite(parsed)?parsed:null}
-function body(status:Status){return {...form,imageUrl:form.imageUrl.trim(),imageFileId:form.imageFileId||null,altText:form.altText.trim(),title:form.title.trim()||null,description:form.description.trim()||null,city:form.city,category:form.category,locationName:form.locationName.trim()||null,tags:form.tags.split(',').map(x=>x.trim().toLowerCase()).filter(Boolean),priority:Number(form.priority)||0,latitude:coordinate(form.latitude),longitude:coordinate(form.longitude),status,takenAt:form.takenAt?new Date(form.takenAt+'T00:00:00.000Z').toISOString():null,publishedAt:status==='PUBLISHED'?new Date().toISOString():null}}
-async function save(s:Status){if(!form.imageUrl||!form.altText.trim()){show('Image dan alt text wajib diisi.','error');return}const latitude=coordinate(form.latitude), longitude=coordinate(form.longitude); if((latitude===null)!==(longitude===null)){show('Latitude dan longitude harus diisi berpasangan.','error');return} if(latitude!==null && (latitude < -90 || latitude > 90)){show('Latitude harus berada di antara -90 dan 90. Contoh Makkah: 21.4225','error');return} if(longitude!==null && (longitude < -180 || longitude > 180)){show('Longitude harus berada di antara -180 dan 180. Contoh Makkah: 39.8262','error');return}try{if(editingId.value)await $fetch(`/api/admin/media/gallery/${editingId.value}`,{method:'PATCH',body:body(s)});else{const r=await $fetch<any>('/api/admin/media/gallery',{method:'POST',body:body(s)});editingId.value=r.data.id}show('Gallery tersimpan.','success');await load()}catch(e:any){show(e.data?.statusMessage||'Gagal menyimpan.','error')}}
-async function remove(){if(!editingId.value)return;try{await $fetch(`/api/admin/media/gallery/${editingId.value}`,{method:'DELETE'});confirmDelete.value=false;reset();await load();show('Gallery item dan asset berhasil dihapus.','success')}catch(e:any){show(e.data?.statusMessage||'Gagal menghapus.','error')}}
-watch([search,city,category,status],()=>{page.value=1;load()});watch(pageSize,()=>{page.value=1;load()});onMounted(load)
+import { Plus } from "lucide-vue-next";
+definePageMeta({ layout: "admin", middleware: "admin-auth" });
+type Status = "DRAFT" | "PUBLISHED" | "ARCHIVED";
+type Item = {
+    id: number;
+    imageUrl: string;
+    imageFileId: string | null;
+    altText: string;
+    title: string | null;
+    description: string | null;
+    city: string;
+    category: string;
+    locationName: string | null;
+    latitude: number | null;
+    longitude: number | null;
+    tags: string[];
+    priority: number;
+    status: Status;
+    takenAt: string | null;
+    updatedAt: string;
+};
+const { show } = useAdminToast();
+const cities = ["MAKKAH", "MADINAH"],
+    categories = [
+        ["MASJID", "Masjid"],
+        ["LANDSCAPE", "Landscape"],
+        ["ARSITEKTUR", "Arsitektur"],
+        ["JALAN", "Jalan"],
+        ["TRANSPORTASI", "Transportasi"],
+        ["KULINER", "Kuliner"],
+    ];
+const items = ref<Item[]>([]),
+    pending = ref(false),
+    total = ref(0),
+    page = ref(1),
+    pageSize = ref(12),
+    search = ref(""),
+    city = ref(""),
+    category = ref(""),
+    status = ref(""),
+    editingId = ref<number | null>(null),
+    confirmDelete = ref(false),
+    toast = ref("");
+const form = reactive({
+    imageUrl: "",
+    imageFileId: "",
+    altText: "",
+    title: "",
+    description: "",
+    city: "MAKKAH",
+    category: "MASJID",
+    locationName: "",
+    latitude: "",
+    longitude: "",
+    tags: "",
+    priority: 0,
+    status: "DRAFT" as Status,
+    takenAt: "",
+});
+const pageCount = computed(() => Math.ceil(total.value / pageSize.value)),
+    editing = computed(() => editingId.value !== null);
+function reset() {
+    editingId.value = null;
+    Object.assign(form, {
+        imageUrl: "",
+        imageFileId: "",
+        altText: "",
+        title: "",
+        description: "",
+        city: "MAKKAH",
+        category: "MASJID",
+        locationName: "",
+        latitude: null,
+        longitude: null,
+        tags: "",
+        priority: 0,
+        status: "DRAFT",
+        takenAt: "",
+    });
+}
+function edit(x: Item) {
+    editingId.value = x.id;
+    Object.assign(form, {
+        ...x,
+        latitude: x.latitude === null ? "" : String(x.latitude),
+        longitude: x.longitude === null ? "" : String(x.longitude),
+        tags: x.tags.join(", "),
+        takenAt: x.takenAt ? x.takenAt.slice(0, 10) : "",
+    });
+    window.scrollTo({ top: 0, behavior: "smooth" });
+}
+async function load() {
+    pending.value = true;
+    try {
+        const r = await $fetch<any>("/api/admin/media/gallery", {
+            query: {
+                search: search.value || undefined,
+                city: city.value || undefined,
+                category: category.value || undefined,
+                status: status.value || undefined,
+                page: page.value,
+                pageSize: pageSize.value,
+            },
+        });
+        items.value = r.data;
+        total.value = r.meta.total;
+    } catch (e: any) {
+        show(e.data?.statusMessage || "Gallery gagal dimuat.", "error");
+    } finally {
+        pending.value = false;
+    }
+}
+function coordinate(value: string) {
+    const normalized = value.trim().replace(",", ".");
+    if (!normalized) return null;
+    const parsed = Number(normalized);
+    return Number.isFinite(parsed) ? parsed : null;
+}
+function body(status: Status) {
+    return {
+        ...form,
+        imageUrl: form.imageUrl.trim(),
+        imageFileId: form.imageFileId || null,
+        altText: form.altText.trim(),
+        title: form.title.trim() || null,
+        description: form.description.trim() || null,
+        city: form.city,
+        category: form.category,
+        locationName: form.locationName.trim() || null,
+        tags: form.tags
+            .split(",")
+            .map((x) => x.trim().toLowerCase())
+            .filter(Boolean),
+        priority: Number(form.priority) || 0,
+        latitude: coordinate(form.latitude),
+        longitude: coordinate(form.longitude),
+        status,
+        takenAt: form.takenAt
+            ? new Date(form.takenAt + "T00:00:00.000Z").toISOString()
+            : null,
+        publishedAt: status === "PUBLISHED" ? new Date().toISOString() : null,
+    };
+}
+async function save(s: Status) {
+    if (!form.imageUrl || !form.altText.trim()) {
+        show("Image dan alt text wajib diisi.", "error");
+        return;
+    }
+    const latitude = coordinate(form.latitude),
+        longitude = coordinate(form.longitude);
+    if ((latitude === null) !== (longitude === null)) {
+        show("Latitude dan longitude harus diisi berpasangan.", "error");
+        return;
+    }
+    if (latitude !== null && (latitude < -90 || latitude > 90)) {
+        show(
+            "Latitude harus berada di antara -90 dan 90. Contoh Makkah: 21.4225",
+            "error",
+        );
+        return;
+    }
+    if (longitude !== null && (longitude < -180 || longitude > 180)) {
+        show(
+            "Longitude harus berada di antara -180 dan 180. Contoh Makkah: 39.8262",
+            "error",
+        );
+        return;
+    }
+    try {
+        if (editingId.value)
+            await $fetch(`/api/admin/media/gallery/${editingId.value}`, {
+                method: "PATCH",
+                body: body(s),
+            });
+        else {
+            const r = await $fetch<any>("/api/admin/media/gallery", {
+                method: "POST",
+                body: body(s),
+            });
+            editingId.value = r.data.id;
+        }
+        show("Gallery tersimpan.", "success");
+        await load();
+    } catch (e: any) {
+        show(e.data?.statusMessage || "Gagal menyimpan.", "error");
+    }
+}
+async function remove() {
+    if (!editingId.value) return;
+    try {
+        await $fetch(`/api/admin/media/gallery/${editingId.value}`, {
+            method: "DELETE",
+        });
+        confirmDelete.value = false;
+        reset();
+        await load();
+        show("Gallery item dan asset berhasil dihapus.", "success");
+    } catch (e: any) {
+        show(e.data?.statusMessage || "Gagal menghapus.", "error");
+    }
+}
+watch([search, city, category, status], () => {
+    page.value = 1;
+    load();
+});
+watch(pageSize, () => {
+    page.value = 1;
+    load();
+});
+onMounted(load);
 
-const { selected, selectPage, toggle, clear, isSelected } = useBulkSelection<any>()
-const bulkActions=[{value:'PUBLISHED',label:'Publish'},{value:'DRAFT',label:'Kembalikan ke Draft'},{value:'ARCHIVED',label:'Archive'}]
-const allSelected=computed(()=>items.value.length>0&&items.value.every((x:any)=>isSelected(x.id)))
-async function applyBulk(value:string){try{const payload:any={ids:selected.value};payload.status=value;const result=await $fetch('/api/admin/media/gallery/bulk-status',{method:'PATCH',body:payload});show(String(result.updated)+' item berhasil diperbarui.','success');clear();await load()}catch(e:any){show(e.data?.statusMessage||'Bulk action gagal.','error')}}
-watch([search,city,category,status],()=>clear())
-watch(page,()=>clear())
+const { selected, selectPage, toggle, clear, isSelected } =
+    useBulkSelection<any>();
+const bulkActions = [
+    { value: "PUBLISHED", label: "Publish" },
+    { value: "DRAFT", label: "Kembalikan ke Draft" },
+    { value: "ARCHIVED", label: "Archive" },
+];
+const allSelected = computed(
+    () =>
+        items.value.length > 0 &&
+        items.value.every((x: any) => isSelected(x.id)),
+);
+async function applyBulk(value: string) {
+    try {
+        const payload: any = { ids: selected.value };
+        payload.status = value;
+        const result = await $fetch("/api/admin/media/gallery/bulk-status", {
+            method: "PATCH",
+            body: payload,
+        });
+        show(String(result.updated) + " item berhasil diperbarui.", "success");
+        clear();
+        await load();
+    } catch (e: any) {
+        show(e.data?.statusMessage || "Bulk action gagal.", "error");
+    }
+}
+watch([search, city, category, status], () => clear());
+watch(page, () => clear());
 </script>
-<template><div><PageHead title="Gallery" subtitle="Media · Content Library"><template #actions><button class="rounded-full bg-brand-green px-4 py-2 text-sm font-semibold text-white" @click="reset">Gallery Baru</button></template></PageHead><section class="mt-6 rounded-2xl border border-neutral-line bg-white p-5"><div class="grid gap-3 md:grid-cols-4"><input v-model="search" placeholder="Cari judul, alt, lokasi..." class="rounded-xl border border-neutral-line px-3 py-2 text-sm"/><select v-model="city" class="rounded-xl border border-neutral-line px-3 py-2 text-sm"><option value="">Semua kota</option><option v-for="x in cities" :key="x">{{x}}</option></select><select v-model="category" class="rounded-xl border border-neutral-line px-3 py-2 text-sm"><option value="">Semua kategori</option><option v-for="x in categories" :key="x[0]" :value="x[0]">{{x[1]}}</option></select><select v-model="status" class="rounded-xl border border-neutral-line px-3 py-2 text-sm"><option value="">Semua status</option><option>DRAFT</option><option>PUBLISHED</option><option>ARCHIVED</option></select></div></section><BulkActionBar :count="selected.length" :actions="bulkActions" @action="applyBulk" @clear="clear"/>
-<div class="mt-6 grid gap-6 xl:grid-cols-[minmax(0,1fr)_380px]"><section class="rounded-2xl border border-neutral-line bg-white p-5"><div class="flex justify-between"><label class="mr-3 text-xs"><input type="checkbox" :checked="allSelected" @change="selectPage(items)"/> Halaman</label><h2 class="font-heading text-lg font-semibold">Daftar Gallery</h2><span class="text-xs text-neutral-charcoal/50">{{total}} item · {{page}} / {{Math.max(pageCount,1)}}</span></div><div v-if="pending" class="py-12 text-center text-sm">Memuat...</div><div v-else class="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3"><button v-for="x in items" :key="x.id" class="overflow-hidden rounded-xl border border-neutral-line text-left" @click="edit(x)"><input type="checkbox" class="shrink-0" :checked="isSelected(x.id)" @click.stop="toggle(x.id)" /><img :src="x.imageUrl" :alt="x.altText" class="aspect-[4/3] w-full object-cover"/><div class="p-2"><p class="truncate text-sm font-semibold">{{x.title||x.locationName||x.altText}}</p><p class="text-xs text-neutral-charcoal/55">{{x.city}} · {{x.category}}</p><p class="mt-1 text-[10px] font-semibold">{{x.status}} · Prioritas {{x.priority}}</p></div></button></div><p v-if="!pending&&!items.length" class="py-12 text-center text-sm text-neutral-charcoal/50">Belum ada gallery item.</p><div v-if="pageCount>1" class="mt-5 flex flex-wrap gap-2 border-t border-neutral-line pt-4"><button class="rounded-full border px-3 py-1 text-xs" :disabled="page===1" @click="page--;load()">Previous</button><button v-for="n in pageCount" :key="n" class="h-7 min-w-7 rounded-full px-2 text-xs" :class="n===page?'bg-brand-green text-white':'border'" @click="page=n;load()">{{n}}</button><button class="rounded-full border px-3 py-1 text-xs" :disabled="page===pageCount" @click="page++;load()">Next</button><select v-model.number="pageSize" class="ml-auto rounded-lg border px-2 text-xs"><option :value="12">12</option><option :value="20">20</option></select></div></section>
-<section class="rounded-2xl border border-neutral-line bg-white p-5"><h2 class="font-heading text-lg font-semibold">{{editing?'Edit Gallery':'Gallery Baru'}}</h2><div class="mt-4 space-y-3"><MediaImageUploader v-model="form.imageUrl" @update:file-id="form.imageFileId=$event" label="Gallery image" folder="gallery"/><label class="block text-sm font-semibold">Alt text<input v-model="form.altText" class="mt-1 w-full rounded-lg border px-3 py-2 text-sm"/></label><label class="block text-sm font-semibold">Judul (opsional)<input v-model="form.title" class="mt-1 w-full rounded-lg border px-3 py-2 text-sm"/></label><label class="block text-sm font-semibold">Deskripsi<textarea v-model="form.description" rows="2" class="mt-1 w-full rounded-lg border px-3 py-2 text-sm"/></label><div class="grid grid-cols-2 gap-2"><label class="text-sm font-semibold">Kota<select v-model="form.city" class="mt-1 w-full rounded-lg border px-2 py-2 text-sm"><option v-for="x in cities" :key="x">{{x}}</option></select></label><label class="text-sm font-semibold">Kategori<select v-model="form.category" class="mt-1 w-full rounded-lg border px-2 py-2 text-sm"><option v-for="x in categories" :key="x[0]" :value="x[0]">{{x[1]}}</option></select></label></div><label class="block text-sm font-semibold">Lokasi (opsional)<input v-model="form.locationName" class="mt-1 w-full rounded-lg border px-3 py-2 text-sm"/></label><div class="grid grid-cols-2 gap-2"><label class="text-sm font-semibold">Latitude<input v-model="form.latitude" type="text" inputmode="decimal" placeholder="21.4225" class="mt-1 w-full rounded-lg border px-3 py-2 text-sm"/><span class="mt-1 block text-[11px] font-normal text-neutral-charcoal/55">-90 sampai 90 · gunakan titik desimal</span></label><label class="text-sm font-semibold">Longitude<input v-model="form.longitude" type="text" inputmode="decimal" placeholder="39.8262" class="mt-1 w-full rounded-lg border px-3 py-2 text-sm"/><span class="mt-1 block text-[11px] font-normal text-neutral-charcoal/55">-180 sampai 180 · gunakan titik desimal</span></label></div><label class="block text-sm font-semibold">Tags <span class="font-normal text-xs">(pisahkan koma)</span><input v-model="form.tags" class="mt-1 w-full rounded-lg border px-3 py-2 text-sm"/></label><div class="grid grid-cols-2 gap-2"><label class="text-sm font-semibold">Priority<input v-model.number="form.priority" type="number" class="mt-1 w-full rounded-lg border px-3 py-2 text-sm"/></label><label class="text-sm font-semibold">Tanggal diambil<input v-model="form.takenAt" type="date" class="mt-1 w-full rounded-lg border px-3 py-2 text-sm"/></label></div><div class="flex flex-wrap gap-2 border-t pt-4"><button class="rounded-full bg-brand-green px-3 py-2 text-xs font-semibold text-white" @click="save('DRAFT')">Simpan Draft</button><button class="rounded-full bg-gold px-3 py-2 text-xs font-semibold text-brand-green" v-if="form.status !== 'PUBLISHED' && form.status !== 'ARCHIVED'" @click="save('PUBLISHED')">Publish</button><button v-if="editing&&form.status==='PUBLISHED'" class="rounded-full border px-3 py-2 text-xs" @click="save('DRAFT')">Return Draft</button><button v-if="editing&&form.status!=='ARCHIVED'" class="rounded-full border border-red-200 px-3 py-2 text-xs text-red-700" @click="save('ARCHIVED')">Archive</button><button v-if="editing" class="rounded-full border border-red-300 px-3 py-2 text-xs text-red-800" @click="confirmDelete=true">Delete</button></div></div></section></div><div v-if="confirmDelete" class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-5"><div class="w-full max-w-sm rounded-2xl bg-white p-6"><h2 class="font-semibold">Hapus gallery item?</h2><p class="mt-2 text-sm text-neutral-charcoal/70">Asset ImageKit tidak dihapus dan tetap tersimpan.</p><div class="mt-5 flex justify-end gap-2"><button class="rounded-full border px-4 py-2 text-sm" @click="confirmDelete=false">Batal</button><button class="rounded-full bg-red-700 px-4 py-2 text-sm text-white" @click="remove">Hapus</button></div></div></div></div></template>
+<template>
+    <div>
+        <PageHead title="Gallery" subtitle="Media · Content Library"
+            ><template #actions
+                ><button
+                    class="inline-flex items-center justify-center w-fit rounded-full bg-sht-olive px-4 py-2 text-sm font-semibold text-white"
+                    @click="reset"
+                >
+                    <Plus class="h-4 w-4 flex-none" />
+                    Gallery Baru
+                </button></template
+            ></PageHead
+        >
+        <section
+            class="mt-6 rounded-2xl border border-neutral-line bg-white p-5"
+        >
+            <div class="grid gap-3 md:grid-cols-4">
+                <input
+                    v-model="search"
+                    placeholder="Cari judul, alt, lokasi..."
+                    class="rounded-xl border border-neutral-line px-3 py-2 text-sm"
+                /><select
+                    v-model="city"
+                    class="rounded-xl border border-neutral-line px-3 py-2 text-sm"
+                >
+                    <option value="">Semua kota</option>
+                    <option v-for="x in cities" :key="x">
+                        {{ x }}
+                    </option></select
+                ><select
+                    v-model="category"
+                    class="rounded-xl border border-neutral-line px-3 py-2 text-sm"
+                >
+                    <option value="">Semua kategori</option>
+                    <option v-for="x in categories" :key="x[0]" :value="x[0]">
+                        {{ x[1] }}
+                    </option></select
+                ><select
+                    v-model="status"
+                    class="rounded-xl border border-neutral-line px-3 py-2 text-sm"
+                >
+                    <option value="">Semua status</option>
+                    <option>DRAFT</option>
+                    <option>PUBLISHED</option>
+                    <option>ARCHIVED</option>
+                </select>
+            </div>
+        </section>
+        <BulkActionBar
+            :count="selected.length"
+            :actions="bulkActions"
+            @action="applyBulk"
+            @clear="clear"
+        />
+        <div class="mt-6 grid gap-6 xl:grid-cols-[minmax(0,1fr)_380px]">
+            <section
+                class="rounded-2xl border border-neutral-line bg-white p-5"
+            >
+                <div class="flex justify-between">
+                    <label class="mr-3 text-xs"
+                        ><input
+                            type="checkbox"
+                            :checked="allSelected"
+                            @change="selectPage(items)"
+                        />
+                        Halaman</label
+                    >
+                    <h2 class="font-heading text-lg font-semibold">
+                        Daftar Gallery
+                    </h2>
+                    <span class="text-xs text-neutral-charcoal/50"
+                        >{{ total }} item · {{ page }} /
+                        {{ Math.max(pageCount, 1) }}</span
+                    >
+                </div>
+                <div v-if="pending" class="py-12 text-center text-sm">
+                    Memuat...
+                </div>
+                <div v-else class="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
+                    <button
+                        v-for="x in items"
+                        :key="x.id"
+                        class="overflow-hidden rounded-xl border border-neutral-line text-left"
+                        @click="edit(x)"
+                    >
+                        <input
+                            type="checkbox"
+                            class="shrink-0"
+                            :checked="isSelected(x.id)"
+                            @click.stop="toggle(x.id)"
+                        /><img
+                            :src="x.imageUrl"
+                            :alt="x.altText"
+                            class="aspect-[4/3] w-full object-cover"
+                        />
+                        <div class="p-2">
+                            <p class="truncate text-sm font-semibold">
+                                {{ x.title || x.locationName || x.altText }}
+                            </p>
+                            <p class="text-xs text-neutral-charcoal/55">
+                                {{ x.city }} · {{ x.category }}
+                            </p>
+                            <p class="mt-1 text-[10px] font-semibold">
+                                {{ x.status }} · Prioritas {{ x.priority }}
+                            </p>
+                        </div>
+                    </button>
+                </div>
+                <p
+                    v-if="!pending && !items.length"
+                    class="py-12 text-center text-sm text-neutral-charcoal/50"
+                >
+                    Belum ada gallery item.
+                </p>
+                <div
+                    v-if="pageCount > 1"
+                    class="mt-5 flex flex-wrap gap-2 border-t border-neutral-line pt-4"
+                >
+                    <button
+                        class="rounded-full border px-3 py-1 text-xs"
+                        :disabled="page === 1"
+                        @click="
+                            page--;
+                            load();
+                        "
+                    >
+                        Previous</button
+                    ><button
+                        v-for="n in pageCount"
+                        :key="n"
+                        class="h-7 min-w-7 rounded-full px-2 text-xs"
+                        :class="
+                            n === page ? 'bg-sht-olive text-white' : 'border'
+                        "
+                        @click="
+                            page = n;
+                            load();
+                        "
+                    >
+                        {{ n }}</button
+                    ><button
+                        class="rounded-full border px-3 py-1 text-xs"
+                        :disabled="page === pageCount"
+                        @click="
+                            page++;
+                            load();
+                        "
+                    >
+                        Next</button
+                    ><select
+                        v-model.number="pageSize"
+                        class="ml-auto rounded-lg border px-2 text-xs"
+                    >
+                        <option :value="12">12</option>
+                        <option :value="20">20</option>
+                    </select>
+                </div>
+            </section>
+            <section
+                class="rounded-2xl border border-neutral-line bg-white p-5"
+            >
+                <h2 class="font-heading text-lg font-semibold">
+                    {{ editing ? "Edit Gallery" : "Gallery Baru" }}
+                </h2>
+                <div class="mt-4 space-y-3">
+                    <MediaImageUploader
+                        v-model="form.imageUrl"
+                        @update:file-id="form.imageFileId = $event"
+                        label="Gallery image"
+                        folder="gallery"
+                    /><label class="block text-sm font-semibold"
+                        >Alt text<input
+                            v-model="form.altText"
+                            class="mt-1 w-full rounded-lg border px-3 py-2 text-sm" /></label
+                    ><label class="block text-sm font-semibold"
+                        >Judul (opsional)<input
+                            v-model="form.title"
+                            class="mt-1 w-full rounded-lg border px-3 py-2 text-sm" /></label
+                    ><label class="block text-sm font-semibold"
+                        >Deskripsi<textarea
+                            v-model="form.description"
+                            rows="2"
+                            class="mt-1 w-full rounded-lg border px-3 py-2 text-sm"
+                        />
+                    </label>
+                    <div class="grid grid-cols-2 gap-2">
+                        <label class="text-sm font-semibold"
+                            >Kota<select
+                                v-model="form.city"
+                                class="mt-1 w-full rounded-lg border px-2 py-2 text-sm"
+                            >
+                                <option v-for="x in cities" :key="x">
+                                    {{ x }}
+                                </option>
+                            </select></label
+                        ><label class="text-sm font-semibold"
+                            >Kategori<select
+                                v-model="form.category"
+                                class="mt-1 w-full rounded-lg border px-2 py-2 text-sm"
+                            >
+                                <option
+                                    v-for="x in categories"
+                                    :key="x[0]"
+                                    :value="x[0]"
+                                >
+                                    {{ x[1] }}
+                                </option>
+                            </select></label
+                        >
+                    </div>
+                    <label class="block text-sm font-semibold"
+                        >Lokasi (opsional)<input
+                            v-model="form.locationName"
+                            class="mt-1 w-full rounded-lg border px-3 py-2 text-sm"
+                    /></label>
+                    <div class="grid grid-cols-2 gap-2">
+                        <label class="text-sm font-semibold"
+                            >Latitude<input
+                                v-model="form.latitude"
+                                type="text"
+                                inputmode="decimal"
+                                placeholder="21.4225"
+                                class="mt-1 w-full rounded-lg border px-3 py-2 text-sm"
+                            /><span
+                                class="mt-1 block text-[11px] font-normal text-neutral-charcoal/55"
+                                >-90 sampai 90 · gunakan titik desimal</span
+                            ></label
+                        ><label class="text-sm font-semibold"
+                            >Longitude<input
+                                v-model="form.longitude"
+                                type="text"
+                                inputmode="decimal"
+                                placeholder="39.8262"
+                                class="mt-1 w-full rounded-lg border px-3 py-2 text-sm"
+                            /><span
+                                class="mt-1 block text-[11px] font-normal text-neutral-charcoal/55"
+                                >-180 sampai 180 · gunakan titik desimal</span
+                            ></label
+                        >
+                    </div>
+                    <label class="block text-sm font-semibold"
+                        >Tags
+                        <span class="font-normal text-xs">(pisahkan koma)</span
+                        ><input
+                            v-model="form.tags"
+                            class="mt-1 w-full rounded-lg border px-3 py-2 text-sm"
+                    /></label>
+                    <div class="grid grid-cols-2 gap-2">
+                        <label class="text-sm font-semibold"
+                            >Priority<input
+                                v-model.number="form.priority"
+                                type="number"
+                                class="mt-1 w-full rounded-lg border px-3 py-2 text-sm" /></label
+                        ><label class="text-sm font-semibold"
+                            >Tanggal diambil<input
+                                v-model="form.takenAt"
+                                type="date"
+                                class="mt-1 w-full rounded-lg border px-3 py-2 text-sm"
+                        /></label>
+                    </div>
+                    <div class="flex flex-wrap gap-2 border-t pt-4">
+                        <button
+                            class="rounded-full bg-sht-olive px-3 py-2 text-xs font-semibold text-white"
+                            @click="save('DRAFT')"
+                        >
+                            Simpan Draft</button
+                        ><button
+                            class="rounded-full bg-gold px-3 py-2 text-xs font-semibold text-brand-green"
+                            v-if="
+                                form.status !== 'PUBLISHED' &&
+                                form.status !== 'ARCHIVED'
+                            "
+                            @click="save('PUBLISHED')"
+                        >
+                            Publish</button
+                        ><button
+                            v-if="editing && form.status === 'PUBLISHED'"
+                            class="rounded-full border px-3 py-2 text-xs"
+                            @click="save('DRAFT')"
+                        >
+                            Return Draft</button
+                        ><button
+                            v-if="editing && form.status !== 'ARCHIVED'"
+                            class="rounded-full border border-red-200 px-3 py-2 text-xs text-red-700"
+                            @click="save('ARCHIVED')"
+                        >
+                            Archive</button
+                        ><button
+                            v-if="editing"
+                            class="rounded-full border border-red-300 px-3 py-2 text-xs text-red-800"
+                            @click="confirmDelete = true"
+                        >
+                            Delete
+                        </button>
+                    </div>
+                </div>
+            </section>
+        </div>
+        <div
+            v-if="confirmDelete"
+            class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-5"
+        >
+            <div class="w-full max-w-sm rounded-2xl bg-white p-6">
+                <h2 class="font-semibold">Hapus gallery item?</h2>
+                <p class="mt-2 text-sm text-neutral-charcoal/70">
+                    Asset ImageKit tidak dihapus dan tetap tersimpan.
+                </p>
+                <div class="mt-5 flex justify-end gap-2">
+                    <button
+                        class="rounded-full border px-4 py-2 text-sm"
+                        @click="confirmDelete = false"
+                    >
+                        Batal</button
+                    ><button
+                        class="rounded-full bg-red-700 px-4 py-2 text-sm text-white"
+                        @click="remove"
+                    >
+                        Hapus
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</template>

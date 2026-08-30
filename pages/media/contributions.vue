@@ -278,7 +278,7 @@ watch(page, () => clear());
                         v-for="n in pageCount"
                         :key="n"
                         class="rounded-full border px-2 py-1 text-xs"
-                        :class="n === page ? 'bg-brand-green text-white' : ''"
+                        :class="n === page ? 'bg-sht-olive text-white' : ''"
                         @click="
                             page = n;
                             load();
@@ -368,7 +368,7 @@ watch(page, () => clear());
                     </label>
                     <div class="mt-2 flex flex-wrap gap-2">
                         <button
-                            class="rounded-full bg-brand-green px-3 py-2 text-xs text-white"
+                            class="rounded-full bg-sht-olive px-3 py-2 text-xs text-white"
                             @click="saveNote"
                         >
                             Simpan Catatan</button
