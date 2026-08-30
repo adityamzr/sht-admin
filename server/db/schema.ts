@@ -115,6 +115,12 @@ export const articles = pgTable('articles', {
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [index('articles_status_priority_idx').on(t.status, t.priority), index('articles_city_idx').on(t.city)])
 
+// ─── Media Article Translations ───────────────────────────────────────────
+export const articleTranslations = pgTable('article_translations', {
+  id: serial('id').primaryKey(), articleId: integer('article_id').notNull().references(() => articles.id, { onDelete: 'cascade' }), locale: text('locale').notNull(), title: text('title').notNull().default(''), slug: text('slug').notNull().default(''), excerpt: text('excerpt').notNull().default(''), heroAlt: text('hero_alt').notNull().default(''), body: jsonb('body').$type<unknown[]>().notNull().default(sql`'[]'::jsonb`), seoTitle: text('seo_title'), seoDescription: text('seo_description'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(), updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [unique('article_translations_article_locale_unique').on(t.articleId, t.locale), unique('article_translations_locale_slug_unique').on(t.locale, t.slug)])
+
 // ─── Media Contribution Inbox ──────────────────────────────────────────────
 export const contributions = pgTable('contributions', {
   id: serial('id').primaryKey(), type: text('type').notNull(), city: text('city'), subject: text('subject'), message: text('message').notNull(), name: text('name'), contact: text('contact'), sourcePage: text('source_page'), sourceUrl: text('source_url'), mapsUrl: text('maps_url'), status: text('status').notNull().default('NEW'), internalNote: text('internal_note'), createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(), updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(), readAt: timestamp('read_at', { withTimezone: true }), followedUpAt: timestamp('followed_up_at', { withTimezone: true }), archivedAt: timestamp('archived_at', { withTimezone: true }),
