@@ -381,6 +381,7 @@ function changePageSize() {
     currentPage.value = 1;
     loadArticles();
 }
+function enComplete(article: any) { return Boolean(article.translations?.en?.complete) }
 function displayContentType(value: string) {
     return (
         contentTypeOptions.find((option) => option.value === value)?.label ??
