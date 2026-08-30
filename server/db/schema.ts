@@ -62,6 +62,7 @@ export const adminUsers = pgTable('admin_users', {
   isActive: boolean('is_active').notNull().default(true),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  avatarUrl: text('avatar_url'), avatarFileId: text('avatar_file_id'),
 })
 
 // ─── Unified Admin Workspaces ───────────────────────────────────────────────
@@ -87,6 +88,8 @@ export const workspaceMemberships = pgTable(
   },
   (t) => [unique('workspace_memberships_user_workspace_unique').on(t.userId, t.workspaceId)],
 )
+
+export const notifications = pgTable('notifications', { id: serial('id').primaryKey(), recipientUserId: integer('recipient_user_id').notNull().references(() => adminUsers.id, { onDelete: 'cascade' }), workspaceId: integer('workspace_id').notNull().references(() => workspaces.id, { onDelete: 'cascade' }), type: text('type').notNull(), title: text('title').notNull(), message: text('message').notNull(), href: text('href'), readAt: timestamp('read_at', { withTimezone: true }), createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(), }, (t) => [index('notifications_recipient_workspace_idx').on(t.recipientUserId, t.workspaceId, t.createdAt)])
 
 // ─── Media Article ──────────────────────────────────────────────────────────
 export const articles = pgTable('articles', {

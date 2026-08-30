@@ -1,0 +1,2 @@
+import {eq} from 'drizzle-orm';import {adminUsers} from '~/server/db/schema';import {useDb} from '~/server/db';import {requireAdminSession} from '~/server/utils/session';import {publicAdmin} from '~/server/services/auth'
+export default defineEventHandler(async e=>{const s=requireAdminSession(e);const r=await useDb().select().from(adminUsers).where(eq(adminUsers.id,s.userId)).limit(1);if(!r[0])throw createError({statusCode:404,statusMessage:'Profil tidak ditemukan.'});return {data:publicAdmin(r[0]),avatarUrl:r[0].avatarUrl,avatarFileId:r[0].avatarFileId}})

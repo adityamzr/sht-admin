@@ -28,6 +28,7 @@ const workspaceOpen = ref(false),
     workspaceEl = ref<HTMLElement | null>(null),
     notificationEl = ref<HTMLElement | null>(null),
     accountEl = ref<HTMLElement | null>(null);
+const notifications=ref<any[]>([]),unread=ref(0);async function loadNotifications(){const r=await $fetch<any>('/api/admin/notifications',{query:{workspace:currentKey.value}}).catch(()=>({data:[],unread:0}));notifications.value=r.data||[];unread.value=r.unread||0}
 const workspaces = computed(() => workspaceResponse.value?.data ?? []),
     currentKey = computed(() =>
         route.path === "/media" || route.path.startsWith("/media/")
@@ -50,6 +51,7 @@ const workspaces = computed(() => workspaceResponse.value?.data ?? []),
             ? "border-sht-olive/25 text-sht-olive"
             : "border-gold-soft text-neutral-charcoal",
     );
+async function markAllRead(){await $fetch('/api/admin/notifications/read-all',{method:'PATCH',query:{workspace:currentKey.value}});await loadNotifications()}
 function workspacePath(key: string) {
     return key === "media" ? "/media" : "/tour";
 }
@@ -60,7 +62,7 @@ function closeMenus() {
 }
 function open(which: "workspace" | "notification" | "account") {
     workspaceOpen.value = which === "workspace";
-    notificationOpen.value = which === "notification";
+    notificationOpen.value = which === "notification"; if (which === "notification") loadNotifications();
     accountOpen.value = which === "account";
 }
 async function logout() {
@@ -142,16 +144,14 @@ watch(() => route.fullPath, closeMenus);
                         :aria-expanded="notificationOpen"
                         @click="open('notification')"
                     >
-                        <Bell class="h-5 w-5" />
+                        <Bell class="h-5 w-5" /><span v-if="unread" class="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-600 px-1 text-[9px] font-bold text-white">{{unread}}</span>
                     </button>
                     <div
                         v-if="notificationOpen"
                         class="absolute right-0 top-full z-[60] mt-2 w-56 rounded-xl border bg-white p-4 text-sm shadow-lg"
                     >
                         <p class="font-semibold">Notifikasi</p>
-                        <p class="mt-2 text-xs text-neutral-charcoal/55">
-                            Belum ada notifikasi.
-                        </p>
+                        <div v-if="notifications.length" class="mt-2 max-h-64 space-y-2 overflow-y-auto"><p v-for="n in notifications" :key="n.id" class="rounded-lg p-2 text-xs" :class="n.readAt?'text-neutral-charcoal/55':'bg-neutral-soft font-semibold'">{{n.title}}<span class="mt-1 block font-normal">{{n.message}}</span></p></div><p v-else class="mt-2 text-xs text-neutral-charcoal/55">Belum ada notifikasi.</p><button v-if="unread" class="mt-3 text-xs font-semibold text-brand-green" @click="markAllRead">Tandai semua dibaca</button>
                     </div>
                 </div>
                 <span
@@ -188,15 +188,10 @@ watch(() => route.fullPath, closeMenus);
                         v-if="accountOpen"
                         class="absolute right-0 top-full z-[60] mt-2 w-52 rounded-xl border bg-white p-1 shadow-lg"
                     >
-                        <button
-                            type="button"
-                            disabled
+                        <NuxtLink to="/profile" class="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm hover:bg-neutral-soft" @click="closeMenus">
                             class="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm text-neutral-charcoal/40"
                         >
-                            <UserPen class="h-4 w-4" />Profil<span
-                                class="ml-auto text-[10px]"
-                                >Segera</span
-                            ></button
+                            <UserPen class="h-4 w-4" />Profil</NuxtLink
                         ><button
                             type="button"
                             class="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm font-semibold text-red-700 hover:bg-red-50"

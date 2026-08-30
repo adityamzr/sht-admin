@@ -1,0 +1,3 @@
+import {and,desc,eq,isNull} from 'drizzle-orm';import {notifications,workspaces} from '../db/schema';import type {DbLike} from '../db'
+export async function listNotifications(db:DbLike,userId:number,workspaceKey:string){const ws=await db.select({id:workspaces.id}).from(workspaces).where(eq(workspaces.key,workspaceKey)).limit(1);if(!ws[0])return [];return db.select().from(notifications).where(and(eq(notifications.recipientUserId,userId),eq(notifications.workspaceId,ws[0].id))).orderBy(desc(notifications.createdAt)).limit(10)}
+export async function unreadNotificationCount(db:DbLike,userId:number,workspaceKey:string){const rows=await listNotifications(db,userId,workspaceKey);return rows.filter(x=>!x.readAt).length}
