@@ -51,7 +51,9 @@ const workspaces = computed(() => workspaceResponse.value?.data ?? []),
             ? "border-sht-olive/25 text-sht-olive"
             : "border-gold-soft text-neutral-charcoal",
     );
-async function markAllRead(){await $fetch('/api/admin/notifications/read-all',{method:'PATCH',query:{workspace:currentKey.value}});await loadNotifications()}
+function relativeDate(value: string) { const diff = Math.max(0, Date.now() - new Date(value).getTime()); const minutes = Math.floor(diff / 60000); if (minutes < 1) return 'Baru saja'; if (minutes < 60) return `${minutes} menit lalu`; const hours = Math.floor(minutes / 60); if (hours < 24) return `${hours} jam lalu`; return `${Math.floor(hours / 24)} hari lalu` }
+async function handleNotification(notification: any) { if (!notification.readAt) { await $fetch(`/api/admin/notifications/${notification.id}`, { method: 'PATCH' }).catch(() => {}); unread.value = Math.max(0, unread.value - 1); notification.readAt = new Date().toISOString() } closeMenus() }
+async function markAllRead(){await $fetch('/api/admin/notifications/read-all',{method:'PATCH',query:{workspace:currentKey.value}});notifications.value=notifications.value.map(n=>({...n,readAt:n.readAt||new Date().toISOString()}));unread.value=0}
 function workspacePath(key: string) {
     return key === "media" ? "/media" : "/tour";
 }
@@ -152,10 +154,10 @@ watch(() => route.fullPath, closeMenus);
                     </button>
                     <div
                         v-if="notificationOpen"
-                        class="absolute right-0 top-full z-[60] mt-2 w-56 rounded-xl border bg-white p-4 text-sm shadow-lg"
+                        class="absolute right-0 top-full z-[60] mt-3 w-[min(22rem,calc(100vw-2rem))] overflow-hidden rounded-2xl border border-neutral-line bg-white text-sm shadow-xl"
                     >
-                        <p class="font-semibold">Notifikasi</p>
-                        <div v-if="notifications.length" class="mt-2 max-h-64 space-y-2 overflow-y-auto"><p v-for="n in notifications" :key="n.id" class="rounded-lg p-2 text-xs" :class="n.readAt?'text-neutral-charcoal/55':'bg-neutral-soft font-semibold'">{{n.title}}<span class="mt-1 block font-normal">{{n.message}}</span></p></div><p v-else class="mt-2 text-xs text-neutral-charcoal/55">Belum ada notifikasi.</p><button v-if="unread" class="mt-3 text-xs font-semibold text-brand-green" @click="markAllRead">Tandai semua dibaca</button>
+                        <div class="flex items-center justify-between border-b border-neutral-line px-4 py-3"><div><p class="font-semibold text-neutral-charcoal">Notifikasi</p><p class="mt-0.5 text-xs text-neutral-charcoal/50">{{ unread ? `${unread} belum dibaca` : 'Semua sudah dibaca' }}</p></div><NuxtLink to="/notifications" class="text-xs font-semibold text-sht-olive hover:underline" @click="closeMenus">Lihat Semua</NuxtLink></div>
+                        <div v-if="notifications.length" class="max-h-80 overflow-y-auto"><NuxtLink v-for="n in notifications" :key="n.id" :to="n.href || '/notifications'" class="flex gap-3 border-b border-neutral-line px-4 py-3 transition-colors hover:bg-neutral-soft" :class="n.readAt ? 'text-neutral-charcoal/60' : 'bg-sht-olive/5 text-neutral-charcoal'" @click="handleNotification(n)"><span class="mt-1 h-2 w-2 shrink-0 rounded-full" :class="n.readAt ? 'bg-neutral-line' : 'bg-sht-gold'" /><span class="min-w-0 flex-1"><span class="block font-semibold">{{ n.title }}</span><span class="mt-1 block text-xs leading-relaxed">{{ n.message }}</span><span class="mt-1 block text-[11px] text-neutral-charcoal/45">{{ relativeDate(n.createdAt) }}</span></span></NuxtLink></div><p v-else class="px-4 py-10 text-center text-xs text-neutral-charcoal/55">Belum ada notifikasi.</p><div v-if="unread" class="border-t border-neutral-line px-4 py-3"><button class="text-xs font-semibold text-sht-olive hover:underline" @click="markAllRead">Tandai semua dibaca</button></div>
                     </div>
                 </div>
                 <span
