@@ -1,5 +1,5 @@
-import { countArticles, listArticles } from '~/server/services/articles'
-import { adminArticle } from '~/server/utils/serializers'
+import { countArticles, listArticles, getArticleTranslations } from '~/server/services/articles'
+import { adminArticleWithTranslations } from '~/server/utils/serializers'
 import { useDb } from '~/server/db'
 
 export default defineEventHandler(async (event) => {
@@ -19,5 +19,6 @@ export default defineEventHandler(async (event) => {
     listArticles(db, { ...filters, limit: pageSize, offset: (page - 1) * pageSize }),
     countArticles(db, filters),
   ])
-  return { data: rows.map(adminArticle), meta: { page, pageSize, total, pageCount: Math.ceil(total / pageSize) } }
+  const data = await Promise.all(rows.map(async (row) => adminArticleWithTranslations(row, await getArticleTranslations(db, row.id))))
+  return { data, meta: { page, pageSize, total, pageCount: Math.ceil(total / pageSize) } }
 })

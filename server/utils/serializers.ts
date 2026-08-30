@@ -355,3 +355,5 @@ export function adminContribution(r: ContributionRow) { return { ...contribution
 export function publicContribution(r: ContributionRow) { return contributionPublicFields(r) }
 
 export function publicArticleFeedback(value: string) { return { accepted: true, value } }
+
+export function adminArticleWithTranslations(row: ArticleRow, translations: any[]) { return { ...adminArticle(row), translations: Object.fromEntries(translations.map(t => [t.locale, { id: t.id, title: t.title, slug: t.slug, excerpt: t.excerpt, heroAlt: t.heroAlt, body: t.body, seoTitle: t.seoTitle, seoDescription: t.seoDescription, complete: Boolean(t.title?.trim() && t.slug?.trim() && t.excerpt?.trim() && Array.isArray(t.body) && t.body.length > 0) }])) } }

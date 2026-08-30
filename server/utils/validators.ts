@@ -342,6 +342,7 @@ const articleBase = z.object({
   seoTitle: z.string().max(240).nullable().optional(),
   seoDescription: z.string().max(600).nullable().optional(),
   ogImage: z.string().max(500).nullable().optional(),
+  translations: z.object({ id: z.object({ title:z.string().optional(), slug:z.string().nullable().optional(), excerpt:z.string().optional(), heroAlt:z.string().optional(), body:z.array(z.record(z.unknown())).optional(), seoTitle:z.string().nullable().optional(), seoDescription:z.string().nullable().optional() }).optional(), en: z.object({ title:z.string().optional(), slug:z.string().nullable().optional(), excerpt:z.string().optional(), heroAlt:z.string().optional(), body:z.array(z.record(z.unknown())).optional(), seoTitle:z.string().nullable().optional(), seoDescription:z.string().nullable().optional() }).optional() }).optional(),
 })
 export const articleInput = articleBase
 export const articlePatch = articleBase.partial()

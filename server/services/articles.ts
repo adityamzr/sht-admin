@@ -20,6 +20,7 @@ export type ArticleInput = {
   seoTitle?: string | null
   seoDescription?: string | null
   ogImage?: string | null
+  translations?: { id?: ArticleTranslationInput; en?: ArticleTranslationInput }
 }
 
 type ArticleFilters = { search?: string; status?: string; city?: string; category?: string; limit?: number; offset?: number }
@@ -63,7 +64,10 @@ export async function slugExists(db: DbLike, slug: string, excludeId?: number) {
 }
 
 export async function createArticle(db: DbLike, input: ArticleInput) {
-  const rows = await db.insert(articles).values({ ...input, publishedAt: input.status === 'PUBLISHED' ? input.publishedAt ?? new Date() : null, updatedAt: new Date() }).returning()
+  const { translations, ...master } = input as any
+  const rows = await db.insert(articles).values({ ...master, publishedAt: input.status === 'PUBLISHED' ? input.publishedAt ?? new Date() : null, updatedAt: new Date() }).returning()
+  if (rows[0]) await upsertArticleTranslation(db, rows[0].id, 'id', translations?.id ?? { title: input.title, slug: input.slug, excerpt: input.excerpt, heroAlt: input.heroImageAlt, body: input.body, seoTitle: input.seoTitle, seoDescription: input.seoDescription })
+  if (rows[0] && translations?.en) await upsertArticleTranslation(db, rows[0].id, 'en', translations.en)
   return rows[0]
 }
 
@@ -71,7 +75,10 @@ export async function updateArticle(db: DbLike, id: number, input: ArticleInput)
   const existing = await getArticle(db, id)
   if (!existing) return null
   const publishedAt = input.status === 'PUBLISHED' ? input.publishedAt ?? existing.publishedAt ?? new Date() : null
-  const rows = await db.update(articles).set({ ...input, publishedAt, updatedAt: new Date() }).where(eq(articles.id, id)).returning()
+  const { translations, ...master } = input as any
+  const rows = await db.update(articles).set({ ...master, publishedAt, updatedAt: new Date() }).where(eq(articles.id, id)).returning()
+  if (rows[0]) await upsertArticleTranslation(db, id, 'id', translations?.id ?? { title: input.title, slug: input.slug, excerpt: input.excerpt, heroAlt: input.heroImageAlt, body: input.body, seoTitle: input.seoTitle, seoDescription: input.seoDescription })
+  if (rows[0] && translations?.en) await upsertArticleTranslation(db, id, 'en', translations.en)
   return rows[0] ?? null
 }
 
@@ -86,3 +93,13 @@ export async function deleteArticle(db: DbLike, id: number) {
   const rows = await db.delete(articles).where(eq(articles.id, id)).returning({ id: articles.id })
   return rows[0] ?? null
 }
+
+export type ArticleLocale = 'id' | 'en'
+export type ArticleTranslationInput = { title?: string; slug?: string | null; excerpt?: string; heroAlt?: string; body?: unknown[]; seoTitle?: string | null; seoDescription?: string | null }
+export function isCompleteArticleTranslation(t: ArticleTranslationInput | null | undefined) { return Boolean(t?.title?.trim() && t.slug?.trim() && t.excerpt?.trim() && Array.isArray(t.body) && t.body.length > 0) }
+export async function getArticleTranslations(db: DbLike, articleId: number) { const { articleTranslations } = await import('../db/schema'); return db.select().from(articleTranslations).where(eq(articleTranslations.articleId, articleId)) }
+export async function getArticleWithTranslations(db: DbLike, id: number) { const article = await getArticle(db, id); if (!article) return null; return { article, translations: await getArticleTranslations(db, id) } }
+export async function upsertArticleTranslation(db: DbLike, articleId: number, locale: ArticleLocale, input: ArticleTranslationInput) { const { articleTranslations } = await import('../db/schema'); const existing = (await db.select().from(articleTranslations).where(and(eq(articleTranslations.articleId, articleId), eq(articleTranslations.locale, locale))).limit(1))[0]; const values = { title: input.title?.trim() ?? '', slug: input.slug?.trim() || null, excerpt: input.excerpt?.trim() ?? '', heroAlt: input.heroAlt?.trim() ?? '', body: input.body ?? [], seoTitle: input.seoTitle?.trim() || null, seoDescription: input.seoDescription?.trim() || null, updatedAt: new Date() }; if (existing) { const rows = await db.update(articleTranslations).set(values).where(eq(articleTranslations.id, existing.id)).returning(); return rows[0] } const rows = await db.insert(articleTranslations).values({ articleId, locale, ...values }).returning(); return rows[0] }
+export async function getPublishedArticleByLocalizedSlug(db: DbLike, slug: string, locale: ArticleLocale = 'id') { const { articleTranslations } = await import('../db/schema'); const rows = await db.select({ article: articles, translation: articleTranslations }).from(articleTranslations).innerJoin(articles, eq(articleTranslations.articleId, articles.id)).where(and(eq(articleTranslations.locale, locale), eq(articleTranslations.slug, slug), eq(articles.status, 'PUBLISHED'))).limit(1); const row = rows[0]; if (!row || !isCompleteArticleTranslation(row.translation)) return null; return row }
+export function localizedArticleRow(article: any, translation: any) { return { ...article, title: translation.title, slug: translation.slug, excerpt: translation.excerpt, heroImageAlt: translation.heroAlt, body: translation.body, seoTitle: translation.seoTitle, seoDescription: translation.seoDescription } }
+export async function listLocalizedArticles(db: DbLike, filters: ArticleFilters & { locale?: ArticleLocale }) { const locale=filters.locale||'id'; const rows=await listArticles(db, filters); const out=[]; for(const article of rows){ const ts=await getArticleTranslations(db,article.id); const t=ts.find(x=>x.locale===locale); if(t && (locale==='id'||isCompleteArticleTranslation(t))) out.push(localizedArticleRow(article,t)); } return out }

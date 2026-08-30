@@ -1,16 +1,5 @@
-import { listArticles } from '~/server/services/articles'
+import { listLocalizedArticles } from '~/server/services/articles'
 import { publicArticle } from '~/server/utils/serializers'
+import { parseLocale } from '~/server/utils/locales'
 import { useDb } from '~/server/db'
-
-export default defineEventHandler(async (event) => {
-  const query = getQuery(event)
-  const limitRaw = Number(query.limit)
-  const limit = Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(Math.floor(limitRaw), 100) : 20
-  const rows = await listArticles(useDb(), {
-    status: 'PUBLISHED',
-    city: typeof query.city === 'string' ? query.city : undefined,
-    category: typeof query.category === 'string' ? query.category : undefined,
-  })
-  const filtered = typeof query.contentType === 'string' ? rows.filter((row) => row.contentType === query.contentType) : rows
-  return { data: filtered.slice(0, limit).map(publicArticle) }
-})
+export default defineEventHandler(async (event) => { const q=getQuery(event),locale=parseLocale(q.locale); const raw=Number(q.limit),limit=Number.isFinite(raw)&&raw>0?Math.min(Math.floor(raw),100):20; const rows=await listLocalizedArticles(useDb(),{locale,status:'PUBLISHED',city:typeof q.city==='string'?q.city:undefined,category:typeof q.category==='string'?q.category:undefined,search:typeof q.search==='string'?q.search.trim():undefined}); return {data:rows.slice(0,limit).map(publicArticle)} })
