@@ -102,7 +102,7 @@ const editingArticle = computed(() =>
           null)
         : null,
 );
-const previewLocale = ref<'id'|'en'>('id'); const previewTitle = computed(()=>previewLocale.value==='en'?enTranslation.title:form.title); const previewExcerpt = computed(()=>previewLocale.value==='en'?enTranslation.excerpt:form.excerpt); const previewBody = computed(()=>previewLocale.value==='en'?enTranslation.body:form.body);
+const previewLocale = ref<'id'|'en'>('id'); const previewTitle = computed(()=>previewLocale.value==='en'?enTranslation.title:form.title); const previewExcerpt = computed(()=>previewLocale.value==='en'?enTranslation.excerpt:form.excerpt); const previewHeroAlt = computed(()=>previewLocale.value==='en'?enTranslation.heroAlt:form.heroImageAlt); const previewBody = computed(()=>previewLocale.value==='en'?enTranslation.body:form.body);
 const pageNumbers = computed(() =>
     Array.from({ length: pageCount.value }, (_, index) => index + 1),
 );
@@ -484,7 +484,7 @@ watch(currentPage, () => clear());
                         <option>DRAFT</option>
                         <option>PUBLISHED</option>
                         <option>ARCHIVED</option>
-                    </select></label
+                    </select></label><label><span class="text-xs font-semibold uppercase tracking-[0.12em] text-neutral-charcoal/50">English</span><select v-model="translationFilter" class="mt-1.5 min-h-[42px] w-full rounded-xl border border-neutral-line px-3 text-sm"><option value="">Semua</option><option value="complete">Lengkap</option><option value="incomplete">Belum Lengkap</option></select></label
                 ><label
                     ><span class="text-xs font-semibold uppercase tracking-[0.12em] text-neutral-charcoal/50">English</span><select v-model="translationFilter" class="mt-1.5 min-h-[42px] w-full rounded-xl border border-neutral-line px-3 text-sm"><option value="">Semua</option><option value="complete">Lengkap</option><option value="incomplete">Belum Lengkap</option></select></label><label
                     ><span
@@ -1040,7 +1040,7 @@ watch(currentPage, () => clear());
             <img
                 v-if="form.heroImage"
                 :src="form.heroImage"
-                :alt="form.heroImageAlt"
+                :alt="previewHeroAlt"
                 class="mt-6 max-h-[420px] w-full max-w-4xl rounded-xl object-cover"
             />
             <div class="mt-8 max-w-2xl text-neutral-charcoal/80">
