@@ -119,7 +119,7 @@ export const articles = pgTable('articles', {
 export const articleTranslations = pgTable('article_translations', {
   id: serial('id').primaryKey(), articleId: integer('article_id').notNull().references(() => articles.id, { onDelete: 'cascade' }), locale: text('locale').notNull(), title: text('title').notNull().default(''), slug: text('slug'), excerpt: text('excerpt').notNull().default(''), heroAlt: text('hero_alt').notNull().default(''), body: jsonb('body').$type<unknown[]>().notNull().default(sql`'[]'::jsonb`), seoTitle: text('seo_title'), seoDescription: text('seo_description'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(), updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
-}, (t) => [unique('article_translations_article_locale_unique').on(t.articleId, t.locale), unique('article_translations_locale_slug_unique').on(t.locale, t.slug)])
+}, (t) => [unique('article_translations_article_locale_unique').on(t.articleId, t.locale), uniqueIndex('article_translations_locale_slug_unique').on(t.locale, t.slug).where(sql`${t.slug} IS NOT NULL`)])
 
 // ─── Media Contribution Inbox ──────────────────────────────────────────────
 export const contributions = pgTable('contributions', {

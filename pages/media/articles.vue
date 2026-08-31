@@ -66,6 +66,7 @@ const search = ref("");
 const statusFilter = ref("");
 const cityFilter = ref("");
 const categoryFilter = ref("");
+const translationFilter = ref("");
 const currentPage = ref(1);
 const pageSize = ref(10);
 const total = ref(0);
@@ -295,6 +296,7 @@ async function loadArticles() {
                 status: statusFilter.value || undefined,
                 city: cityFilter.value || undefined,
                 category: categoryFilter.value || undefined,
+                translation: translationFilter.value || undefined,
                 page: currentPage.value,
                 pageSize: pageSize.value,
             },
@@ -396,7 +398,7 @@ watch(
         if (!slugTouched.value) form.slug = slugify(title);
     },
 );
-watch([search, statusFilter, cityFilter, categoryFilter], () => {
+watch([search, statusFilter, cityFilter, categoryFilter, translationFilter], () => {
     currentPage.value = 1;
     loadArticles();
 });
@@ -484,6 +486,7 @@ watch(currentPage, () => clear());
                         <option>ARCHIVED</option>
                     </select></label
                 ><label
+                    ><span class="text-xs font-semibold uppercase tracking-[0.12em] text-neutral-charcoal/50">English</span><select v-model="translationFilter" class="mt-1.5 min-h-[42px] w-full rounded-xl border border-neutral-line px-3 text-sm"><option value="">Semua</option><option value="complete">Lengkap</option><option value="incomplete">Belum Lengkap</option></select></label><label
                     ><span
                         class="text-xs font-semibold uppercase tracking-[0.12em] text-neutral-charcoal/50"
                         >City</span

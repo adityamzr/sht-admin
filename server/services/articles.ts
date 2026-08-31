@@ -65,7 +65,9 @@ export async function slugExists(db: DbLike, slug: string, excludeId?: number) {
 
 export async function createArticle(db: DbLike, input: ArticleInput) {
   const { translations, ...master } = input as any
-  const rows = await db.insert(articles).values({ ...master, publishedAt: input.status === 'PUBLISHED' ? input.publishedAt ?? new Date() : null, updatedAt: new Date() }).returning()
+  const idText = translations?.id
+  const canonicalMaster = { ...master, title: idText?.title ?? master.title, slug: idText?.slug ?? master.slug, excerpt: idText?.excerpt ?? master.excerpt, heroImageAlt: idText?.heroAlt ?? master.heroImageAlt, body: idText?.body ?? master.body, seoTitle: idText?.seoTitle ?? master.seoTitle, seoDescription: idText?.seoDescription ?? master.seoDescription }
+  const rows = await db.insert(articles).values({ ...canonicalMaster, publishedAt: input.status === 'PUBLISHED' ? input.publishedAt ?? new Date() : null, updatedAt: new Date() }).returning()
   if (rows[0]) await upsertArticleTranslation(db, rows[0].id, 'id', translations?.id ?? { title: input.title, slug: input.slug, excerpt: input.excerpt, heroAlt: input.heroImageAlt, body: input.body, seoTitle: input.seoTitle, seoDescription: input.seoDescription })
   if (rows[0] && translations?.en) await upsertArticleTranslation(db, rows[0].id, 'en', translations.en)
   return rows[0]
@@ -76,7 +78,9 @@ export async function updateArticle(db: DbLike, id: number, input: ArticleInput)
   if (!existing) return null
   const publishedAt = input.status === 'PUBLISHED' ? input.publishedAt ?? existing.publishedAt ?? new Date() : null
   const { translations, ...master } = input as any
-  const rows = await db.update(articles).set({ ...master, publishedAt, updatedAt: new Date() }).where(eq(articles.id, id)).returning()
+  const idText = translations?.id
+  const canonicalMaster = { ...master, title: idText?.title ?? master.title, slug: idText?.slug ?? master.slug, excerpt: idText?.excerpt ?? master.excerpt, heroImageAlt: idText?.heroAlt ?? master.heroImageAlt, body: idText?.body ?? master.body, seoTitle: idText?.seoTitle ?? master.seoTitle, seoDescription: idText?.seoDescription ?? master.seoDescription }
+  const rows = await db.update(articles).set({ ...canonicalMaster, publishedAt, updatedAt: new Date() }).where(eq(articles.id, id)).returning()
   if (rows[0]) await upsertArticleTranslation(db, id, 'id', translations?.id ?? { title: input.title, slug: input.slug, excerpt: input.excerpt, heroAlt: input.heroImageAlt, body: input.body, seoTitle: input.seoTitle, seoDescription: input.seoDescription })
   if (rows[0] && translations?.en) await upsertArticleTranslation(db, id, 'en', translations.en)
   return rows[0] ?? null
@@ -105,3 +109,16 @@ export function localizedArticleRow(article: any, translation: any) { return { .
 export async function listLocalizedArticles(db: DbLike, filters: ArticleFilters & { locale?: ArticleLocale }) { const locale=filters.locale||'id'; const rows=await listArticles(db, {...filters, search: undefined}); const needle=filters.search?.toLowerCase(); const out=[]; for(const article of rows){ const ts=await getArticleTranslations(db,article.id); const t=ts.find(x=>x.locale===locale); if(t && (locale==='id'||isCompleteArticleTranslation(t)) && (!needle || [t.title,t.slug,t.excerpt].join(' ').toLowerCase().includes(needle))) out.push(localizedArticleRow(article,t)); } return out }
 
 export async function localizedSlugExists(db: DbLike, locale: ArticleLocale, slug: string | null | undefined, excludeArticleId?: number) { if (!slug) return false; const { articleTranslations } = await import('../db/schema'); const rows=await db.select({articleId:articleTranslations.articleId}).from(articleTranslations).where(and(eq(articleTranslations.locale,locale),eq(articleTranslations.slug,slug))).limit(2); return rows.some(r=>r.articleId!==excludeArticleId) }
+
+export async function listArticlesByTranslationReadiness(db: DbLike, filters: ArticleFilters, readiness: 'complete' | 'incomplete', limit: number, offset: number) {
+  const rows = await listArticles(db, { ...filters, search: undefined })
+  const matching: any[] = []
+  const needle = filters.search?.toLowerCase()
+  for (const article of rows) {
+    const translations = await getArticleTranslations(db, article.id)
+    const t = translations.find((x) => x.locale === 'en')
+    const complete = isCompleteArticleTranslation(t)
+    if ((readiness === 'complete' ? complete : !complete) && (!needle || [article.title, t?.title, t?.slug, t?.excerpt].filter(Boolean).join(' ').toLowerCase().includes(needle))) matching.push({ ...article, translations })
+  }
+  return { total: matching.length, rows: matching.slice(offset, offset + limit) }
+}
