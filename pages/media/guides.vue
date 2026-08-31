@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { mediaEditorTranslation, isCompleteGuideTranslation, type GuideTranslation } from '~/shared/media-localization';
+import type { SupportedLocale } from '~/shared/locales';
 import { Plus } from "lucide-vue-next";
 const { show: showGlobalToast } = useAdminToast();
 definePageMeta({ layout: "admin", middleware: "admin-auth" });
@@ -25,6 +27,7 @@ type AdminGuide = {
     status: GuideStatus;
     publishedAt: string | null;
     updatedAt: string;
+    translations?: Partial<Record<SupportedLocale, GuideTranslation & { complete: boolean }>>;
 };
 type Toast = { message: string; type: "success" | "error" | "warning" };
 
@@ -55,6 +58,11 @@ const slugTouched = ref(false);
 const fieldErrors = reactive<Record<string, string>>({});
 const toast = ref<Toast | null>(null);
 let toastTimer: ReturnType<typeof setTimeout> | null = null;
+const localeTab = ref<SupportedLocale>('id');
+const previewLocale = ref<SupportedLocale>('id');
+const translationFilter = ref('');
+const emptyEnglish = () => ({ title: '', slug: '', summary: '', body: [] as GuideBlock[] });
+const english = reactive(emptyEnglish());
 const form = reactive({
     title: "",
     slug: "",
@@ -62,8 +70,11 @@ const form = reactive({
     summary: "",
     sortOrder: 10,
     status: "DRAFT" as GuideStatus,
+    publishedAt: null as string | null,
     body: [] as GuideBlock[],
 });
+const editorText = computed(() => localeTab.value === 'en' ? english : form);
+const previewText = computed(() => previewLocale.value === 'en' ? english : form);
 const editingGuide = computed(() =>
     editingId.value
         ? (guides.value.find((guide) => guide.id === editingId.value) ?? null)
@@ -108,6 +119,8 @@ function clearErrors() {
 }
 function emptyForm() {
     editingId.value = null;
+    localeTab.value = previewLocale.value = "id";
+    Object.assign(english, emptyEnglish());
     slugTouched.value = false;
     clearErrors();
     Object.assign(form, {
@@ -117,6 +130,7 @@ function emptyForm() {
         summary: "",
         sortOrder: 10,
         status: "DRAFT",
+        publishedAt: null,
         body: [{ type: "paragraph", text: "" }],
     });
     previewOpen.value = false;
@@ -125,14 +139,19 @@ function editGuide(guide: AdminGuide) {
     editingId.value = guide.id;
     slugTouched.value = true;
     clearErrors();
+    const idText = mediaEditorTranslation<GuideTranslation>(guide, 'id', { title: guide.title, slug: guide.slug, summary: guide.summary, body: guide.body }, { title: '', slug: null, summary: null, body: [] });
+    const enText = mediaEditorTranslation<GuideTranslation>(guide, 'en', idText, { title: '', slug: null, summary: null, body: [] });
+    Object.assign(english, enText, { slug: enText.slug ?? '', summary: enText.summary ?? '' });
+    localeTab.value = previewLocale.value = 'id';
     Object.assign(form, {
-        title: guide.title,
-        slug: guide.slug,
+        title: idText.title,
+        slug: idText.slug ?? "",
         group: guide.group,
-        summary: guide.summary ?? "",
+        summary: idText.summary ?? "",
         sortOrder: guide.sortOrder,
         status: guide.status,
-        body: JSON.parse(JSON.stringify(guide.body ?? [])),
+        body: idText.body,
+        publishedAt: guide.publishedAt,
     });
     previewOpen.value = false;
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -189,14 +208,12 @@ function validateForm() {
 }
 function payload(status: GuideStatus) {
     return {
-        title: form.title.trim(),
-        slug: form.slug.trim(),
-        group: form.group,
-        summary: form.summary.trim() || null,
-        body: form.body.map(normalizeBlock),
-        sortOrder: Number(form.sortOrder) || 0,
-        status,
-        publishedAt: status === "PUBLISHED" ? new Date().toISOString() : null,
+        group: form.group, sortOrder: Number(form.sortOrder) || 0, status,
+        publishedAt: status === 'PUBLISHED' ? form.publishedAt : null,
+        translations: {
+            id: { title: form.title.trim(), slug: form.slug.trim(), summary: form.summary.trim() || null, body: form.body.map(normalizeBlock) },
+            en: { title: english.title.trim(), slug: english.slug.trim() || null, summary: english.summary.trim() || null, body: english.body.map(normalizeBlock) },
+        },
     };
 }
 async function loadGuides() {
@@ -208,6 +225,7 @@ async function loadGuides() {
         }>("/api/admin/media/guides", {
             query: {
                 search: search.value || undefined,
+                translation: translationFilter.value || undefined,
                 group: groupFilter.value || undefined,
                 status: statusFilter.value || undefined,
                 page: currentPage.value,
@@ -228,26 +246,20 @@ async function loadGuides() {
     }
 }
 async function saveGuide(status: GuideStatus) {
-    form.status = status;
     if (!validateForm()) {
         showToast("Periksa field yang masih belum lengkap.", "error");
         return;
     }
     try {
         const body = payload(status);
-        if (editingId.value)
-            await $fetch(`/api/admin/media/guides/${editingId.value}`, {
-                method: "PATCH",
-                body,
-            });
-        else {
-            const response = await $fetch<{ data: AdminGuide }>(
-                "/api/admin/media/guides",
-                { method: "POST", body },
-            );
-            editingId.value = response.data.id;
-            slugTouched.value = true;
-        }
+        const response = await $fetch<{ data: AdminGuide }>(
+            editingId.value ? `/api/admin/media/guides/${editingId.value}` : '/api/admin/media/guides',
+            { method: editingId.value ? 'PATCH' : 'POST', body },
+        );
+        editingId.value = response.data.id;
+        form.status = response.data.status;
+        form.publishedAt = response.data.publishedAt;
+        slugTouched.value = true;
         showToast(
             status === "PUBLISHED"
                 ? "Panduan berhasil dipublikasikan."
@@ -304,7 +316,7 @@ watch(
         if (!slugTouched.value) form.slug = slugify(title);
     },
 );
-watch([search, groupFilter, statusFilter], () => {
+watch([search, groupFilter, statusFilter, translationFilter], () => {
     currentPage.value = 1;
     loadGuides();
 });
@@ -343,7 +355,7 @@ async function applyBulk(value: string) {
         toast.value = e.data?.statusMessage || "Bulk action gagal.";
     }
 }
-watch([search, groupFilter, statusFilter], () => clear());
+watch([search, groupFilter, statusFilter, translationFilter], () => clear());
 watch(currentPage, () => clear());
 </script>
 
@@ -426,6 +438,7 @@ watch(currentPage, () => clear());
                         <option>ARCHIVED</option>
                     </select></label
                 >
+                <MediaTranslationFilter v-model="translationFilter" />
             </div>
         </section>
         <BulkActionBar
@@ -497,7 +510,7 @@ watch(currentPage, () => clear());
                             ><span
                                 class="mt-1 block text-xs text-neutral-charcoal/45"
                                 >Diubah: {{ formatDate(guide.updatedAt) }}</span
-                            ></span
+                            ><MediaTranslationBadges :id-complete="isCompleteGuideTranslation(guide.translations?.id ?? guide)" :en-complete="isCompleteGuideTranslation(guide.translations?.en)" /></span
                         ><span
                             class="shrink-0 rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase"
                             :class="
@@ -564,11 +577,12 @@ watch(currentPage, () => clear());
                 >
                     {{ editingGuide ? "Edit Panduan" : "Panduan Baru" }}
                 </h2>
+                <MediaLocaleTabs v-model="localeTab" />
                 <div class="mt-5 space-y-4">
                     <label class="block text-sm font-semibold"
                         >Judul<input
                             data-field="title"
-                            v-model="form.title"
+                            v-model="editorText.title"
                             type="text"
                             class="mt-1.5 min-h-[42px] w-full rounded-xl border px-3 text-sm font-normal"
                             :class="
@@ -584,7 +598,7 @@ watch(currentPage, () => clear());
                     ><label class="block text-sm font-semibold"
                         >Slug<input
                             data-field="slug"
-                            v-model="form.slug"
+                            v-model="editorText.slug"
                             type="text"
                             class="mt-1.5 min-h-[42px] w-full rounded-xl border px-3 text-sm font-normal"
                             :class="
@@ -619,7 +633,7 @@ watch(currentPage, () => clear());
                         ></label
                     ><label class="block text-sm font-semibold"
                         >Summary (opsional)<textarea
-                            v-model="form.summary"
+                            v-model="editorText.summary"
                             rows="2"
                             class="mt-1.5 w-full rounded-xl border border-neutral-line px-3 py-2 text-sm font-normal"
                         /></label
@@ -636,7 +650,7 @@ watch(currentPage, () => clear());
                             group.</span
                         ></label
                     >
-                    <div class="border-t border-neutral-line pt-4">
+                    <div v-if="localeTab === 'id'" class="border-t border-neutral-line pt-4">
                         <div class="flex items-center justify-between">
                             <div>
                                 <h3 class="font-semibold">Body Blocks</h3>
@@ -778,13 +792,15 @@ watch(currentPage, () => clear());
                             </div>
                         </div>
                     </div>
+                    <MediaStructuredBlockEditor v-else v-model="english.body" folder="guides" />
+                    <p v-if="localeTab === 'en'" class="text-xs text-neutral-charcoal/55">Publik English membutuhkan judul, slug, dan body. Group dan urutan berlaku untuk kedua bahasa.</p>
                     <div
                         class="flex flex-wrap gap-2 border-t border-neutral-line pt-4"
                     >
                         <button
                             type="button"
                             class="rounded-full border border-neutral-line px-4 py-2 text-sm font-semibold"
-                            @click="previewOpen = !previewOpen"
+                            @click="previewOpen = !previewOpen; previewLocale = localeTab"
                         >
                             {{
                                 previewOpen ? "Tutup Preview" : "Preview"
@@ -792,9 +808,9 @@ watch(currentPage, () => clear());
                         ><button
                             type="button"
                             class="rounded-full bg-sht-olive px-4 py-2 text-sm font-semibold text-white"
-                            @click="saveGuide('DRAFT')"
+                            @click="saveGuide(form.status)"
                         >
-                            Simpan Draft</button
+                            {{ form.status === 'DRAFT' ? 'Simpan Draft' : 'Simpan Perubahan' }}</button
                         ><button
                             v-if="
                                 form.status !== 'PUBLISHED' &&
@@ -843,16 +859,16 @@ watch(currentPage, () => clear());
                 Preview · {{ form.group }}
             </p>
             <h2 class="mt-3 text-3xl font-semibold">
-                {{ form.title || "Judul panduan" }}
+                {{ previewText.title || "Judul panduan" }}
             </h2>
             <p
-                v-if="form.summary"
+                v-if="previewText.summary"
                 class="mt-3 max-w-2xl text-base text-neutral-charcoal/65"
             >
-                {{ form.summary }}
+                {{ previewText.summary }}
             </p>
             <div class="mt-8 max-w-2xl text-neutral-charcoal/80">
-                <template v-for="(block, index) in form.body" :key="index"
+                <template v-for="(block, index) in previewText.body" :key="index"
                     ><p
                         v-if="block.type === 'paragraph'"
                         class="mb-5 text-sm leading-7"

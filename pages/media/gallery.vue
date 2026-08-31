@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { mediaEditorTranslation, isCompleteGalleryTranslation, type GalleryTranslation } from '~/shared/media-localization';
+import type { SupportedLocale } from '~/shared/locales';
 import { Plus } from "lucide-vue-next";
 definePageMeta({ layout: "admin", middleware: "admin-auth" });
 type Status = "DRAFT" | "PUBLISHED" | "ARCHIVED";
@@ -18,7 +20,9 @@ type Item = {
     priority: number;
     status: Status;
     takenAt: string | null;
+    publishedAt: string | null;
     updatedAt: string;
+    translations?: Partial<Record<SupportedLocale, GalleryTranslation & { complete: boolean }>>;
 };
 const { show } = useAdminToast();
 const cities = ["MAKKAH", "MADINAH"],
@@ -42,6 +46,10 @@ const items = ref<Item[]>([]),
     editingId = ref<number | null>(null),
     confirmDelete = ref(false),
     toast = ref("");
+const localeTab = ref<SupportedLocale>('id');
+const translationFilter = ref('');
+const previewOpen = ref(false);
+const english = reactive({ altText: '', title: '', description: '', locationName: '' });
 const form = reactive({
     imageUrl: "",
     imageFileId: "",
@@ -57,11 +65,15 @@ const form = reactive({
     priority: 0,
     status: "DRAFT" as Status,
     takenAt: "",
+    publishedAt: null as string | null,
 });
+const editorText = computed(() => localeTab.value === 'en' ? english : form);
 const pageCount = computed(() => Math.ceil(total.value / pageSize.value)),
     editing = computed(() => editingId.value !== null);
 function reset() {
     editingId.value = null;
+    localeTab.value = 'id'; previewOpen.value = false;
+    Object.assign(english, { altText: '', title: '', description: '', locationName: '' });
     Object.assign(form, {
         imageUrl: "",
         imageFileId: "",
@@ -71,18 +83,24 @@ function reset() {
         city: "MAKKAH",
         category: "MASJID",
         locationName: "",
-        latitude: null,
-        longitude: null,
+        latitude: "",
+        longitude: "",
         tags: "",
         priority: 0,
         status: "DRAFT",
         takenAt: "",
+        publishedAt: null,
     });
 }
 function edit(x: Item) {
     editingId.value = x.id;
+    const idText = mediaEditorTranslation<GalleryTranslation>(x, 'id', { altText: x.altText, title: x.title, description: x.description, locationName: x.locationName }, { altText: '', title: null, description: null, locationName: null });
+    const enText = mediaEditorTranslation<GalleryTranslation>(x, 'en', idText, { altText: '', title: null, description: null, locationName: null });
+    Object.assign(english, { altText: enText.altText ?? "", title: enText.title ?? "", description: enText.description ?? "", locationName: enText.locationName ?? "" });
+    localeTab.value = 'id'; previewOpen.value = false;
     Object.assign(form, {
         ...x,
+        altText: idText.altText ?? "", title: idText.title ?? "", description: idText.description ?? "", locationName: idText.locationName ?? "",
         latitude: x.latitude === null ? "" : String(x.latitude),
         longitude: x.longitude === null ? "" : String(x.longitude),
         tags: x.tags.join(", "),
@@ -96,6 +114,7 @@ async function load() {
         const r = await $fetch<any>("/api/admin/media/gallery", {
             query: {
                 search: search.value || undefined,
+                translation: translationFilter.value || undefined,
                 city: city.value || undefined,
                 category: category.value || undefined,
                 status: status.value || undefined,
@@ -119,27 +138,15 @@ function coordinate(value: string) {
 }
 function body(status: Status) {
     return {
-        ...form,
-        imageUrl: form.imageUrl.trim(),
-        imageFileId: form.imageFileId || null,
-        altText: form.altText.trim(),
-        title: form.title.trim() || null,
-        description: form.description.trim() || null,
-        city: form.city,
-        category: form.category,
-        locationName: form.locationName.trim() || null,
-        tags: form.tags
-            .split(",")
-            .map((x) => x.trim().toLowerCase())
-            .filter(Boolean),
-        priority: Number(form.priority) || 0,
-        latitude: coordinate(form.latitude),
-        longitude: coordinate(form.longitude),
-        status,
-        takenAt: form.takenAt
-            ? new Date(form.takenAt + "T00:00:00.000Z").toISOString()
-            : null,
-        publishedAt: status === "PUBLISHED" ? new Date().toISOString() : null,
+        imageUrl: form.imageUrl.trim(), imageFileId: form.imageFileId || null,
+        city: form.city, category: form.category, tags: form.tags.split(',').map((x) => x.trim().toLowerCase()).filter(Boolean),
+        priority: Number(form.priority) || 0, latitude: coordinate(form.latitude), longitude: coordinate(form.longitude), status,
+        takenAt: form.takenAt ? new Date(form.takenAt + 'T00:00:00.000Z').toISOString() : null,
+        publishedAt: status === 'PUBLISHED' ? form.publishedAt : null,
+        translations: {
+            id: { altText: form.altText.trim(), title: form.title.trim() || null, description: form.description.trim() || null, locationName: form.locationName.trim() || null },
+            en: { altText: english.altText.trim(), title: english.title.trim() || null, description: english.description.trim() || null, locationName: english.locationName.trim() || null },
+        },
     };
 }
 async function save(s: Status) {
@@ -168,18 +175,13 @@ async function save(s: Status) {
         return;
     }
     try {
-        if (editingId.value)
-            await $fetch(`/api/admin/media/gallery/${editingId.value}`, {
-                method: "PATCH",
-                body: body(s),
-            });
-        else {
-            const r = await $fetch<any>("/api/admin/media/gallery", {
-                method: "POST",
-                body: body(s),
-            });
-            editingId.value = r.data.id;
-        }
+        const response = await $fetch<{ data: Item }>(
+            editingId.value ? `/api/admin/media/gallery/${editingId.value}` : '/api/admin/media/gallery',
+            { method: editingId.value ? 'PATCH' : 'POST', body: body(s) },
+        );
+        editingId.value = response.data.id;
+        form.status = response.data.status;
+        form.publishedAt = response.data.publishedAt;
         show("Gallery tersimpan.", "success");
         await load();
     } catch (e: any) {
@@ -200,7 +202,7 @@ async function remove() {
         show(e.data?.statusMessage || "Gagal menghapus.", "error");
     }
 }
-watch([search, city, category, status], () => {
+watch([search, city, category, status, translationFilter], () => {
     page.value = 1;
     load();
 });
@@ -237,7 +239,7 @@ async function applyBulk(value: string) {
         show(e.data?.statusMessage || "Bulk action gagal.", "error");
     }
 }
-watch([search, city, category, status], () => clear());
+watch([search, city, category, status, translationFilter], () => clear());
 watch(page, () => clear());
 </script>
 <template>
@@ -286,6 +288,7 @@ watch(page, () => clear());
                     <option>PUBLISHED</option>
                     <option>ARCHIVED</option>
                 </select>
+                <MediaTranslationFilter v-model="translationFilter" />
             </div>
         </section>
         <BulkActionBar
@@ -346,6 +349,7 @@ watch(page, () => clear());
                                 {{ x.status }} · Prioritas {{ x.priority }}
                             </p>
                         </div>
+                        <MediaTranslationBadges :id-complete="isCompleteGalleryTranslation(x.translations?.id ?? x)" :en-complete="isCompleteGalleryTranslation(x.translations?.en)" />
                     </button>
                 </div>
                 <p
@@ -404,6 +408,7 @@ watch(page, () => clear());
                 <h2 class="font-heading text-lg font-semibold">
                     {{ editing ? "Edit Gallery" : "Gallery Baru" }}
                 </h2>
+                <MediaLocaleTabs v-model="localeTab" />
                 <div class="mt-4 space-y-3">
                     <MediaImageUploader
                         v-model="form.imageUrl"
@@ -412,15 +417,15 @@ watch(page, () => clear());
                         folder="gallery"
                     /><label class="block text-sm font-semibold"
                         >Alt text<input
-                            v-model="form.altText"
+                            v-model="editorText.altText"
                             class="mt-1 w-full rounded-lg border px-3 py-2 text-sm" /></label
                     ><label class="block text-sm font-semibold"
                         >Judul (opsional)<input
-                            v-model="form.title"
+                            v-model="editorText.title"
                             class="mt-1 w-full rounded-lg border px-3 py-2 text-sm" /></label
                     ><label class="block text-sm font-semibold"
                         >Deskripsi<textarea
-                            v-model="form.description"
+                            v-model="editorText.description"
                             rows="2"
                             class="mt-1 w-full rounded-lg border px-3 py-2 text-sm"
                         />
@@ -452,7 +457,7 @@ watch(page, () => clear());
                     </div>
                     <label class="block text-sm font-semibold"
                         >Lokasi (opsional)<input
-                            v-model="form.locationName"
+                            v-model="editorText.locationName"
                             class="mt-1 w-full rounded-lg border px-3 py-2 text-sm"
                     /></label>
                     <div class="grid grid-cols-2 gap-2">
@@ -500,12 +505,20 @@ watch(page, () => clear());
                                 class="mt-1 w-full rounded-lg border px-3 py-2 text-sm"
                         /></label>
                     </div>
+                    <div class="rounded-xl border border-neutral-line p-3" v-if="previewOpen" aria-label="Preview gallery">
+                        <img v-if="form.imageUrl" :src="form.imageUrl" :alt="editorText.altText || ''" class="max-h-48 rounded-lg object-cover" />
+                        <h3 class="mt-2 font-semibold">{{ editorText.title || (localeTab === 'en' ? 'English preview' : 'Preview Indonesia') }}</h3>
+                        <p class="mt-1 text-sm">{{ editorText.description }}</p>
+                        <p class="mt-1 text-xs">{{ editorText.locationName }}</p>
+                    </div>
+                    <p v-if="localeTab === 'en'" class="text-xs text-neutral-charcoal/55">Alt text diperlukan untuk publik English. Teks lain opsional. Gambar, kategori, koordinat, dan status berlaku untuk kedua bahasa.</p>
                     <div class="flex flex-wrap gap-2 border-t pt-4">
+                        <button type="button" class="rounded-full border px-3 py-2 text-sm" @click="previewOpen = !previewOpen">{{ previewOpen ? 'Tutup Preview' : 'Preview' }}</button>
                         <button
                             class="rounded-full bg-sht-olive px-3 py-2 text-xs font-semibold text-white"
-                            @click="save('DRAFT')"
+                            @click="save(form.status)"
                         >
-                            Simpan Draft</button
+                            {{ form.status === 'DRAFT' ? 'Simpan Draft' : 'Simpan Perubahan' }}</button
                         ><button
                             class="rounded-full bg-gold px-3 py-2 text-xs font-semibold text-brand-green"
                             v-if="

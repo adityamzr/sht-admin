@@ -1,3 +1,4 @@
+import { getGuideTranslations } from '~/server/services/guides'
 import { getGuide, guideSlugExists, updateGuide } from '~/server/services/guides'
 import { useDb } from '~/server/db'
 import { guideInput } from '~/server/utils/validators'
@@ -10,7 +11,6 @@ export default defineEventHandler(async (event) => {
   const db = useDb()
   const existing = await getGuide(db, id)
   if (!existing) throw createError({ statusCode: 404, statusMessage: 'Panduan tidak ditemukan.' })
-  if (await guideSlugExists(db, body.data.slug, id)) throw createError({ statusCode: 409, statusMessage: 'Slug panduan sudah digunakan.' })
   const row = await updateGuide(db, id, { ...body.data, publishedAt: body.data.publishedAt ? new Date(body.data.publishedAt) : null })
-  return { data: adminGuide(row!) }
+  return { data: adminGuide(row!, await getGuideTranslations(useDb(), row!.id)) }
 })

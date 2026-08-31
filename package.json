@@ -2,7 +2,7 @@
   "name": "sht-admin",
   "private": true,
   "type": "module",
-  "description": "Sudut Haramain Tour — Backend API & Admin Dashboard (Nuxt full-stack)",
+  "description": "Sudut Haramain Tour \u2014 Backend API & Admin Dashboard (Nuxt full-stack)",
   "scripts": {
     "build": "nuxt build",
     "dev": "nuxt dev --host 0.0.0.0",
@@ -13,7 +13,8 @@
     "db:seed": "tsx server/db/seed.ts",
     "admin:create": "tsx server/db/create-admin.ts",
     "test": "tsx --test tests/*.test.ts",
-    "test:articles": "node --import tsx --test tests/article*.test.ts"
+    "test:articles": "node --import tsx --test tests/article*.test.ts",
+    "test:media": "node --import tsx --test tests/article*.test.ts tests/media*.test.ts"
   },
   "dependencies": {
     "@imagekit/nodejs": "^7.11.0",

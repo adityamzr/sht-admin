@@ -441,3 +441,59 @@ export const leads = pgTable(
   },
   (t) => [index('leads_status_idx').on(t.status), unique('leads_estimation_unique').on(t.estimationId)],
 )
+
+// ─── Media localization (ID canonical, optional EN) ────────────────────────
+export const guideTranslations = pgTable('guide_translations', {
+  id: serial('id').primaryKey(),
+  guideId: integer('guide_id').notNull().references(() => guides.id, { onDelete: 'cascade' }),
+  locale: text('locale').notNull(),
+  title: text('title').notNull().default(''),
+  slug: text('slug'),
+  summary: text('summary'),
+  body: jsonb('body').$type<unknown[]>().notNull().default(sql`'[]'::jsonb`),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex('guide_translations_entity_locale_unique').on(t.guideId, t.locale),
+  uniqueIndex('guide_translations_locale_slug_unique').on(t.locale, t.slug).where(sql`${t.slug} IS NOT NULL`),
+])
+
+export const galleryTranslations = pgTable('gallery_translations', {
+  id: serial('id').primaryKey(),
+  galleryId: integer('gallery_id').notNull().references(() => galleryItems.id, { onDelete: 'cascade' }),
+  locale: text('locale').notNull(),
+  altText: text('alt_text').notNull().default(''),
+  title: text('title'),
+  description: text('description'),
+  locationName: text('location_name'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex('gallery_translations_entity_locale_unique').on(t.galleryId, t.locale),
+])
+
+export const mapLocationTranslations = pgTable('map_location_translations', {
+  id: serial('id').primaryKey(),
+  locationId: integer('location_id').notNull().references(() => mapLocations.id, { onDelete: 'cascade' }),
+  locale: text('locale').notNull(),
+  name: text('name').notNull().default(''),
+  shortDescription: text('short_description').notNull().default(''),
+  altText: text('alt_text'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex('map_location_translations_entity_locale_unique').on(t.locationId, t.locale),
+])
+
+export const mediaPageSettingsTranslations = pgTable('media_page_settings_translations', {
+  id: serial('id').primaryKey(),
+  pageSettingsId: integer('page_settings_id').notNull().references(() => mediaPageSettings.id, { onDelete: 'cascade' }),
+  locale: text('locale').notNull(),
+  heroHeadline: text('hero_headline'),
+  heroSubheadline: text('hero_subheadline'),
+  heroTopicLabels: jsonb('hero_topic_labels').$type<Record<string, string>>().notNull().default(sql`'{}'::jsonb`),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex('media_page_settings_translations_entity_locale_unique').on(t.pageSettingsId, t.locale),
+])

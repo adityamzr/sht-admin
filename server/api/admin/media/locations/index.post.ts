@@ -1,2 +1,3 @@
+import { getLocationTranslations } from '~/server/services/map-locations'
 import {createLocation} from '~/server/services/map-locations';import {useDb} from '~/server/db';import {locationInput} from '~/server/utils/validators';import {adminMapLocation} from '~/server/utils/serializers'
-export default defineEventHandler(async(e)=>{const b=await readValidatedBody(e,locationInput.safeParse);if(!b.success)throw createError({statusCode:400,statusMessage:b.error.issues[0]?.message??'Input lokasi tidak valid.'});return {data:adminMapLocation(await createLocation(useDb(),b.data))}})
+export default defineEventHandler(async(e)=>{const b=await readValidatedBody(e,locationInput.safeParse);if(!b.success)throw createError({statusCode:400,statusMessage:b.error.issues[0]?.message??'Input lokasi tidak valid.'});const row=await createLocation(useDb(),b.data);return {data:adminMapLocation(row, await getLocationTranslations(useDb(),row.id))}})
