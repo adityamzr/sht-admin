@@ -16,7 +16,7 @@ export default defineEventHandler(async (event) => {
   }
   const db = useDb()
   const readiness = query.translation === 'complete' || query.translation === 'incomplete' ? query.translation : undefined
-  if (readiness) { const result = await listArticlesByTranslationReadiness(db, filters, readiness, pageSize, (page - 1) * pageSize); return { data: result.rows.map((row: any) => adminArticleWithTranslations(row, row.translations)), meta: { page, pageSize, total: result.total, pageCount: Math.ceil(result.total / pageSize) } } }
+  if (readiness) { const result = await listArticlesByTranslationReadiness(db, filters, readiness, pageSize, (page - 1) * pageSize); return { data: result.rows.map((row) => adminArticleWithTranslations(row, row.translations)), meta: { page, pageSize, total: result.total, pageCount: Math.ceil(result.total / pageSize) } } }
   const [rows, total] = await Promise.all([listArticles(db, { ...filters, limit: pageSize, offset: (page - 1) * pageSize }), countArticles(db, filters)])
   const data = await Promise.all(rows.map(async (row) => adminArticleWithTranslations(row, await getArticleTranslations(db, row.id))))
   return { data, meta: { page, pageSize, total, pageCount: Math.ceil(total / pageSize) } }

@@ -1,20 +1,11 @@
 <script setup lang="ts">
 import { Plus } from "lucide-vue-next";
+import { articleEditorTranslation, isCompleteArticleTranslation, type ArticleBlock, type ArticleTranslationInput } from "~/shared/article-localization";
+import type { SupportedLocale } from "~/shared/locales";
 const { show: showGlobalToast } = useAdminToast();
 definePageMeta({ layout: "admin", middleware: "admin-auth" });
 
 type ArticleStatus = "DRAFT" | "PUBLISHED" | "ARCHIVED";
-type ArticleBlock = {
-    fileId?: string;
-    type: "paragraph" | "heading" | "image" | "blockquote" | "list" | "callout";
-    level?: 2 | 3;
-    text?: string;
-    ordered?: boolean;
-    items?: string[];
-    src?: string;
-    alt?: string;
-    caption?: string;
-};
 type AdminArticle = {
     id: number;
     heroImageFileId?: string | null;
@@ -33,6 +24,10 @@ type AdminArticle = {
     publishedAt: string | null;
     createdAt: string;
     updatedAt: string;
+    seoTitle?: string | null;
+    seoDescription?: string | null;
+    ogImage?: string | null;
+    translations?: Partial<Record<SupportedLocale, Omit<ArticleTranslationInput, 'body'> & { body: ArticleBlock[]; complete: boolean }>>;
 };
 type Toast = {
     message: string;
@@ -79,7 +74,7 @@ const slugTouched = ref(false);
 const fieldErrors = reactive<Record<string, string>>({});
 const toast = ref<Toast | null>(null);
 let toastTimer: ReturnType<typeof setTimeout> | null = null;
-const localeTab = ref<'id'|'en'>('id'); const enTranslation = reactive({ title:'', slug:'', excerpt:'', heroAlt:'', body:[] as ArticleBlock[], seoTitle:'', seoDescription:'' });
+const localeTab = ref<SupportedLocale>('id'); const enTranslation = reactive({ title:'', slug:'', excerpt:'', heroAlt:'', body:[] as ArticleBlock[], seoTitle:'', seoDescription:'' });
 const form = reactive({
     title: "",
     slug: "",
@@ -87,6 +82,10 @@ const form = reactive({
     heroImage: "",
     heroImageFileId: "",
     heroImageAlt: "",
+    seoTitle: "",
+    seoDescription: "",
+    ogImage: "",
+    publishedAt: null as string | null,
     city: "GENERAL",
     contentType: "article",
     category: "Kehidupan",
@@ -102,7 +101,7 @@ const editingArticle = computed(() =>
           null)
         : null,
 );
-const previewLocale = ref<'id'|'en'>('id'); const previewTitle = computed(()=>previewLocale.value==='en'?enTranslation.title:form.title); const previewExcerpt = computed(()=>previewLocale.value==='en'?enTranslation.excerpt:form.excerpt); const previewHeroAlt = computed(()=>previewLocale.value==='en'?enTranslation.heroAlt:form.heroImageAlt); const previewBody = computed(()=>previewLocale.value==='en'?enTranslation.body:form.body);
+const previewLocale = ref<SupportedLocale>('id'); const previewTitle = computed(()=>previewLocale.value==='en'?enTranslation.title:form.title); const previewExcerpt = computed(()=>previewLocale.value==='en'?enTranslation.excerpt:form.excerpt); const previewHeroAlt = computed(()=>previewLocale.value==='en'?enTranslation.heroAlt:form.heroImageAlt); const previewBody = computed(()=>previewLocale.value==='en'?enTranslation.body:form.body);
 const pageNumbers = computed(() =>
     Array.from({ length: pageCount.value }, (_, index) => index + 1),
 );
@@ -156,11 +155,11 @@ function dismissToast() {
 function clearErrors() {
     Object.keys(fieldErrors).forEach((key) => delete fieldErrors[key]);
 }
-function switchLocale(locale:'id'|'en'){localeTab.value=locale}
+function switchLocale(locale: SupportedLocale){localeTab.value=locale}
 function clearEnglish(){Object.assign(enTranslation,{title:'',slug:'',excerpt:'',heroAlt:'',body:[],seoTitle:'',seoDescription:''})}
 function emptyForm() {
     editingId.value = null;
-    localeTab.value = 'id'; clearEnglish();
+    localeTab.value = 'id'; previewLocale.value = 'id'; clearEnglish();
     slugTouched.value = false;
     clearErrors();
     Object.assign(form, {
@@ -170,6 +169,10 @@ function emptyForm() {
         heroImage: "",
         heroImageFileId: "",
         heroImageAlt: "",
+        seoTitle: "",
+        seoDescription: "",
+        ogImage: "",
+        publishedAt: null,
         city: "GENERAL",
         contentType: "article",
         category: "Kehidupan",
@@ -184,23 +187,29 @@ function editArticle(article: AdminArticle) {
     editingId.value = article.id;
     slugTouched.value = true;
     clearErrors();
-    const idTranslation = (article as any).translations?.id;
+    const idTranslation = articleEditorTranslation(article, 'id');
     Object.assign(form, {
-        title: idTranslation?.title ?? article.title,
-        slug: idTranslation?.slug ?? article.slug,
-        excerpt: idTranslation?.excerpt ?? article.excerpt,
+        title: idTranslation.title,
+        slug: idTranslation.slug,
+        excerpt: idTranslation.excerpt,
         heroImage: article.heroImage,
-        heroImageFileId: (article as any).heroImageFileId ?? "",
-        heroImageAlt: idTranslation?.heroAlt ?? article.heroImageAlt,
+        heroImageFileId: article.heroImageFileId ?? "",
+        heroImageAlt: idTranslation.heroAlt,
         city: article.city,
         contentType: article.contentType,
         category: article.category,
         tags: article.tags.join(", "),
         status: article.status,
         priority: article.priority,
-        body: JSON.parse(JSON.stringify(article.body ?? [])),
+        body: idTranslation.body,
+        seoTitle: idTranslation.seoTitle,
+        seoDescription: idTranslation.seoDescription,
+        ogImage: article.ogImage ?? "",
+        publishedAt: article.publishedAt,
     });
-    const english = (article as any).translations?.en; Object.assign(enTranslation, english ? { title: english.title || '', slug: english.slug || '', excerpt: english.excerpt || '', heroAlt: english.heroAlt || '', body: JSON.parse(JSON.stringify(english.body || [])), seoTitle: english.seoTitle || '', seoDescription: english.seoDescription || '' } : { title:'', slug:'', excerpt:'', heroAlt:'', body:[], seoTitle:'', seoDescription:'' }); localeTab.value = 'id';
+    Object.assign(enTranslation, articleEditorTranslation(article, 'en'));
+    localeTab.value = 'id';
+    previewLocale.value = 'id';
     previewOpen.value = false;
     window.scrollTo({ top: 0, behavior: "smooth" });
 }
@@ -256,27 +265,29 @@ function validateForm() {
 }
 function payload(status: ArticleStatus) {
     return {
-        title: form.title.trim(),
-        slug: form.slug.trim(),
-        excerpt: form.excerpt.trim(),
         heroImage: form.heroImage.trim(),
         heroImageFileId: form.heroImageFileId || null,
-        heroImageAlt: form.heroImageAlt.trim(),
-        body: form.body.map(normalizeBlock),
         city: form.city,
         contentType: form.contentType,
         category: form.category.trim(),
-        tags: form.tags
-            .split(",")
-            .map((tag) => tag.trim().toLocaleLowerCase())
-            .filter(Boolean),
+        tags: form.tags.split(",").map((tag) => tag.trim().toLocaleLowerCase()).filter(Boolean),
         status,
         priority: Number(form.priority) || 0,
-        publishedAt: status === "PUBLISHED" ? new Date().toISOString() : null,
-        seoTitle: null,
-        seoDescription: null,
-        ogImage: null,
-        translations: { id: { title: form.title.trim(), slug: form.slug.trim(), excerpt: form.excerpt.trim(), heroAlt: form.heroImageAlt.trim(), body: form.body.map(normalizeBlock), seoTitle: null, seoDescription: null }, en: { title: enTranslation.title.trim(), slug: enTranslation.slug.trim() || null, excerpt: enTranslation.excerpt.trim(), heroAlt: enTranslation.heroAlt.trim(), body: enTranslation.body.map(normalizeBlock), seoTitle: enTranslation.seoTitle.trim() || null, seoDescription: enTranslation.seoDescription.trim() || null } },
+        publishedAt: status === "PUBLISHED" ? form.publishedAt : null,
+        ogImage: form.ogImage || null,
+        translations: {
+            id: {
+                title: form.title.trim(), slug: form.slug.trim(), excerpt: form.excerpt.trim(),
+                heroAlt: form.heroImageAlt.trim(), body: form.body.map(normalizeBlock),
+                seoTitle: form.seoTitle.trim() || null, seoDescription: form.seoDescription.trim() || null,
+            },
+            en: {
+                title: enTranslation.title.trim(), slug: enTranslation.slug.trim() || null,
+                excerpt: enTranslation.excerpt.trim(), heroAlt: enTranslation.heroAlt.trim(),
+                body: enTranslation.body.map(normalizeBlock), seoTitle: enTranslation.seoTitle.trim() || null,
+                seoDescription: enTranslation.seoDescription.trim() || null,
+            },
+        },
     };
 }
 async function loadArticles() {
@@ -385,7 +396,9 @@ function changePageSize() {
     currentPage.value = 1;
     loadArticles();
 }
-function enComplete(article: any) { return Boolean(article.translations?.en?.complete) }
+function translationComplete(article: AdminArticle, locale: SupportedLocale) {
+    return isCompleteArticleTranslation(articleEditorTranslation(article, locale));
+}
 function displayContentType(value: string) {
     return (
         contentTypeOptions.find((option) => option.value === value)?.label ??
@@ -437,7 +450,7 @@ async function applyBulk(value: string) {
         toast.value = e.data?.statusMessage || "Bulk action gagal.";
     }
 }
-watch([search, statusFilter, cityFilter, categoryFilter], () => clear());
+watch([search, statusFilter, cityFilter, categoryFilter, translationFilter], () => clear());
 watch(currentPage, () => clear());
 </script>
 
@@ -461,7 +474,7 @@ watch(currentPage, () => clear());
             aria-label="Filter artikel"
         >
             <div
-                class="grid gap-3 lg:grid-cols-[minmax(240px,1fr)_150px_150px_190px] lg:items-end"
+                class="grid gap-3 lg:grid-cols-[minmax(200px,1fr)_repeat(4,minmax(120px,150px))] lg:items-end"
             >
                 <label
                     ><span
@@ -484,9 +497,16 @@ watch(currentPage, () => clear());
                         <option>DRAFT</option>
                         <option>PUBLISHED</option>
                         <option>ARCHIVED</option>
-                    </select></label><label><span class="text-xs font-semibold uppercase tracking-[0.12em] text-neutral-charcoal/50">English</span><select v-model="translationFilter" class="mt-1.5 min-h-[42px] w-full rounded-xl border border-neutral-line px-3 text-sm"><option value="">Semua</option><option value="complete">Lengkap</option><option value="incomplete">Belum Lengkap</option></select></label
+                    </select></label
+                ><label>
+                    <span class="text-xs font-semibold uppercase tracking-[0.12em] text-neutral-charcoal/50">English</span>
+                    <select v-model="translationFilter" class="mt-1.5 min-h-[42px] w-full rounded-xl border border-neutral-line px-3 text-sm">
+                        <option value="">Semua</option>
+                        <option value="complete">Lengkap</option>
+                        <option value="incomplete">Belum Lengkap</option>
+                    </select>
+                </label
                 ><label
-                    ><span class="text-xs font-semibold uppercase tracking-[0.12em] text-neutral-charcoal/50">English</span><select v-model="translationFilter" class="mt-1.5 min-h-[42px] w-full rounded-xl border border-neutral-line px-3 text-sm"><option value="">Semua</option><option value="complete">Lengkap</option><option value="incomplete">Belum Lengkap</option></select></label><label
                     ><span
                         class="text-xs font-semibold uppercase tracking-[0.12em] text-neutral-charcoal/50"
                         >City</span
@@ -604,8 +624,11 @@ watch(currentPage, () => clear());
                                 class="mt-1 block text-xs text-neutral-charcoal/45"
                                 >Terbit: {{ formatDate(article.publishedAt) }} ·
                                 Diubah:
-                                {{ formatUpdated(article.updatedAt) }}</span
-                            ></span
+                                {{ formatUpdated(article.updatedAt) }}</span>
+                            <span class="mt-2 flex flex-wrap gap-1" aria-label="Kelengkapan terjemahan">
+                                <AdminStatusBadge :status="translationComplete(article, 'id') ? 'ACTIVE' : 'INACTIVE'" :label="translationComplete(article, 'id') ? 'ID ✓' : 'ID —'" />
+                                <AdminStatusBadge :status="translationComplete(article, 'en') ? 'ACTIVE' : 'INACTIVE'" :label="translationComplete(article, 'en') ? 'EN ✓' : 'EN —'" />
+                            </span></span
                         ><span
                             class="shrink-0 rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.1em]"
                             :class="
@@ -816,6 +839,14 @@ watch(currentPage, () => clear());
                         /></label>
                     </div>
 
+                    <div class="grid gap-3 sm:grid-cols-2">
+                        <label class="block text-sm font-semibold">SEO Title Indonesia
+                            <input v-model="form.seoTitle" class="mt-1.5 w-full rounded-xl border border-neutral-line px-3 py-2 text-sm font-normal" />
+                        </label>
+                        <label class="block text-sm font-semibold">SEO Description Indonesia
+                            <textarea v-model="form.seoDescription" rows="2" class="mt-1.5 w-full rounded-xl border border-neutral-line px-3 py-2 text-sm font-normal" />
+                        </label>
+                    </div>
                     <div class="border-t border-neutral-line pt-4">
                         <div class="flex items-center justify-between">
                             <div>
@@ -853,7 +884,7 @@ watch(currentPage, () => clear());
                         </div>
                         <div class="mt-4 space-y-3">
                             <div
-                                v-for="(block, index) in previewBody"
+                                v-for="(block, index) in form.body"
                                 :key="index"
                                 class="rounded-xl border border-neutral-line p-3"
                             >
@@ -962,6 +993,9 @@ watch(currentPage, () => clear());
                         </div>
                     </div>
 
+                    </div>
+                </div>
+
                     <div
                         class="flex flex-wrap gap-2 border-t border-neutral-line pt-4"
                     >
@@ -976,9 +1010,9 @@ watch(currentPage, () => clear());
                         ><button
                             type="button"
                             class="rounded-full bg-sht-olive px-4 py-2 text-sm font-semibold text-white"
-                            @click="saveArticle('DRAFT')"
+                            @click="saveArticle(form.status)"
                         >
-                            Simpan Draft</button
+                            {{ form.status === 'DRAFT' ? 'Simpan Draft' : 'Simpan Perubahan' }}</button
                         ><button
                             v-if="
                                 form.status !== 'PUBLISHED' &&
@@ -1012,8 +1046,6 @@ watch(currentPage, () => clear());
                             Delete Artikel
                         </button>
                     </div>
-                    </div>
-                </div>
             </section>
         </div>
 
@@ -1044,7 +1076,7 @@ watch(currentPage, () => clear());
                 class="mt-6 max-h-[420px] w-full max-w-4xl rounded-xl object-cover"
             />
             <div class="mt-8 max-w-2xl text-neutral-charcoal/80">
-                <template v-for="(block, index) in form.body" :key="index">
+                <template v-for="(block, index) in previewBody" :key="index">
                     <p
                         v-if="block.type === 'paragraph'"
                         class="mb-5 text-sm leading-7"

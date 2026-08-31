@@ -324,14 +324,26 @@ export const serviceInquiryInput = z.object({
 })
 
 // ─── Media Article ──────────────────────────────────────────────────────────
+const articleSlug = z.string().trim().min(3).max(180).regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, 'Slug hanya boleh berisi huruf kecil, angka, dan tanda hubung.')
+const articleText = z.object({
+  title: z.string().trim().min(3).max(240),
+  slug: articleSlug,
+  excerpt: z.string().trim().max(600),
+  heroAlt: z.string().trim().max(300),
+  body: z.array(z.record(z.unknown())).max(100),
+  seoTitle: z.string().trim().max(240).nullable().optional().transform((v) => v || null),
+  seoDescription: z.string().trim().max(600).nullable().optional().transform((v) => v || null),
+})
+const partialArticleText = articleText.extend({
+  title: z.string().trim().max(240).default(''),
+  slug: z.preprocess((v) => v === undefined || v === null || (typeof v === 'string' && !v.trim()) ? null : v, articleSlug.nullable()),
+  excerpt: articleText.shape.excerpt.default(''),
+  heroAlt: articleText.shape.heroAlt.default(''),
+  body: articleText.shape.body.default([]),
+})
 const articleBase = z.object({
-  title: z.string().min(3).max(240),
-  slug: z.string().min(3).max(180).regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, 'Slug hanya boleh berisi huruf kecil, angka, dan tanda hubung.'),
-  excerpt: z.string().max(600),
   heroImage: z.string().max(500),
   heroImageFileId: z.string().max(255).nullable().optional(),
-  heroImageAlt: z.string().max(300),
-  body: z.array(z.record(z.unknown())).max(100),
   city: z.enum(ARTICLE_CITIES),
   contentType: z.enum(ARTICLE_CONTENT_TYPES),
   category: z.enum(ARTICLE_CATEGORIES),
@@ -339,12 +351,30 @@ const articleBase = z.object({
   status: z.enum(ARTICLE_STATUSES),
   priority: int(-9999, 9999),
   publishedAt: z.string().datetime().nullable().optional(),
-  seoTitle: z.string().max(240).nullable().optional(),
-  seoDescription: z.string().max(600).nullable().optional(),
   ogImage: z.string().max(500).nullable().optional(),
-  translations: z.object({ id: z.object({ title:z.string().optional(), slug:z.string().nullable().optional(), excerpt:z.string().optional(), heroAlt:z.string().optional(), body:z.array(z.record(z.unknown())).optional(), seoTitle:z.string().nullable().optional(), seoDescription:z.string().nullable().optional() }).optional(), en: z.object({ title:z.string().optional(), slug:z.string().nullable().optional(), excerpt:z.string().optional(), heroAlt:z.string().optional(), body:z.array(z.record(z.unknown())).optional(), seoTitle:z.string().nullable().optional(), seoDescription:z.string().nullable().optional() }).optional() }).optional(),
+  translations: z.object({ id: articleText, en: partialArticleText.optional() }).strict(),
 })
-export const articleInput = articleBase
+
+// Backward-compatible transport only: downstream services receive ONE canonical
+// contract. Once translations.id exists, no field falls back to a legacy value.
+export const articleInput = z.preprocess((value) => {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return value
+  const input = value as Record<string, unknown>
+  if (input.translations !== undefined && (!input.translations || typeof input.translations !== 'object' || Array.isArray(input.translations))) return value
+  const translations = (input.translations ?? {}) as Record<string, unknown>
+  if (Object.prototype.hasOwnProperty.call(translations, 'id')) return input
+  return {
+    ...input,
+    translations: {
+      ...translations,
+      id: {
+        title: input.title, slug: input.slug, excerpt: input.excerpt,
+        heroAlt: input.heroImageAlt, body: input.body,
+        seoTitle: input.seoTitle, seoDescription: input.seoDescription,
+      },
+    },
+  }
+}, articleBase)
 export const articlePatch = articleBase.partial()
 
 // ─── Media Guide ────────────────────────────────────────────────────────────

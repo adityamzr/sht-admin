@@ -1,2 +1,14 @@
-import {getPublishedArticleByLocalizedSlug,getArticleTranslations,localizedArticleRow} from '~/server/services/articles';import {publicArticle} from '~/server/utils/serializers';import {parseLocale} from '~/server/utils/locales';import {useDb} from '~/server/db'
-export default defineEventHandler(async(e)=>{const q=getQuery(e),locale=parseLocale(q.locale),db=useDb(),slug=String(getRouterParam(e,'slug')||''),found=await getPublishedArticleByLocalizedSlug(db,slug,locale);if(!found)throw createError({statusCode:404,statusMessage:'Artikel tidak ditemukan atau terjemahan belum tersedia.'});const translations=await getArticleTranslations(db,found.article.id),available=translations.filter(t=>t.locale==='id'||(t.locale==='en'&&t.title&&t.slug&&t.excerpt&&Array.isArray(t.body)&&t.body.length>0));return {data:{...publicArticle(localizedArticleRow(found.article,found.translation)),availableLocales:available.map(t=>t.locale),localizedSlugs:Object.fromEntries(available.map(t=>[t.locale,t.slug]))}}})
+import { getPublishedArticleByLocalizedSlug, getArticleTranslations, localizedArticleRow } from '~/server/services/articles'
+import { publicArticle } from '~/server/utils/serializers'
+import { parseLocale } from '~/server/utils/locales'
+import { articleLocaleLinks } from '~/shared/article-localization'
+import { useDb } from '~/server/db'
+
+export default defineEventHandler(async (event) => {
+  const locale = parseLocale(getQuery(event).locale)
+  const db = useDb()
+  const found = await getPublishedArticleByLocalizedSlug(db, String(getRouterParam(event, 'slug') || ''), locale)
+  if (!found) throw createError({ statusCode: 404, statusMessage: 'Artikel tidak ditemukan atau terjemahan belum tersedia.' })
+  const translations = await getArticleTranslations(db, found.article.id)
+  return { data: { ...publicArticle(localizedArticleRow(found.article, found.translation)), ...articleLocaleLinks(translations) } }
+})

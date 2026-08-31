@@ -1,4 +1,5 @@
-import { articles, guides, galleryItems, mapLocations, contributions } from '../db/schema'
+import { isCompleteArticleTranslation } from '../../shared/article-localization'
+import { articleTranslations, articles, guides, galleryItems, mapLocations, contributions } from '../db/schema'
 import type {
   DepartureCityRow,
   FlightRow,
@@ -356,4 +357,18 @@ export function publicContribution(r: ContributionRow) { return contributionPubl
 
 export function publicArticleFeedback(value: string) { return { accepted: true, value } }
 
-export function adminArticleWithTranslations(row: ArticleRow, translations: any[]) { return { ...adminArticle(row), translations: Object.fromEntries(translations.map(t => [t.locale, { id: t.id, title: t.title, slug: t.slug, excerpt: t.excerpt, heroAlt: t.heroAlt, body: t.body, seoTitle: t.seoTitle, seoDescription: t.seoDescription, complete: Boolean(t.title?.trim() && t.slug?.trim() && t.excerpt?.trim() && Array.isArray(t.body) && t.body.length > 0) }])) } }
+export function adminArticleWithTranslations(row: ArticleRow, translations: Array<typeof articleTranslations.$inferSelect>) {
+  const idText = translations.find((t) => t.locale === 'id')
+  return {
+    ...adminArticle(idText ? {
+      ...row, title: idText.title, slug: idText.slug ?? '', excerpt: idText.excerpt,
+      heroImageAlt: idText.heroAlt, body: idText.body,
+      seoTitle: idText.seoTitle, seoDescription: idText.seoDescription,
+    } : row),
+    translations: Object.fromEntries(translations.map((t) => [t.locale, {
+      id: t.id, title: t.title, slug: t.slug, excerpt: t.excerpt, heroAlt: t.heroAlt,
+      body: t.body, seoTitle: t.seoTitle, seoDescription: t.seoDescription,
+      complete: isCompleteArticleTranslation(t),
+    }])),
+  }
+}
