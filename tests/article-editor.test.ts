@@ -30,6 +30,7 @@ describe('Article editor and preview regression', () => {
   let Page: any
   let Badge: any
   let Blocks: any
+  let Preview: any
   const autoImports = `import { ref, reactive, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue';\n`
   before(async () => {
     directory = await mkdtemp(resolve('node_modules/.article-editor-test-'))
@@ -54,6 +55,7 @@ describe('Article editor and preview regression', () => {
     `)
     Badge = await compile('components/AdminStatusBadge.vue')
     Blocks = await compile('components/MediaStructuredBlockEditor.vue')
+    Preview = await compile('components/ArticleLivePreview.vue')
   })
   after(async () => { if (directory) await rm(directory, { recursive: true, force: true }) })
 
@@ -69,6 +71,7 @@ describe('Article editor and preview regression', () => {
     for (const name of ['PageHead', 'BulkActionBar', 'MediaImageUploader']) app.component(name, Stub)
     app.component('AdminStatusBadge', Badge)
     app.component('MediaStructuredBlockEditor', Blocks)
+    app.component('ArticleLivePreview', Preview)
     return renderToString(app)
   }
 
@@ -91,7 +94,8 @@ describe('Article editor and preview regression', () => {
       state.previewOpen.value = true
       assert.equal(state.form.seoTitle, '')
     })
-    const [editor, preview] = html.split('aria-label="Preview artikel"')
+    const preview = html.split('aria-label="Preview artikel"')[1]?.split('id="article-editor-heading"')[0]
+    const editor = html.split('id="article-editor-heading"')[1] ?? ''
     assert.ok(preview)
     assert.match(editor, /Body khusus Indonesia/)
     assert.doesNotMatch(editor, /English preview body/)
@@ -108,7 +112,8 @@ describe('Article editor and preview regression', () => {
       state.previewLocale.value = 'id'
       state.previewOpen.value = true
     })
-    const [editor, preview] = html.split('aria-label="Preview artikel"')
+    const preview = html.split('aria-label="Preview artikel"')[1]?.split('id="article-editor-heading"')[0] ?? ''
+    const editor = html.split('id="article-editor-heading"')[1] ?? ''
     assert.match(editor, /English preview body/)
     assert.match(editor, /Simpan Perubahan/)
     assert.match(editor, /Tutup Preview/)

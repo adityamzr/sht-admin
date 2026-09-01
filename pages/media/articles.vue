@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Plus } from "lucide-vue-next";
+import { List, Pencil, Plus } from "lucide-vue-next";
 import { articleEditorTranslation, isCompleteArticleTranslation, type ArticleBlock, type ArticleTranslationInput } from "~/shared/article-localization";
 import type { SupportedLocale } from "~/shared/locales";
 const { show: showGlobalToast } = useAdminToast();
@@ -49,6 +49,11 @@ const categoryOptions = [
     "Budaya",
     "Sejarah",
     "Berita / Update",
+    "Sains & Teknologi",
+    "Hiburan & Permainan",
+    "Gaya Hidup",
+    "Komunitas",
+    "Lainnya",
 ];
 const contentTypeOptions = [
     { value: "article", label: "Artikel" },
@@ -68,6 +73,8 @@ const total = ref(0);
 const pageCount = ref(0);
 const editingId = ref<number | null>(null);
 const previewOpen = ref(false);
+const articleListOpen = ref(true);
+const mobileWorkspaceTab = ref<'edit' | 'preview'>('edit');
 const deleteConfirmOpen = ref(false);
 const deletePending = ref(false);
 const slugTouched = ref(false);
@@ -155,7 +162,7 @@ function dismissToast() {
 function clearErrors() {
     Object.keys(fieldErrors).forEach((key) => delete fieldErrors[key]);
 }
-function switchLocale(locale: SupportedLocale){localeTab.value=locale}
+function switchLocale(locale: SupportedLocale){localeTab.value=locale;previewLocale.value=locale}
 function clearEnglish(){Object.assign(enTranslation,{title:'',slug:'',excerpt:'',heroAlt:'',body:[],seoTitle:'',seoDescription:''})}
 function emptyForm() {
     editingId.value = null;
@@ -181,7 +188,9 @@ function emptyForm() {
         priority: 0,
         body: [{ type: "paragraph", text: "" }],
     });
-    previewOpen.value = false;
+    previewOpen.value = true;
+    articleListOpen.value = false;
+    mobileWorkspaceTab.value = 'edit';
 }
 function editArticle(article: AdminArticle) {
     editingId.value = article.id;
@@ -210,7 +219,9 @@ function editArticle(article: AdminArticle) {
     Object.assign(enTranslation, articleEditorTranslation(article, 'en'));
     localeTab.value = 'id';
     previewLocale.value = 'id';
-    previewOpen.value = false;
+    previewOpen.value = true;
+    articleListOpen.value = false;
+    mobileWorkspaceTab.value = 'edit';
     window.scrollTo({ top: 0, behavior: "smooth" });
 }
 function addBlock(type: ArticleBlock["type"]) {
@@ -458,6 +469,7 @@ watch(currentPage, () => clear());
     <div>
         <PageHead title="Artikel" subtitle="Media · Content Library">
             <template #actions>
+                <button type="button" class="inline-flex items-center gap-2 rounded-full border border-neutral-line bg-white px-4 py-2 text-sm font-semibold" @click="articleListOpen = !articleListOpen"><List class="h-4 w-4" />{{ articleListOpen ? 'Tutup Daftar' : 'Daftar Artikel' }}</button>
                 <button
                     type="button"
                     class="inline-flex w-fit items-center justify-center gap-2 rounded-full bg-sht-olive px-4 py-2 text-sm font-semibold text-white hover:bg-[#0b3230]"
@@ -546,9 +558,10 @@ watch(currentPage, () => clear());
             @clear="clear"
         />
         <div
-            class="mt-6 grid gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(380px,0.8fr)]"
+            class="mt-6 space-y-6"
         >
             <section
+                v-if="articleListOpen"
                 class="rounded-2xl border border-neutral-line bg-white p-5"
                 aria-labelledby="article-list-heading"
             >
@@ -691,7 +704,12 @@ watch(currentPage, () => clear());
                 </div>
             </section>
 
+            <div class="flex rounded-xl border border-neutral-line bg-white p-1 lg:hidden" role="tablist" aria-label="Mode workspace"><button type="button" role="tab" class="flex-1 rounded-lg px-4 py-2 text-sm font-semibold" :class="mobileWorkspaceTab === 'edit' ? 'bg-sht-olive text-white' : ''" :aria-selected="mobileWorkspaceTab === 'edit'" @click="mobileWorkspaceTab = 'edit'"><Pencil class="mr-1 inline h-4 w-4" />Edit</button><button type="button" role="tab" class="flex-1 rounded-lg px-4 py-2 text-sm font-semibold" :class="mobileWorkspaceTab === 'preview' ? 'bg-sht-olive text-white' : ''" :aria-selected="mobileWorkspaceTab === 'preview'" @click="mobileWorkspaceTab = 'preview'">Preview</button></div>
+            <div class="grid items-start gap-6 lg:grid-cols-[minmax(0,0.82fr)_minmax(0,1.18fr)]">
+                <div class="lg:sticky lg:top-5 lg:max-h-[calc(100vh-2.5rem)] lg:overflow-y-auto" :class="mobileWorkspaceTab === 'preview' ? 'block' : 'hidden lg:block'"><ArticleLivePreview :title="previewTitle" :excerpt="previewExcerpt" :hero-image="form.heroImage" :hero-alt="previewHeroAlt" :body="previewBody" :locale-label="previewLocale === 'en' ? 'English' : 'Indonesia'" :city="form.city" :category="form.category" /></div>
+
             <section
+                :class="mobileWorkspaceTab === 'edit' ? 'block' : 'hidden lg:block'"
                 class="rounded-2xl border max-h-fit border-neutral-line bg-white p-5"
                 aria-labelledby="article-editor-heading"
             >
@@ -847,151 +865,7 @@ watch(currentPage, () => clear());
                             <textarea v-model="form.seoDescription" rows="2" class="mt-1.5 w-full rounded-xl border border-neutral-line px-3 py-2 text-sm font-normal" />
                         </label>
                     </div>
-                    <div class="border-t border-neutral-line pt-4">
-                        <div class="flex items-center justify-between">
-                            <div>
-                                <h3 class="font-semibold">Body Blocks</h3>
-                                <p
-                                    class="mt-1 text-xs text-neutral-charcoal/55"
-                                >
-                                    Structured JSON blocks, bukan raw HTML.
-                                </p>
-                            </div>
-                            <select
-                                class="min-h-[36px] rounded-full border border-neutral-line px-3 text-xs"
-                                @change="
-                                    (event) => {
-                                        const select =
-                                            event.target as HTMLSelectElement;
-                                        if (select.value)
-                                            addBlock(
-                                                select.value as ArticleBlock['type'],
-                                            );
-                                        select.value = '';
-                                    }
-                                "
-                            >
-                                <option value="">Tambah block...</option>
-                                <option value="paragraph">Paragraph</option>
-                                <option value="heading">H2 / H3</option>
-                                <option value="image">Image</option>
-                                <option value="blockquote">Quote</option>
-                                <option value="list">
-                                    Bullet / Numbered List
-                                </option>
-                                <option value="callout">Info / Callout</option>
-                            </select>
-                        </div>
-                        <div class="mt-4 space-y-3">
-                            <div
-                                v-for="(block, index) in form.body"
-                                :key="index"
-                                class="rounded-xl border border-neutral-line p-3"
-                            >
-                                <div
-                                    class="flex items-center justify-between gap-3"
-                                >
-                                    <span
-                                        class="text-xs font-semibold uppercase tracking-[0.12em] text-gold"
-                                        >{{
-                                            block.type === "heading"
-                                                ? `H${block.level}`
-                                                : block.type
-                                        }}</span
-                                    ><button
-                                        type="button"
-                                        class="text-xs text-red-700"
-                                        @click="removeBlock(index)"
-                                    >
-                                        Hapus
-                                    </button>
-                                </div>
-                                <textarea
-                                    v-if="
-                                        [
-                                            'paragraph',
-                                            'blockquote',
-                                            'callout',
-                                        ].includes(block.type)
-                                    "
-                                    :data-field="`body-${index}`"
-                                    v-model="block.text"
-                                    rows="3"
-                                    class="mt-2 w-full rounded-lg border px-3 py-2 text-sm"
-                                    :class="
-                                        fieldErrors[`body-${index}`]
-                                            ? 'border-red-400'
-                                            : 'border-neutral-line'
-                                    "
-                                />
-                                <div
-                                    v-else-if="block.type === 'heading'"
-                                    class="mt-2 grid gap-2 sm:grid-cols-[90px_1fr]"
-                                >
-                                    <select
-                                        v-model.number="block.level"
-                                        class="rounded-lg border border-neutral-line px-2 text-sm"
-                                    >
-                                        <option :value="2">H2</option>
-                                        <option :value="3">H3</option></select
-                                    ><input
-                                        :data-field="`body-${index}`"
-                                        v-model="block.text"
-                                        type="text"
-                                        class="rounded-lg border border-neutral-line px-3 text-sm"
-                                        placeholder="Subheading"
-                                    />
-                                </div>
-                                <div
-                                    v-else-if="block.type === 'list'"
-                                    class="mt-2"
-                                >
-                                    <select
-                                        v-model="block.ordered"
-                                        class="rounded-lg border border-neutral-line px-2 py-1 text-xs"
-                                    >
-                                        <option :value="false">Bullet</option>
-                                        <option :value="true">
-                                            Numbered
-                                        </option></select
-                                    ><textarea
-                                        :value="(block.items ?? []).join('\n')"
-                                        rows="3"
-                                        class="mt-2 w-full rounded-lg border border-neutral-line px-3 py-2 text-sm"
-                                        @input="
-                                            block.items = (
-                                                $event.target as HTMLTextAreaElement
-                                            ).value.split('\n')
-                                        "
-                                    />
-                                </div>
-                                <div v-else class="mt-2 grid gap-2">
-                                    <MediaImageUploader
-                                        v-model="block.src"
-                                        @update:file-id="block.fileId = $event"
-                                        label="Body image"
-                                        folder="articles"
-                                    /><input
-                                        v-model="block.alt"
-                                        type="text"
-                                        class="rounded-lg border border-neutral-line px-3 py-2 text-sm"
-                                        placeholder="Alt text"
-                                    /><input
-                                        v-model="block.caption"
-                                        type="text"
-                                        class="rounded-lg border border-neutral-line px-3 py-2 text-sm"
-                                        placeholder="Caption (opsional)"
-                                    />
-                                </div>
-                                <p
-                                    v-if="fieldErrors[`body-${index}`]"
-                                    class="mt-1 text-xs text-red-700"
-                                >
-                                    {{ fieldErrors[`body-${index}`] }}
-                                </p>
-                            </div>
-                        </div>
-                    </div>
+                    <MediaStructuredBlockEditor v-model="form.body" folder="articles" :errors="fieldErrors" />
 
                     </div>
                 </div>
@@ -1047,106 +921,8 @@ watch(currentPage, () => clear());
                         </button>
                     </div>
             </section>
-        </div>
-
-        <section
-            v-if="previewOpen"
-            class="mt-6 rounded-2xl border border-neutral-line bg-white p-6"
-            aria-label="Preview artikel"
-        >
-            <p
-                class="text-xs font-semibold uppercase tracking-[0.16em] text-gold"
-            >
-                Preview {{ previewLocale === 'en' ? 'English' : 'Indonesia' }} · {{ form.city }} · {{ form.category }}
-            </p>
-            <h2
-                class="mt-3 font-heading text-3xl font-semibold text-neutral-charcoal"
-            >
-                {{ previewTitle || "Judul artikel" }}
-            </h2>
-            <p
-                class="mt-3 max-w-2xl text-base leading-relaxed text-neutral-charcoal/65"
-            >
-                {{ previewExcerpt || "Excerpt artikel..." }}
-            </p>
-            <img
-                v-if="form.heroImage"
-                :src="form.heroImage"
-                :alt="previewHeroAlt"
-                class="mt-6 max-h-[420px] w-full max-w-4xl rounded-xl object-cover"
-            />
-            <div class="mt-8 max-w-2xl text-neutral-charcoal/80">
-                <template v-for="(block, index) in previewBody" :key="index">
-                    <p
-                        v-if="block.type === 'paragraph'"
-                        class="mb-5 text-sm leading-7"
-                    >
-                        {{ block.text }}
-                    </p>
-                    <h2
-                        v-else-if="
-                            block.type === 'heading' && block.level === 2
-                        "
-                        class="mb-4 mt-9 text-2xl font-bold leading-tight text-neutral-charcoal"
-                    >
-                        {{ block.text }}
-                    </h2>
-                    <h3
-                        v-else-if="block.type === 'heading'"
-                        class="mb-3 mt-7 text-xl font-semibold leading-tight text-neutral-charcoal"
-                    >
-                        {{ block.text }}
-                    </h3>
-                    <blockquote
-                        v-else-if="block.type === 'blockquote'"
-                        class="mb-6 border-l-2 border-gold pl-4 text-base italic leading-7 text-neutral-charcoal/75"
-                    >
-                        {{ block.text }}
-                    </blockquote>
-                    <ul
-                        v-else-if="block.type === 'list' && !block.ordered"
-                        class="mb-6 list-disc space-y-2 pl-6 text-sm leading-7"
-                    >
-                        <li
-                            v-for="(item, itemIndex) in block.items"
-                            :key="`${index}-${itemIndex}`"
-                        >
-                            {{ item }}
-                        </li>
-                    </ul>
-                    <ol
-                        v-else-if="block.type === 'list'"
-                        class="mb-6 list-decimal space-y-2 pl-6 text-sm leading-7"
-                    >
-                        <li
-                            v-for="(item, itemIndex) in block.items"
-                            :key="`${index}-${itemIndex}`"
-                        >
-                            {{ item }}
-                        </li>
-                    </ol>
-                    <aside
-                        v-else-if="block.type === 'callout'"
-                        class="mb-6 border-l-2 border-gold bg-gold-sand/50 px-4 py-3 text-sm leading-6 text-neutral-charcoal/75"
-                    >
-                        {{ block.text }}
-                    </aside>
-                    <figure v-else-if="block.type === 'image'" class="mb-6">
-                        <img
-                            :src="block.src"
-                            :alt="block.alt"
-                            class="w-full rounded-xl object-cover"
-                        />
-                        <figcaption
-                            v-if="block.caption"
-                            class="mt-2 text-xs leading-5 text-neutral-charcoal/50"
-                        >
-                            {{ block.caption }}
-                        </figcaption>
-                    </figure>
-                </template>
             </div>
-        </section>
+        </div>
 
         <div
             v-if="deleteConfirmOpen"

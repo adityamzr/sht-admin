@@ -10,6 +10,8 @@ export type ArticleBlock = {
   alt?: string
   caption?: string
   fileId?: string
+  displaySize?: 'small' | 'medium' | 'wide' | 'full'
+  aspectRatio?: 'auto' | '16:9' | '4:5' | '1:1'
 }
 
 export type ArticleTranslationInput = {
