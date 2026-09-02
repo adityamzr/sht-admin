@@ -324,14 +324,26 @@ export const serviceInquiryInput = z.object({
 })
 
 // ─── Media Article ──────────────────────────────────────────────────────────
+const articleSlug = z.string().trim().min(3).max(180).regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, 'Slug hanya boleh berisi huruf kecil, angka, dan tanda hubung.')
+const articleText = z.object({
+  title: z.string().trim().min(3).max(240),
+  slug: articleSlug,
+  excerpt: z.string().trim().max(600),
+  heroAlt: z.string().trim().max(300),
+  body: z.array(z.record(z.unknown())).max(100),
+  seoTitle: z.string().trim().max(240).nullable().optional().transform((v) => v || null),
+  seoDescription: z.string().trim().max(600).nullable().optional().transform((v) => v || null),
+})
+const partialArticleText = articleText.extend({
+  title: z.string().trim().max(240).default(''),
+  slug: z.preprocess((v) => v === undefined || v === null || (typeof v === 'string' && !v.trim()) ? null : v, articleSlug.nullable()),
+  excerpt: articleText.shape.excerpt.default(''),
+  heroAlt: articleText.shape.heroAlt.default(''),
+  body: articleText.shape.body.default([]),
+})
 const articleBase = z.object({
-  title: z.string().min(3).max(240),
-  slug: z.string().min(3).max(180).regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, 'Slug hanya boleh berisi huruf kecil, angka, dan tanda hubung.'),
-  excerpt: z.string().max(600),
   heroImage: z.string().max(500),
   heroImageFileId: z.string().max(255).nullable().optional(),
-  heroImageAlt: z.string().max(300),
-  body: z.array(z.record(z.unknown())).max(100),
   city: z.enum(ARTICLE_CITIES),
   contentType: z.enum(ARTICLE_CONTENT_TYPES),
   category: z.enum(ARTICLE_CATEGORIES),
@@ -339,40 +351,76 @@ const articleBase = z.object({
   status: z.enum(ARTICLE_STATUSES),
   priority: int(-9999, 9999),
   publishedAt: z.string().datetime().nullable().optional(),
-  seoTitle: z.string().max(240).nullable().optional(),
-  seoDescription: z.string().max(600).nullable().optional(),
   ogImage: z.string().max(500).nullable().optional(),
+  translations: z.object({ id: articleText, en: partialArticleText.optional() }).strict(),
 })
-export const articleInput = articleBase
+
+// Backward-compatible transport only: downstream services receive ONE canonical
+// contract. Once translations.id exists, no field falls back to a legacy value.
+export const articleInput = z.preprocess((value) => {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return value
+  const input = value as Record<string, unknown>
+  if (input.translations !== undefined && (!input.translations || typeof input.translations !== 'object' || Array.isArray(input.translations))) return value
+  const translations = (input.translations ?? {}) as Record<string, unknown>
+  if (Object.prototype.hasOwnProperty.call(translations, 'id')) return input
+  return {
+    ...input,
+    translations: {
+      ...translations,
+      id: {
+        title: input.title, slug: input.slug, excerpt: input.excerpt,
+        heroAlt: input.heroImageAlt, body: input.body,
+        seoTitle: input.seoTitle, seoDescription: input.seoDescription,
+      },
+    },
+  }
+}, articleBase)
 export const articlePatch = articleBase.partial()
 
-// ─── Media Guide ────────────────────────────────────────────────────────────
-const guideBase = z.object({
-  title: z.string().min(3).max(240),
-  slug: z.string().min(3).max(180).regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, 'Slug hanya boleh berisi huruf kecil, angka, dan tanda hubung.'),
-  group: z.enum(GUIDE_GROUPS),
-  summary: z.string().max(600).nullable().optional(),
-  body: z.array(z.record(z.unknown())).max(100),
-  sortOrder: int(0, 9999),
-  status: z.enum(['DRAFT', 'PUBLISHED', 'ARCHIVED']),
-  publishedAt: z.string().datetime().nullable().optional(),
-})
-export const guideInput = guideBase
+// ─── Media localization: legacy payloads normalize into canonical ID ───────
+function legacyMediaTranslation(fields: string[]) {
+  return (value: unknown) => {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return value
+    const input = value as Record<string, unknown>
+    if (input.translations !== undefined && (!input.translations || typeof input.translations !== 'object' || Array.isArray(input.translations))) return value
+    const translations = (input.translations ?? {}) as Record<string, unknown>
+    if (Object.prototype.hasOwnProperty.call(translations, 'id')) return value
+    return { ...input, translations: { ...translations, id: Object.fromEntries(fields.map((field) => [field, input[field]])) } }
+  }
+}
+const nullableText = (max: number) => z.string().trim().max(max).nullable().optional().transform((v) => v || null)
+const optionalLocalizedSlug = z.preprocess((v) => v === undefined || v === null || (typeof v === 'string' && !v.trim()) ? null : v, articleSlug.nullable())
 
-// ─── Media Gallery ──────────────────────────────────────────────────────────
+// ─── Media Guide ──────────────────────────────────────────────────────────
+const guideText = z.object({ title: z.string().trim().min(3).max(240), slug: articleSlug, summary: nullableText(600), body: z.array(z.record(z.unknown())).max(100) })
+const guideBase = z.object({
+  group: z.enum(GUIDE_GROUPS), sortOrder: int(0, 9999), status: z.enum(['DRAFT', 'PUBLISHED', 'ARCHIVED']),
+  publishedAt: z.string().datetime().nullable().optional(),
+  translations: z.object({ id: guideText, en: guideText.extend({ title: z.string().trim().max(240).default(''), slug: optionalLocalizedSlug, body: guideText.shape.body.default([]) }).optional() }).strict(),
+})
+export const guideInput = z.preprocess(legacyMediaTranslation(['title', 'slug', 'summary', 'body']), guideBase)
+
+// ─── Media Gallery ────────────────────────────────────────────────────────
+const galleryText = z.object({ altText: z.string().trim().min(3).max(300), title: nullableText(240), description: nullableText(2000), locationName: nullableText(200) })
 const galleryBase = z.object({
   imageUrl: z.string().url('URL image tidak valid').max(1000), imageFileId: z.string().max(255).nullable().optional(),
-  altText: z.string().min(3).max(300), title: z.string().max(240).nullable().optional(), description: z.string().max(2000).nullable().optional(),
-  city: z.enum(GALLERY_CITIES), category: z.enum(GALLERY_CATEGORIES), locationName: z.string().max(200).nullable().optional(),
+  city: z.enum(GALLERY_CITIES), category: z.enum(GALLERY_CATEGORIES),
   latitude: z.number().min(-90).max(90).nullable().optional(), longitude: z.number().min(-180).max(180).nullable().optional(),
   tags: z.array(z.string().trim().min(1).max(40)).max(30), priority: z.number().int().min(-9999).max(9999),
   status: z.enum(GALLERY_STATUSES), takenAt: z.string().datetime().nullable().optional(), publishedAt: z.string().datetime().nullable().optional(),
-}).refine((v) => (v.latitude === null) === (v.longitude === null), { message: 'Latitude dan longitude harus diisi berpasangan.', path: ['latitude'] })
-export const galleryInput = galleryBase
+  translations: z.object({ id: galleryText, en: galleryText.extend({ altText: z.string().trim().max(300).default('') }).optional() }).strict(),
+}).refine((v) => (v.latitude == null) === (v.longitude == null), { message: 'Latitude dan longitude harus diisi berpasangan.', path: ['latitude'] })
+export const galleryInput = z.preprocess(legacyMediaTranslation(['altText', 'title', 'description', 'locationName']), galleryBase)
 
-// ─── Media Map Locations ────────────────────────────────────────────────────
-const locationBase = z.object({ name:z.string().min(2).max(200), city:z.enum(LOCATION_CITIES), category:z.enum(LOCATION_CATEGORIES), shortDescription:z.string().max(1000), latitude:z.number().min(-90).max(90), longitude:z.number().min(-180).max(180), googleMapsUrl:z.string().url().max(1000).nullable().optional(), imageUrl:z.string().url().max(1000).nullable().optional(), imageFileId:z.string().max(255).nullable().optional(), altText:z.string().max(300).nullable().optional(), tags:z.array(z.string().trim().min(1).max(40)).max(30), sortOrder:z.number().int().min(0).max(99999), isActive:z.boolean() })
-export const locationInput=locationBase
+// ─── Media Map Locations ──────────────────────────────────────────────────
+const locationText = z.object({ name: z.string().trim().min(2).max(200), shortDescription: z.string().trim().max(1000), altText: nullableText(300) })
+const locationBase = z.object({
+  city: z.enum(LOCATION_CITIES), category: z.enum(LOCATION_CATEGORIES), latitude: z.number().min(-90).max(90), longitude: z.number().min(-180).max(180),
+  googleMapsUrl: z.string().url().max(1000).nullable().optional(), imageUrl: z.string().url().max(1000).nullable().optional(), imageFileId: z.string().max(255).nullable().optional(),
+  tags: z.array(z.string().trim().min(1).max(40)).max(30), sortOrder: z.number().int().min(0).max(99999), isActive: z.boolean(),
+  translations: z.object({ id: locationText, en: locationText.extend({ name: z.string().trim().max(200).default(''), shortDescription: locationText.shape.shortDescription.default('') }).optional() }).strict(),
+})
+export const locationInput = z.preprocess(legacyMediaTranslation(['name', 'shortDescription', 'altText']), locationBase)
 
 export const publicContributionInput=z.object({type:z.enum(CONTRIBUTION_TYPES),city:z.string().trim().max(80).nullable().optional(),subject:z.string().trim().max(240).nullable().optional(),message:z.string().trim().min(10).max(5000),name:z.string().trim().max(120).nullable().optional(),contact:z.string().trim().max(160).nullable().optional(),sourcePage:z.string().trim().max(240).nullable().optional(),sourceUrl:z.string().url().max(1000).nullable().optional(),mapsUrl:z.string().url().max(1000).nullable().optional()})
 export const contributionAdminPatch=z.object({status:z.enum(CONTRIBUTION_STATUSES).optional(),internalNote:z.string().max(3000).nullable().optional()})
@@ -381,4 +429,21 @@ export const articleFeedbackInput=z.object({value:z.enum(ARTICLE_FEEDBACK_VALUES
 
 export const pageSettingsKeys=['home','makkah','madinah'] as const
 export const pageSettingsInput=z.object({heroImageUrl:z.string().url().max(1000).nullable().optional(),heroImageFileId:z.string().max(255).nullable().optional(),heroHeadline:z.string().max(240).nullable().optional(),heroSubheadline:z.string().max(600).nullable().optional(),heroTopicOverride:z.array(z.object({id:z.string().min(1).max(80),label:z.string().trim().min(1).max(80),isActive:z.boolean(),sortOrder:z.number().int().min(0).max(9999)})).max(40).nullable().optional(),featuredArticleId:z.number().int().positive().nullable().optional(),supportingArticleIds:z.array(z.number().int().positive()).max(3),editorialArticleIds:z.array(z.number().int().positive()).max(6)})
+// Home alone is localized in this phase; Makkah/Madinah settings keep their contract.
+const homeText = z.object({ heroHeadline: nullableText(240), heroSubheadline: nullableText(600), heroTopicLabels: z.record(z.string().min(1).max(80), z.string().trim().max(80)).default({}) })
+const homeBase = pageSettingsInput.omit({ heroHeadline: true, heroSubheadline: true, heroTopicOverride: true }).extend({
+  heroTopicOverride: z.array(z.object({ id: z.string().min(1).max(80), isActive: z.boolean(), sortOrder: z.number().int().min(0).max(9999) })).max(40).nullable().default(null),
+  translations: z.object({ id: homeText, en: homeText.optional() }).strict(),
+}).superRefine((value, ctx) => {
+  const topics = value.heroTopicOverride ?? []
+  if (new Set(topics.map((t) => t.id)).size !== topics.length) ctx.addIssue({ code: 'custom', path: ['heroTopicOverride'], message: 'ID topik harus unik.' })
+  for (const topic of topics) if (typeof value.translations.id.heroTopicLabels[topic.id] !== 'string' || !value.translations.id.heroTopicLabels[topic.id].trim()) ctx.addIssue({ code: 'custom', path: ['translations', 'id', 'heroTopicLabels', topic.id], message: 'Label Indonesia wajib diisi untuk setiap topik.' })
+})
+export const homePageSettingsInput = z.preprocess((value) => {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return value
+  const input = value as Record<string, unknown>
+  const topics = Array.isArray(input.heroTopicOverride) ? input.heroTopicOverride : []
+  const legacyLabels = Object.fromEntries(topics.filter((t) => t && typeof t === 'object').map((t) => [t.id, t.label]))
+  return legacyMediaTranslation(['heroHeadline', 'heroSubheadline', 'heroTopicLabels'])({ ...input, heroTopicLabels: legacyLabels })
+}, homeBase)
 export const profileInput=z.object({name:z.string().trim().min(2).max(100),avatarUrl:z.string().url().max(1000).nullable().optional(),avatarFileId:z.string().max(255).nullable().optional()})

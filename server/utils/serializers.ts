@@ -1,4 +1,6 @@
-import { articles, guides, galleryItems, mapLocations, contributions } from '../db/schema'
+import { isCompleteGuideTranslation, isCompleteGalleryTranslation, isCompleteLocationTranslation } from '../../shared/media-localization'
+import { isCompleteArticleTranslation } from '../../shared/article-localization'
+import { guideTranslations, galleryTranslations, mapLocationTranslations, articleTranslations, articles, guides, galleryItems, mapLocations, contributions } from '../db/schema'
 import type {
   DepartureCityRow,
   FlightRow,
@@ -311,8 +313,11 @@ export function publicArticle(row: ArticleRow) {
 
 export type GuideRow = typeof guides.$inferSelect
 
-export function adminGuide(row: GuideRow) {
+export function adminGuide(row: GuideRow, translations: Array<typeof guideTranslations.$inferSelect> = []) {
+  const text = translations.find((t) => t.locale === 'id')
+  if (text) row = { ...row, title: text.title, slug: text.slug ?? '', summary: text.summary, body: text.body }
   return {
+    translations: mediaTranslations(translations, isCompleteGuideTranslation),
     id: row.id,
     title: row.title,
     slug: row.slug,
@@ -342,11 +347,19 @@ export function publicGuide(row: GuideRow) {
 }
 
 export type GalleryRow = typeof galleryItems.$inferSelect
-export function adminGallery(row: GalleryRow) { return { ...row, latitude: row.latitude === null ? null : Number(row.latitude), longitude: row.longitude === null ? null : Number(row.longitude) } }
+export function adminGallery(row: GalleryRow, translations: Array<typeof galleryTranslations.$inferSelect> = []) {
+  const text = translations.find((t) => t.locale === 'id')
+  if (text) row = { ...row, altText: text.altText, title: text.title, description: text.description, locationName: text.locationName }
+  return { ...row, latitude: row.latitude === null ? null : Number(row.latitude), longitude: row.longitude === null ? null : Number(row.longitude), translations: mediaTranslations(translations, isCompleteGalleryTranslation) }
+}
 export function publicGallery(row: GalleryRow) { return { id: row.id, imageUrl: row.imageUrl, altText: row.altText, title: row.title, description: row.description, city: row.city, category: row.category, locationName: row.locationName, coordinates: row.latitude !== null && row.longitude !== null ? { latitude: Number(row.latitude), longitude: Number(row.longitude) } : null, tags: row.tags, priority: row.priority, takenAt: row.takenAt, publishedAt: row.publishedAt } }
 
 export type MapLocationRow = typeof mapLocations.$inferSelect
-export function adminMapLocation(r: MapLocationRow) { return {...r, latitude:Number(r.latitude), longitude:Number(r.longitude)} }
+export function adminMapLocation(r: MapLocationRow, translations: Array<typeof mapLocationTranslations.$inferSelect> = []) {
+  const text = translations.find((t) => t.locale === 'id')
+  if (text) r = { ...r, name: text.name, shortDescription: text.shortDescription, altText: text.altText }
+  return { ...r, latitude: Number(r.latitude), longitude: Number(r.longitude), translations: mediaTranslations(translations, isCompleteLocationTranslation) }
+}
 export function publicMapLocation(r: MapLocationRow) { return {id:r.id,name:r.name,city:r.city,category:r.category,shortDescription:r.shortDescription,latitude:Number(r.latitude),longitude:Number(r.longitude),googleMapsUrl:r.googleMapsUrl,imageUrl:r.imageUrl,altText:r.altText,tags:r.tags,sortOrder:r.sortOrder} }
 
 export type ContributionRow = typeof contributions.$inferSelect
@@ -355,3 +368,23 @@ export function adminContribution(r: ContributionRow) { return { ...contribution
 export function publicContribution(r: ContributionRow) { return contributionPublicFields(r) }
 
 export function publicArticleFeedback(value: string) { return { accepted: true, value } }
+
+export function adminArticleWithTranslations(row: ArticleRow, translations: Array<typeof articleTranslations.$inferSelect>) {
+  const idText = translations.find((t) => t.locale === 'id')
+  return {
+    ...adminArticle(idText ? {
+      ...row, title: idText.title, slug: idText.slug ?? '', excerpt: idText.excerpt,
+      heroImageAlt: idText.heroAlt, body: idText.body,
+      seoTitle: idText.seoTitle, seoDescription: idText.seoDescription,
+    } : row),
+    translations: Object.fromEntries(translations.map((t) => [t.locale, {
+      id: t.id, title: t.title, slug: t.slug, excerpt: t.excerpt, heroAlt: t.heroAlt,
+      body: t.body, seoTitle: t.seoTitle, seoDescription: t.seoDescription,
+      complete: isCompleteArticleTranslation(t),
+    }])),
+  }
+}
+
+function mediaTranslations<T extends { locale: string }>(rows: T[], complete: (text: T) => boolean) {
+  return Object.fromEntries(rows.map((row) => [row.locale, { ...row, complete: complete(row) }]))
+}

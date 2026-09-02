@@ -1,20 +1,11 @@
 <script setup lang="ts">
-import { Plus } from "lucide-vue-next";
+import { List, Pencil, Plus } from "lucide-vue-next";
+import { articleEditorTranslation, isCompleteArticleTranslation, type ArticleBlock, type ArticleTranslationInput } from "~/shared/article-localization";
+import type { SupportedLocale } from "~/shared/locales";
 const { show: showGlobalToast } = useAdminToast();
 definePageMeta({ layout: "admin", middleware: "admin-auth" });
 
 type ArticleStatus = "DRAFT" | "PUBLISHED" | "ARCHIVED";
-type ArticleBlock = {
-    fileId?: string;
-    type: "paragraph" | "heading" | "image" | "blockquote" | "list" | "callout";
-    level?: 2 | 3;
-    text?: string;
-    ordered?: boolean;
-    items?: string[];
-    src?: string;
-    alt?: string;
-    caption?: string;
-};
 type AdminArticle = {
     id: number;
     heroImageFileId?: string | null;
@@ -33,6 +24,10 @@ type AdminArticle = {
     publishedAt: string | null;
     createdAt: string;
     updatedAt: string;
+    seoTitle?: string | null;
+    seoDescription?: string | null;
+    ogImage?: string | null;
+    translations?: Partial<Record<SupportedLocale, Omit<ArticleTranslationInput, 'body'> & { body: ArticleBlock[]; complete: boolean }>>;
 };
 type Toast = {
     message: string;
@@ -54,6 +49,11 @@ const categoryOptions = [
     "Budaya",
     "Sejarah",
     "Berita / Update",
+    "Sains & Teknologi",
+    "Hiburan & Permainan",
+    "Gaya Hidup",
+    "Komunitas",
+    "Lainnya",
 ];
 const contentTypeOptions = [
     { value: "article", label: "Artikel" },
@@ -66,18 +66,22 @@ const search = ref("");
 const statusFilter = ref("");
 const cityFilter = ref("");
 const categoryFilter = ref("");
+const translationFilter = ref("");
 const currentPage = ref(1);
 const pageSize = ref(10);
 const total = ref(0);
 const pageCount = ref(0);
 const editingId = ref<number | null>(null);
 const previewOpen = ref(false);
+const articleListOpen = ref(true);
+const mobileWorkspaceTab = ref<'edit' | 'preview'>('edit');
 const deleteConfirmOpen = ref(false);
 const deletePending = ref(false);
 const slugTouched = ref(false);
 const fieldErrors = reactive<Record<string, string>>({});
 const toast = ref<Toast | null>(null);
 let toastTimer: ReturnType<typeof setTimeout> | null = null;
+const localeTab = ref<SupportedLocale>('id'); const enTranslation = reactive({ title:'', slug:'', excerpt:'', heroAlt:'', body:[] as ArticleBlock[], seoTitle:'', seoDescription:'' });
 const form = reactive({
     title: "",
     slug: "",
@@ -85,6 +89,10 @@ const form = reactive({
     heroImage: "",
     heroImageFileId: "",
     heroImageAlt: "",
+    seoTitle: "",
+    seoDescription: "",
+    ogImage: "",
+    publishedAt: null as string | null,
     city: "GENERAL",
     contentType: "article",
     category: "Kehidupan",
@@ -100,6 +108,7 @@ const editingArticle = computed(() =>
           null)
         : null,
 );
+const previewLocale = ref<SupportedLocale>('id'); const previewTitle = computed(()=>previewLocale.value==='en'?enTranslation.title:form.title); const previewExcerpt = computed(()=>previewLocale.value==='en'?enTranslation.excerpt:form.excerpt); const previewHeroAlt = computed(()=>previewLocale.value==='en'?enTranslation.heroAlt:form.heroImageAlt); const previewBody = computed(()=>previewLocale.value==='en'?enTranslation.body:form.body);
 const pageNumbers = computed(() =>
     Array.from({ length: pageCount.value }, (_, index) => index + 1),
 );
@@ -153,8 +162,11 @@ function dismissToast() {
 function clearErrors() {
     Object.keys(fieldErrors).forEach((key) => delete fieldErrors[key]);
 }
+function switchLocale(locale: SupportedLocale){localeTab.value=locale;previewLocale.value=locale}
+function clearEnglish(){Object.assign(enTranslation,{title:'',slug:'',excerpt:'',heroAlt:'',body:[],seoTitle:'',seoDescription:''})}
 function emptyForm() {
     editingId.value = null;
+    localeTab.value = 'id'; previewLocale.value = 'id'; clearEnglish();
     slugTouched.value = false;
     clearErrors();
     Object.assign(form, {
@@ -164,6 +176,10 @@ function emptyForm() {
         heroImage: "",
         heroImageFileId: "",
         heroImageAlt: "",
+        seoTitle: "",
+        seoDescription: "",
+        ogImage: "",
+        publishedAt: null,
         city: "GENERAL",
         contentType: "article",
         category: "Kehidupan",
@@ -172,28 +188,40 @@ function emptyForm() {
         priority: 0,
         body: [{ type: "paragraph", text: "" }],
     });
-    previewOpen.value = false;
+    previewOpen.value = true;
+    articleListOpen.value = false;
+    mobileWorkspaceTab.value = 'edit';
 }
 function editArticle(article: AdminArticle) {
     editingId.value = article.id;
     slugTouched.value = true;
     clearErrors();
+    const idTranslation = articleEditorTranslation(article, 'id');
     Object.assign(form, {
-        title: article.title,
-        slug: article.slug,
-        excerpt: article.excerpt,
+        title: idTranslation.title,
+        slug: idTranslation.slug,
+        excerpt: idTranslation.excerpt,
         heroImage: article.heroImage,
-        heroImageFileId: (article as any).heroImageFileId ?? "",
-        heroImageAlt: article.heroImageAlt,
+        heroImageFileId: article.heroImageFileId ?? "",
+        heroImageAlt: idTranslation.heroAlt,
         city: article.city,
         contentType: article.contentType,
         category: article.category,
         tags: article.tags.join(", "),
         status: article.status,
         priority: article.priority,
-        body: JSON.parse(JSON.stringify(article.body ?? [])),
+        body: idTranslation.body,
+        seoTitle: idTranslation.seoTitle,
+        seoDescription: idTranslation.seoDescription,
+        ogImage: article.ogImage ?? "",
+        publishedAt: article.publishedAt,
     });
-    previewOpen.value = false;
+    Object.assign(enTranslation, articleEditorTranslation(article, 'en'));
+    localeTab.value = 'id';
+    previewLocale.value = 'id';
+    previewOpen.value = true;
+    articleListOpen.value = false;
+    mobileWorkspaceTab.value = 'edit';
     window.scrollTo({ top: 0, behavior: "smooth" });
 }
 function addBlock(type: ArticleBlock["type"]) {
@@ -248,26 +276,29 @@ function validateForm() {
 }
 function payload(status: ArticleStatus) {
     return {
-        title: form.title.trim(),
-        slug: form.slug.trim(),
-        excerpt: form.excerpt.trim(),
         heroImage: form.heroImage.trim(),
         heroImageFileId: form.heroImageFileId || null,
-        heroImageAlt: form.heroImageAlt.trim(),
-        body: form.body.map(normalizeBlock),
         city: form.city,
         contentType: form.contentType,
         category: form.category.trim(),
-        tags: form.tags
-            .split(",")
-            .map((tag) => tag.trim().toLocaleLowerCase())
-            .filter(Boolean),
+        tags: form.tags.split(",").map((tag) => tag.trim().toLocaleLowerCase()).filter(Boolean),
         status,
         priority: Number(form.priority) || 0,
-        publishedAt: status === "PUBLISHED" ? new Date().toISOString() : null,
-        seoTitle: null,
-        seoDescription: null,
-        ogImage: null,
+        publishedAt: status === "PUBLISHED" ? form.publishedAt : null,
+        ogImage: form.ogImage || null,
+        translations: {
+            id: {
+                title: form.title.trim(), slug: form.slug.trim(), excerpt: form.excerpt.trim(),
+                heroAlt: form.heroImageAlt.trim(), body: form.body.map(normalizeBlock),
+                seoTitle: form.seoTitle.trim() || null, seoDescription: form.seoDescription.trim() || null,
+            },
+            en: {
+                title: enTranslation.title.trim(), slug: enTranslation.slug.trim() || null,
+                excerpt: enTranslation.excerpt.trim(), heroAlt: enTranslation.heroAlt.trim(),
+                body: enTranslation.body.map(normalizeBlock), seoTitle: enTranslation.seoTitle.trim() || null,
+                seoDescription: enTranslation.seoDescription.trim() || null,
+            },
+        },
     };
 }
 async function loadArticles() {
@@ -287,6 +318,7 @@ async function loadArticles() {
                 status: statusFilter.value || undefined,
                 city: cityFilter.value || undefined,
                 category: categoryFilter.value || undefined,
+                translation: translationFilter.value || undefined,
                 page: currentPage.value,
                 pageSize: pageSize.value,
             },
@@ -375,6 +407,9 @@ function changePageSize() {
     currentPage.value = 1;
     loadArticles();
 }
+function translationComplete(article: AdminArticle, locale: SupportedLocale) {
+    return isCompleteArticleTranslation(articleEditorTranslation(article, locale));
+}
 function displayContentType(value: string) {
     return (
         contentTypeOptions.find((option) => option.value === value)?.label ??
@@ -387,7 +422,7 @@ watch(
         if (!slugTouched.value) form.slug = slugify(title);
     },
 );
-watch([search, statusFilter, cityFilter, categoryFilter], () => {
+watch([search, statusFilter, cityFilter, categoryFilter, translationFilter], () => {
     currentPage.value = 1;
     loadArticles();
 });
@@ -426,7 +461,7 @@ async function applyBulk(value: string) {
         toast.value = e.data?.statusMessage || "Bulk action gagal.";
     }
 }
-watch([search, statusFilter, cityFilter, categoryFilter], () => clear());
+watch([search, statusFilter, cityFilter, categoryFilter, translationFilter], () => clear());
 watch(currentPage, () => clear());
 </script>
 
@@ -434,6 +469,7 @@ watch(currentPage, () => clear());
     <div>
         <PageHead title="Artikel" subtitle="Media · Content Library">
             <template #actions>
+                <button type="button" class="inline-flex items-center gap-2 rounded-full border border-neutral-line bg-white px-4 py-2 text-sm font-semibold" @click="articleListOpen = !articleListOpen"><List class="h-4 w-4" />{{ articleListOpen ? 'Tutup Daftar' : 'Daftar Artikel' }}</button>
                 <button
                     type="button"
                     class="inline-flex w-fit items-center justify-center gap-2 rounded-full bg-sht-olive px-4 py-2 text-sm font-semibold text-white hover:bg-[#0b3230]"
@@ -450,7 +486,7 @@ watch(currentPage, () => clear());
             aria-label="Filter artikel"
         >
             <div
-                class="grid gap-3 lg:grid-cols-[minmax(240px,1fr)_150px_150px_190px] lg:items-end"
+                class="grid gap-3 lg:grid-cols-[minmax(200px,1fr)_repeat(4,minmax(120px,150px))] lg:items-end"
             >
                 <label
                     ><span
@@ -474,6 +510,14 @@ watch(currentPage, () => clear());
                         <option>PUBLISHED</option>
                         <option>ARCHIVED</option>
                     </select></label
+                ><label>
+                    <span class="text-xs font-semibold uppercase tracking-[0.12em] text-neutral-charcoal/50">English</span>
+                    <select v-model="translationFilter" class="mt-1.5 min-h-[42px] w-full rounded-xl border border-neutral-line px-3 text-sm">
+                        <option value="">Semua</option>
+                        <option value="complete">Lengkap</option>
+                        <option value="incomplete">Belum Lengkap</option>
+                    </select>
+                </label
                 ><label
                     ><span
                         class="text-xs font-semibold uppercase tracking-[0.12em] text-neutral-charcoal/50"
@@ -514,9 +558,10 @@ watch(currentPage, () => clear());
             @clear="clear"
         />
         <div
-            class="mt-6 grid gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(380px,0.8fr)]"
+            class="mt-6 space-y-6"
         >
             <section
+                v-if="articleListOpen"
                 class="rounded-2xl border border-neutral-line bg-white p-5"
                 aria-labelledby="article-list-heading"
             >
@@ -592,8 +637,11 @@ watch(currentPage, () => clear());
                                 class="mt-1 block text-xs text-neutral-charcoal/45"
                                 >Terbit: {{ formatDate(article.publishedAt) }} ·
                                 Diubah:
-                                {{ formatUpdated(article.updatedAt) }}</span
-                            ></span
+                                {{ formatUpdated(article.updatedAt) }}</span>
+                            <span class="mt-2 flex flex-wrap gap-1" aria-label="Kelengkapan terjemahan">
+                                <AdminStatusBadge :status="translationComplete(article, 'id') ? 'ACTIVE' : 'INACTIVE'" :label="translationComplete(article, 'id') ? 'ID ✓' : 'ID —'" />
+                                <AdminStatusBadge :status="translationComplete(article, 'en') ? 'ACTIVE' : 'INACTIVE'" :label="translationComplete(article, 'en') ? 'EN ✓' : 'EN —'" />
+                            </span></span
                         ><span
                             class="shrink-0 rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.1em]"
                             :class="
@@ -656,7 +704,12 @@ watch(currentPage, () => clear());
                 </div>
             </section>
 
+            <div class="flex rounded-xl border border-neutral-line bg-white p-1 lg:hidden" role="tablist" aria-label="Mode workspace"><button type="button" role="tab" class="flex-1 rounded-lg px-4 py-2 text-sm font-semibold" :class="mobileWorkspaceTab === 'edit' ? 'bg-sht-olive text-white' : ''" :aria-selected="mobileWorkspaceTab === 'edit'" @click="mobileWorkspaceTab = 'edit'"><Pencil class="mr-1 inline h-4 w-4" />Edit</button><button type="button" role="tab" class="flex-1 rounded-lg px-4 py-2 text-sm font-semibold" :class="mobileWorkspaceTab === 'preview' ? 'bg-sht-olive text-white' : ''" :aria-selected="mobileWorkspaceTab === 'preview'" @click="mobileWorkspaceTab = 'preview'">Preview</button></div>
+            <div class="grid items-start gap-6 lg:grid-cols-[minmax(0,0.82fr)_minmax(0,1.18fr)]">
+                <div class="lg:sticky lg:top-5 lg:max-h-[calc(100vh-2.5rem)] lg:overflow-y-auto" :class="mobileWorkspaceTab === 'preview' ? 'block' : 'hidden lg:block'"><ArticleLivePreview :title="previewTitle" :excerpt="previewExcerpt" :hero-image="form.heroImage" :hero-alt="previewHeroAlt" :body="previewBody" :locale-label="previewLocale === 'en' ? 'English' : 'Indonesia'" :city="form.city" :category="form.category" /></div>
+
             <section
+                :class="mobileWorkspaceTab === 'edit' ? 'block' : 'hidden lg:block'"
                 class="rounded-2xl border max-h-fit border-neutral-line bg-white p-5"
                 aria-labelledby="article-editor-heading"
             >
@@ -676,7 +729,7 @@ watch(currentPage, () => clear());
                         Reset
                     </button>
                 </div>
-                <div class="mt-5 space-y-4">
+                <div class="mt-4 flex gap-2 border-b border-neutral-line pb-3"><button type="button" class="rounded-full px-4 py-2 text-sm font-semibold" :class="localeTab==='id'?'bg-sht-olive text-white':'border border-neutral-line'" @click="switchLocale('id')">Indonesia</button><button type="button" class="rounded-full px-4 py-2 text-sm font-semibold" :class="localeTab==='en'?'bg-sht-olive text-white':'border border-neutral-line'" @click="switchLocale('en')">English</button><span v-if="localeTab==='en'" class="self-center text-xs text-neutral-charcoal/55">Opsional · dapat disimpan partial</span></div><div v-if="localeTab==='en'" class="space-y-4 rounded-xl border border-sht-gold/30 bg-gold-sand/20 p-4"><label class="block text-sm font-semibold">Judul English<input v-model="enTranslation.title" class="mt-1 w-full rounded-xl border px-3 py-2 text-sm" placeholder="English title"/></label><label class="block text-sm font-semibold">Slug English<input v-model="enTranslation.slug" class="mt-1 w-full rounded-xl border px-3 py-2 text-sm" placeholder="english-slug (opsional untuk draft)"/></label><label class="block text-sm font-semibold">Excerpt English<textarea v-model="enTranslation.excerpt" rows="3" class="mt-1 w-full rounded-xl border px-3 py-2 text-sm"/></label><label class="block text-sm font-semibold">Hero Alt English<input v-model="enTranslation.heroAlt" class="mt-1 w-full rounded-xl border px-3 py-2 text-sm"/></label><label class="block text-sm font-semibold">SEO Title English<input v-model="enTranslation.seoTitle" class="mt-1 w-full rounded-xl border px-3 py-2 text-sm"/></label><label class="block text-sm font-semibold">SEO Description English<textarea v-model="enTranslation.seoDescription" rows="2" class="mt-1 w-full rounded-xl border px-3 py-2 text-sm"/></label><MediaStructuredBlockEditor v-model="enTranslation.body" folder="articles"/><p class="text-xs text-neutral-charcoal/55">Completeness publik membutuhkan judul, slug, excerpt, dan body.</p></div><div v-else><div class="mt-5 space-y-4">
                     <label class="block text-sm font-semibold"
                         >Judul<input
                             data-field="title"
@@ -804,151 +857,18 @@ watch(currentPage, () => clear());
                         /></label>
                     </div>
 
-                    <div class="border-t border-neutral-line pt-4">
-                        <div class="flex items-center justify-between">
-                            <div>
-                                <h3 class="font-semibold">Body Blocks</h3>
-                                <p
-                                    class="mt-1 text-xs text-neutral-charcoal/55"
-                                >
-                                    Structured JSON blocks, bukan raw HTML.
-                                </p>
-                            </div>
-                            <select
-                                class="min-h-[36px] rounded-full border border-neutral-line px-3 text-xs"
-                                @change="
-                                    (event) => {
-                                        const select =
-                                            event.target as HTMLSelectElement;
-                                        if (select.value)
-                                            addBlock(
-                                                select.value as ArticleBlock['type'],
-                                            );
-                                        select.value = '';
-                                    }
-                                "
-                            >
-                                <option value="">Tambah block...</option>
-                                <option value="paragraph">Paragraph</option>
-                                <option value="heading">H2 / H3</option>
-                                <option value="image">Image</option>
-                                <option value="blockquote">Quote</option>
-                                <option value="list">
-                                    Bullet / Numbered List
-                                </option>
-                                <option value="callout">Info / Callout</option>
-                            </select>
-                        </div>
-                        <div class="mt-4 space-y-3">
-                            <div
-                                v-for="(block, index) in form.body"
-                                :key="index"
-                                class="rounded-xl border border-neutral-line p-3"
-                            >
-                                <div
-                                    class="flex items-center justify-between gap-3"
-                                >
-                                    <span
-                                        class="text-xs font-semibold uppercase tracking-[0.12em] text-gold"
-                                        >{{
-                                            block.type === "heading"
-                                                ? `H${block.level}`
-                                                : block.type
-                                        }}</span
-                                    ><button
-                                        type="button"
-                                        class="text-xs text-red-700"
-                                        @click="removeBlock(index)"
-                                    >
-                                        Hapus
-                                    </button>
-                                </div>
-                                <textarea
-                                    v-if="
-                                        [
-                                            'paragraph',
-                                            'blockquote',
-                                            'callout',
-                                        ].includes(block.type)
-                                    "
-                                    :data-field="`body-${index}`"
-                                    v-model="block.text"
-                                    rows="3"
-                                    class="mt-2 w-full rounded-lg border px-3 py-2 text-sm"
-                                    :class="
-                                        fieldErrors[`body-${index}`]
-                                            ? 'border-red-400'
-                                            : 'border-neutral-line'
-                                    "
-                                />
-                                <div
-                                    v-else-if="block.type === 'heading'"
-                                    class="mt-2 grid gap-2 sm:grid-cols-[90px_1fr]"
-                                >
-                                    <select
-                                        v-model.number="block.level"
-                                        class="rounded-lg border border-neutral-line px-2 text-sm"
-                                    >
-                                        <option :value="2">H2</option>
-                                        <option :value="3">H3</option></select
-                                    ><input
-                                        :data-field="`body-${index}`"
-                                        v-model="block.text"
-                                        type="text"
-                                        class="rounded-lg border border-neutral-line px-3 text-sm"
-                                        placeholder="Subheading"
-                                    />
-                                </div>
-                                <div
-                                    v-else-if="block.type === 'list'"
-                                    class="mt-2"
-                                >
-                                    <select
-                                        v-model="block.ordered"
-                                        class="rounded-lg border border-neutral-line px-2 py-1 text-xs"
-                                    >
-                                        <option :value="false">Bullet</option>
-                                        <option :value="true">
-                                            Numbered
-                                        </option></select
-                                    ><textarea
-                                        :value="(block.items ?? []).join('\n')"
-                                        rows="3"
-                                        class="mt-2 w-full rounded-lg border border-neutral-line px-3 py-2 text-sm"
-                                        @input="
-                                            block.items = (
-                                                $event.target as HTMLTextAreaElement
-                                            ).value.split('\n')
-                                        "
-                                    />
-                                </div>
-                                <div v-else class="mt-2 grid gap-2">
-                                    <MediaImageUploader
-                                        v-model="block.src"
-                                        @update:file-id="block.fileId = $event"
-                                        label="Body image"
-                                        folder="articles"
-                                    /><input
-                                        v-model="block.alt"
-                                        type="text"
-                                        class="rounded-lg border border-neutral-line px-3 py-2 text-sm"
-                                        placeholder="Alt text"
-                                    /><input
-                                        v-model="block.caption"
-                                        type="text"
-                                        class="rounded-lg border border-neutral-line px-3 py-2 text-sm"
-                                        placeholder="Caption (opsional)"
-                                    />
-                                </div>
-                                <p
-                                    v-if="fieldErrors[`body-${index}`]"
-                                    class="mt-1 text-xs text-red-700"
-                                >
-                                    {{ fieldErrors[`body-${index}`] }}
-                                </p>
-                            </div>
-                        </div>
+                    <div class="grid gap-3 sm:grid-cols-2">
+                        <label class="block text-sm font-semibold">SEO Title Indonesia
+                            <input v-model="form.seoTitle" class="mt-1.5 w-full rounded-xl border border-neutral-line px-3 py-2 text-sm font-normal" />
+                        </label>
+                        <label class="block text-sm font-semibold">SEO Description Indonesia
+                            <textarea v-model="form.seoDescription" rows="2" class="mt-1.5 w-full rounded-xl border border-neutral-line px-3 py-2 text-sm font-normal" />
+                        </label>
                     </div>
+                    <MediaStructuredBlockEditor v-model="form.body" folder="articles" :errors="fieldErrors" />
+
+                    </div>
+                </div>
 
                     <div
                         class="flex flex-wrap gap-2 border-t border-neutral-line pt-4"
@@ -956,7 +876,7 @@ watch(currentPage, () => clear());
                         <button
                             type="button"
                             class="rounded-full border border-neutral-line px-4 py-2 text-sm font-semibold hover:border-brand-green/40"
-                            @click="previewOpen = !previewOpen"
+                            @click="previewOpen = !previewOpen; previewLocale = localeTab"
                         >
                             {{
                                 previewOpen ? "Tutup Preview" : "Preview"
@@ -964,9 +884,9 @@ watch(currentPage, () => clear());
                         ><button
                             type="button"
                             class="rounded-full bg-sht-olive px-4 py-2 text-sm font-semibold text-white"
-                            @click="saveArticle('DRAFT')"
+                            @click="saveArticle(form.status)"
                         >
-                            Simpan Draft</button
+                            {{ form.status === 'DRAFT' ? 'Simpan Draft' : 'Simpan Perubahan' }}</button
                         ><button
                             v-if="
                                 form.status !== 'PUBLISHED' &&
@@ -1000,108 +920,9 @@ watch(currentPage, () => clear());
                             Delete Artikel
                         </button>
                     </div>
-                </div>
             </section>
-        </div>
-
-        <section
-            v-if="previewOpen"
-            class="mt-6 rounded-2xl border border-neutral-line bg-white p-6"
-            aria-label="Preview artikel"
-        >
-            <p
-                class="text-xs font-semibold uppercase tracking-[0.16em] text-gold"
-            >
-                Preview · {{ form.city }} · {{ form.category }}
-            </p>
-            <h2
-                class="mt-3 font-heading text-3xl font-semibold text-neutral-charcoal"
-            >
-                {{ form.title || "Judul artikel" }}
-            </h2>
-            <p
-                class="mt-3 max-w-2xl text-base leading-relaxed text-neutral-charcoal/65"
-            >
-                {{ form.excerpt || "Excerpt artikel..." }}
-            </p>
-            <img
-                v-if="form.heroImage"
-                :src="form.heroImage"
-                :alt="form.heroImageAlt"
-                class="mt-6 max-h-[420px] w-full max-w-4xl rounded-xl object-cover"
-            />
-            <div class="mt-8 max-w-2xl text-neutral-charcoal/80">
-                <template v-for="(block, index) in form.body" :key="index">
-                    <p
-                        v-if="block.type === 'paragraph'"
-                        class="mb-5 text-sm leading-7"
-                    >
-                        {{ block.text }}
-                    </p>
-                    <h2
-                        v-else-if="
-                            block.type === 'heading' && block.level === 2
-                        "
-                        class="mb-4 mt-9 text-2xl font-bold leading-tight text-neutral-charcoal"
-                    >
-                        {{ block.text }}
-                    </h2>
-                    <h3
-                        v-else-if="block.type === 'heading'"
-                        class="mb-3 mt-7 text-xl font-semibold leading-tight text-neutral-charcoal"
-                    >
-                        {{ block.text }}
-                    </h3>
-                    <blockquote
-                        v-else-if="block.type === 'blockquote'"
-                        class="mb-6 border-l-2 border-gold pl-4 text-base italic leading-7 text-neutral-charcoal/75"
-                    >
-                        {{ block.text }}
-                    </blockquote>
-                    <ul
-                        v-else-if="block.type === 'list' && !block.ordered"
-                        class="mb-6 list-disc space-y-2 pl-6 text-sm leading-7"
-                    >
-                        <li
-                            v-for="(item, itemIndex) in block.items"
-                            :key="`${index}-${itemIndex}`"
-                        >
-                            {{ item }}
-                        </li>
-                    </ul>
-                    <ol
-                        v-else-if="block.type === 'list'"
-                        class="mb-6 list-decimal space-y-2 pl-6 text-sm leading-7"
-                    >
-                        <li
-                            v-for="(item, itemIndex) in block.items"
-                            :key="`${index}-${itemIndex}`"
-                        >
-                            {{ item }}
-                        </li>
-                    </ol>
-                    <aside
-                        v-else-if="block.type === 'callout'"
-                        class="mb-6 border-l-2 border-gold bg-gold-sand/50 px-4 py-3 text-sm leading-6 text-neutral-charcoal/75"
-                    >
-                        {{ block.text }}
-                    </aside>
-                    <figure v-else-if="block.type === 'image'" class="mb-6">
-                        <img
-                            :src="block.src"
-                            :alt="block.alt"
-                            class="w-full rounded-xl object-cover"
-                        />
-                        <figcaption
-                            v-if="block.caption"
-                            class="mt-2 text-xs leading-5 text-neutral-charcoal/50"
-                        >
-                            {{ block.caption }}
-                        </figcaption>
-                    </figure>
-                </template>
             </div>
-        </section>
+        </div>
 
         <div
             v-if="deleteConfirmOpen"

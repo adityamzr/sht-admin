@@ -42,7 +42,7 @@ export const WORKSPACE_ROLES = ['OWNER', 'ADMIN', 'EDITOR', 'STAFF', 'VIEWER'] a
 export const ARTICLE_CITIES = ['GENERAL', 'MAKKAH', 'MADINAH'] as const
 export const ARTICLE_STATUSES = ['DRAFT', 'PUBLISHED', 'ARCHIVED'] as const
 export const ARTICLE_CONTENT_TYPES = ['article', 'update', 'practical'] as const
-export const ARTICLE_CATEGORIES = ['Ibadah', 'Panduan', 'Kehidupan', 'Sosial', 'Ekonomi', 'Bisnis', 'Kuliner', 'Transportasi', 'Akomodasi', 'Makkah', 'Madinah', 'Budaya', 'Sejarah', 'Berita / Update'] as const
+export const ARTICLE_CATEGORIES = ['Ibadah', 'Panduan', 'Kehidupan', 'Sosial', 'Ekonomi', 'Bisnis', 'Kuliner', 'Transportasi', 'Akomodasi', 'Makkah', 'Madinah', 'Budaya', 'Sejarah', 'Berita / Update', 'Sains & Teknologi', 'Hiburan & Permainan', 'Gaya Hidup', 'Komunitas', 'Lainnya'] as const
 export const GUIDE_GROUPS = ['MULAI DI SINI', 'KEHIDUPAN DI HARAMAIN', 'TRANSPORTASI', 'HOTEL', 'MAKKAH', 'MADINAH', 'PERJALANAN', 'IBADAH'] as const
 export const GALLERY_CITIES = ['MAKKAH', 'MADINAH'] as const
 export const GALLERY_CATEGORIES = ['MASJID', 'LANDSCAPE', 'ARSITEKTUR', 'JALAN', 'TRANSPORTASI', 'KULINER'] as const
@@ -114,6 +114,12 @@ export const articles = pgTable('articles', {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [index('articles_status_priority_idx').on(t.status, t.priority), index('articles_city_idx').on(t.city)])
+
+// ─── Media Article Translations ───────────────────────────────────────────
+export const articleTranslations = pgTable('article_translations', {
+  id: serial('id').primaryKey(), articleId: integer('article_id').notNull().references(() => articles.id, { onDelete: 'cascade' }), locale: text('locale').notNull(), title: text('title').notNull().default(''), slug: text('slug'), excerpt: text('excerpt').notNull().default(''), heroAlt: text('hero_alt').notNull().default(''), body: jsonb('body').$type<unknown[]>().notNull().default(sql`'[]'::jsonb`), seoTitle: text('seo_title'), seoDescription: text('seo_description'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(), updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [unique('article_translations_article_locale_unique').on(t.articleId, t.locale), uniqueIndex('article_translations_locale_slug_unique').on(t.locale, t.slug).where(sql`${t.slug} IS NOT NULL`)])
 
 // ─── Media Contribution Inbox ──────────────────────────────────────────────
 export const contributions = pgTable('contributions', {
@@ -435,3 +441,59 @@ export const leads = pgTable(
   },
   (t) => [index('leads_status_idx').on(t.status), unique('leads_estimation_unique').on(t.estimationId)],
 )
+
+// ─── Media localization (ID canonical, optional EN) ────────────────────────
+export const guideTranslations = pgTable('guide_translations', {
+  id: serial('id').primaryKey(),
+  guideId: integer('guide_id').notNull().references(() => guides.id, { onDelete: 'cascade' }),
+  locale: text('locale').notNull(),
+  title: text('title').notNull().default(''),
+  slug: text('slug'),
+  summary: text('summary'),
+  body: jsonb('body').$type<unknown[]>().notNull().default(sql`'[]'::jsonb`),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex('guide_translations_entity_locale_unique').on(t.guideId, t.locale),
+  uniqueIndex('guide_translations_locale_slug_unique').on(t.locale, t.slug).where(sql`${t.slug} IS NOT NULL`),
+])
+
+export const galleryTranslations = pgTable('gallery_translations', {
+  id: serial('id').primaryKey(),
+  galleryId: integer('gallery_id').notNull().references(() => galleryItems.id, { onDelete: 'cascade' }),
+  locale: text('locale').notNull(),
+  altText: text('alt_text').notNull().default(''),
+  title: text('title'),
+  description: text('description'),
+  locationName: text('location_name'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex('gallery_translations_entity_locale_unique').on(t.galleryId, t.locale),
+])
+
+export const mapLocationTranslations = pgTable('map_location_translations', {
+  id: serial('id').primaryKey(),
+  locationId: integer('location_id').notNull().references(() => mapLocations.id, { onDelete: 'cascade' }),
+  locale: text('locale').notNull(),
+  name: text('name').notNull().default(''),
+  shortDescription: text('short_description').notNull().default(''),
+  altText: text('alt_text'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex('map_location_translations_entity_locale_unique').on(t.locationId, t.locale),
+])
+
+export const mediaPageSettingsTranslations = pgTable('media_page_settings_translations', {
+  id: serial('id').primaryKey(),
+  pageSettingsId: integer('page_settings_id').notNull().references(() => mediaPageSettings.id, { onDelete: 'cascade' }),
+  locale: text('locale').notNull(),
+  heroHeadline: text('hero_headline'),
+  heroSubheadline: text('hero_subheadline'),
+  heroTopicLabels: jsonb('hero_topic_labels').$type<Record<string, string>>().notNull().default(sql`'{}'::jsonb`),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex('media_page_settings_translations_entity_locale_unique').on(t.pageSettingsId, t.locale),
+])

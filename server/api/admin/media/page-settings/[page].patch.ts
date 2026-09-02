@@ -1,2 +1,32 @@
-import {getPageSettings,savePageSettings} from '~/server/services/page-settings';import {deleteImageKitFile} from '~/server/services/imagekit';import {useDb} from '~/server/db';import {pageSettingsInput,pageSettingsKeys} from '~/server/utils/validators'
-export default defineEventHandler(async(e)=>{const page=String(getRouterParam(e,'page')||'');if(!pageSettingsKeys.includes(page as any))throw createError({statusCode:404,statusMessage:'Page settings tidak ditemukan.'});const b=await readValidatedBody(e,pageSettingsInput.safeParse);if(!b.success)throw createError({statusCode:400,statusMessage:b.error.issues[0]?.message||'Pengaturan tidak valid.'});try{const db=useDb();const previous=await getPageSettings(db,page);const data=await savePageSettings(db,page,b.data);if(page==='home'&&previous?.heroImageFileId&&previous.heroImageFileId!==b.data.heroImageFileId){try{await deleteImageKitFile(previous.heroImageFileId)}catch(err){console.warn('[page-settings] old hero ImageKit cleanup failed',{err})}}return {data}}catch(err){throw createError({statusCode:400,statusMessage:err instanceof Error?err.message:'Pengaturan tidak valid.'})}})
+import { getPageSettings, savePageSettings, saveHomePageSettings } from '~/server/services/page-settings'
+import { deleteImageKitFile } from '~/server/services/imagekit'
+import { useDb } from '~/server/db'
+import { pageSettingsInput, homePageSettingsInput, pageSettingsKeys } from '~/server/utils/validators'
+export default defineEventHandler(async (event) => {
+  const page = String(getRouterParam(event, 'page') || '')
+  if (!pageSettingsKeys.includes(page as any)) throw createError({ statusCode: 404, statusMessage: 'Page settings tidak ditemukan.' })
+  const input = await readBody(event)
+  const db = useDb()
+  const previous = await getPageSettings(db, page)
+  let data
+  try {
+    if (page === 'home') {
+      const parsed = homePageSettingsInput.safeParse(input)
+      if (!parsed.success) throw createError({ statusCode: 400, statusMessage: parsed.error.issues[0]?.message || 'Pengaturan tidak valid.' })
+      data = await saveHomePageSettings(db, parsed.data)
+    } else {
+      const parsed = pageSettingsInput.safeParse(input)
+      if (!parsed.success) throw createError({ statusCode: 400, statusMessage: parsed.error.issues[0]?.message || 'Pengaturan tidak valid.' })
+      data = await savePageSettings(db, page, parsed.data)
+    }
+  } catch (error) {
+    if (error && typeof error === 'object' && 'statusCode' in error && error.statusCode === 400) throw error
+    throw createError({ statusCode: 500, statusMessage: 'Pengaturan gagal disimpan.' })
+  }
+  // Asset cleanup only after the complete Home transaction has committed.
+  if (page === 'home' && previous?.heroImageFileId && previous.heroImageFileId !== data?.heroImageFileId) {
+    try { await deleteImageKitFile(previous.heroImageFileId) }
+    catch { console.warn('[page-settings] old hero ImageKit cleanup failed') }
+  }
+  return { data }
+})

@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import type { SupportedLocale } from '~/shared/locales';
+import { isCompleteHomeTranslation, mediaEditorTranslation, type HomeTranslation } from '~/shared/media-localization';
 const { show: showGlobalToast } = useAdminToast();
 import {
     ChevronDown,
@@ -54,6 +56,11 @@ const articles = ref<any[]>([]),
     dirty = ref(false),
     toast = ref(""),
     error = ref("");
+const localeTab = ref<SupportedLocale>('id');
+const english = reactive({ headline: '', subheadline: '', heroTopicLabels: {} as Record<string, string> });
+const editorHero = computed(() => localeTab.value === 'en' ? english : hero);
+const englishComplete = computed(() => isCompleteHomeTranslation({ heroHeadline: english.headline, heroSubheadline: english.subheadline, heroTopicLabels: english.heroTopicLabels }, heroTopics.value));
+const topicLabel = (topic: HeroTopic) => localeTab.value === 'en' ? english.heroTopicLabels[topic.id] || '' : topic.label;
 const topicRows = computed(() =>
     heroTopics.value === null
         ? canonicalTopics.map((label, i) => ({
@@ -81,7 +88,7 @@ const previewTopics = computed(() =>
     topicRows.value
         .filter((x) => x.isActive)
         .sort((a, b) => a.sortOrder - b.sortOrder)
-        .map((x) => x.label),
+        .map((x) => topicLabel(x)).filter(Boolean),
 );
 const available = computed(() =>
     articles.value.filter(
@@ -97,10 +104,16 @@ const pickList = computed(() =>
 function item(id: number) {
     return articles.value.find((a) => a.id === id);
 }
+function previewItem(id: number | null) {
+    const article = id ? item(id) : null;
+    if (localeTab.value === 'id') return article;
+    return article?.translations?.en?.complete ? { ...article, ...article.translations.en } : null;
+}
 function mark() {
     dirty.value = true;
 }
 function ensureTopics() {
+    if (localeTab.value !== "id") return;
     if (heroTopics.value === null)
         heroTopics.value = canonicalTopics.map((label, i) => ({
             id: "default-" + i,
@@ -111,7 +124,10 @@ function ensureTopics() {
 }
 function editTopic(i: number, value: string) {
     ensureTopics();
-    if (heroTopics.value) heroTopics.value[i].label = value.trimStart();
+    if (heroTopics.value) {
+        if (localeTab.value === 'en') english.heroTopicLabels[heroTopics.value[i].id] = value.trimStart();
+        else heroTopics.value[i].label = value.trimStart();
+    }
     mark();
 }
 function addTopic() {
@@ -196,6 +212,31 @@ function move(slot: "supporting" | "explore", i: number, d: number) {
     [target[i], target[j]] = [target[j], target[i]];
     mark();
 }
+function applySettings(x: any) {
+    const empty: HomeTranslation = { heroHeadline: null, heroSubheadline: null, heroTopicLabels: {} };
+    const legacy = { heroHeadline: x.heroHeadline, heroSubheadline: x.heroSubheadline,
+        heroTopicLabels: Object.fromEntries((x.heroTopicOverride || []).map((t: HeroTopic) => [t.id, t.label])) };
+    const id = mediaEditorTranslation<HomeTranslation>(x, 'id', legacy, empty);
+    const en = mediaEditorTranslation<HomeTranslation>(x, 'en', legacy, empty);
+    featured.value = x.featuredArticleId ?? null;
+    supporting.value = [...(x.supportingArticleIds || [])];
+    explore.value = [...(x.editorialArticleIds || [])];
+    Object.assign(hero, { imageUrl: x.heroImageUrl || '', imageFileId: x.heroImageFileId || '', headline: id.heroHeadline || '', subheadline: id.heroSubheadline || '' });
+    Object.assign(english, { headline: en.heroHeadline || '', subheadline: en.heroSubheadline || '', heroTopicLabels: { ...en.heroTopicLabels } });
+    heroTopics.value = x.heroTopicOverride == null ? null : x.heroTopicOverride.map((t: HeroTopic) => ({ ...t, label: id.heroTopicLabels[t.id] || '' }));
+}
+function payload() {
+    return {
+        heroImageFileId: hero.imageFileId || null, heroImageUrl: hero.imageUrl || null,
+        heroTopicOverride: heroTopics.value?.map(({ id, isActive, sortOrder }) => ({ id, isActive, sortOrder })) ?? null,
+        featuredArticleId: featured.value, supportingArticleIds: supporting.value, editorialArticleIds: explore.value,
+        translations: {
+            id: { heroHeadline: hero.headline || null, heroSubheadline: hero.subheadline || null,
+                heroTopicLabels: Object.fromEntries((heroTopics.value || []).map(t => [t.id, t.label])) },
+            en: { heroHeadline: english.headline || null, heroSubheadline: english.subheadline || null, heroTopicLabels: { ...english.heroTopicLabels } },
+        },
+    };
+}
 async function load() {
     try {
         const [a, s] = await Promise.all([
@@ -205,20 +246,7 @@ async function load() {
             $fetch<any>("/api/admin/media/page-settings/home"),
         ]);
         articles.value = a.data;
-        const x = s.data || {};
-        featured.value = x.featuredArticleId ?? null;
-        supporting.value = [...(x.supportingArticleIds || [])];
-        explore.value = [...(x.editorialArticleIds || [])];
-        Object.assign(hero, {
-            imageUrl: x.heroImageUrl || "",
-            imageFileId: x.heroImageFileId || "",
-            headline: x.heroHeadline || "",
-            subheadline: x.heroSubheadline || "",
-        });
-        heroTopics.value =
-            x.heroTopicOverride === null || x.heroTopicOverride === undefined
-                ? null
-                : JSON.parse(JSON.stringify(x.heroTopicOverride));
+        applySettings(s.data || {});
     } catch (e: any) {
         error.value = e.data?.statusMessage || "Settings gagal dimuat.";
     } finally {
@@ -231,17 +259,7 @@ async function save() {
     try {
         await $fetch("/api/admin/media/page-settings/home", {
             method: "PATCH",
-            body: {
-                ...hero,
-                heroImageFileId: hero.imageFileId || null,
-                heroImageUrl: hero.imageUrl || null,
-                heroHeadline: hero.headline || null,
-                heroSubheadline: hero.subheadline || null,
-                heroTopicOverride: heroTopics.value,
-                featuredArticleId: featured.value,
-                supportingArticleIds: supporting.value,
-                editorialArticleIds: explore.value,
-            },
+            body: payload(),
         });
         dirty.value = false;
         showGlobalToast("Pengaturan Home berhasil disimpan.", "success");
@@ -252,8 +270,8 @@ async function save() {
     }
 }
 function resetHeroField(field: "headline" | "subheadline" | "image") {
-    if (field === "headline") hero.headline = "";
-    if (field === "subheadline") hero.subheadline = "";
+    if (field === "headline") editorHero.value.headline = "";
+    if (field === "subheadline") editorHero.value.subheadline = "";
     if (field === "image") {
         hero.imageUrl = "";
         hero.imageFileId = "";
@@ -266,6 +284,8 @@ function resetSpotlight() {
     mark();
 }
 function resetAll() {
+    hero.headline = ''; hero.subheadline = '';
+    Object.assign(english, { headline: '', subheadline: '', heroTopicLabels: {} });
     resetHeroField("headline");
     resetHeroField("subheadline");
     resetHeroField("image");
@@ -290,12 +310,12 @@ onMounted(load);
                     class="rounded-full border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-700"
                     >Perubahan belum disimpan</span
                 >
-                <!-- <button
+                <button
                     class="rounded-full border border-neutral-line px-4 py-2 text-sm font-semibold"
                     @click="preview = true"
                 >
                     Preview
-                </button> -->
+                </button>
             </template></PageHead
         >
         <p
@@ -311,6 +331,9 @@ onMounted(load);
             Memuat pengaturan Home...
         </div>
         <div v-else class="mt-8 space-y-5">
+            <MediaLocaleTabs v-model="localeTab" />
+            <MediaTranslationBadges :id-complete="true" :en-complete="englishComplete" />
+            <p class="text-xs text-neutral-charcoal/60">Gambar, susunan topik, dan pilihan artikel dipakai bersama. Ubah susunan topik melalui tab Indonesia.</p>
             <section
                 class="rounded-2xl border border-neutral-line bg-white p-5 sm:p-6"
             >
@@ -367,13 +390,13 @@ onMounted(load);
                     <div class="space-y-3">
                         <label class="block text-sm font-semibold"
                             >Headline<input
-                                v-model="hero.headline"
+                                v-model="editorHero.headline"
                                 class="mt-1 w-full rounded-xl border px-3 py-2 text-sm"
                                 placeholder="Headline hero"
                                 @input="mark" /></label
                         ><label class="block text-sm font-semibold"
                             >Subheadline<textarea
-                                v-model="hero.subheadline"
+                                v-model="editorHero.subheadline"
                                 rows="3"
                                 class="mt-1 w-full rounded-xl border px-3 py-2 text-sm"
                                 placeholder="Subheadline hero"
@@ -397,13 +420,13 @@ onMounted(load);
                             type="button"
                             class="inline-flex items-center gap-1 text-xs text-red-700 underline"
                             title="Reset topik ke default"
-                            @click="resetTopics"
+                            :disabled="localeTab === 'en'" @click="resetTopics"
                         >
                             <RotateCcw class="h-3.5 w-3.5" />Reset Topik ke
                             Default
                         </button>
                     </div>
-                    <div class="mt-3 flex gap-2">
+                    <div v-if="localeTab === 'id'" class="mt-3 flex gap-2">
                         <input
                             v-model="newTopic"
                             class="min-h-[38px] flex-1 rounded-lg border px-3 text-sm"
@@ -417,6 +440,7 @@ onMounted(load);
                             <Plus class="h-4 w-4" />Tambah Topik
                         </button>
                     </div>
+                    <p v-if="localeTab === 'en' && heroTopics === null" class="mt-3 text-xs">Tanpa override: daftar topik mengikuti default bahasa frontend. Aktifkan override di tab Indonesia untuk menerjemahkan label khusus.</p>
                     <div class="mt-3 space-y-2">
                         <div
                             v-for="entry in topicPage"
@@ -425,7 +449,7 @@ onMounted(load);
                         >
                             <button
                                 type="button"
-                                class="relative h-6 w-11 shrink-0 rounded-full transition-colors"
+                                class="relative h-6 w-11 shrink-0 rounded-full transition-colors" :disabled="localeTab === 'en'"
                                 :class="
                                     entry.topic.isActive
                                         ? 'bg-sht-olive'
@@ -455,7 +479,7 @@ onMounted(load);
                                     "
                                 /></button
                             ><input
-                                :value="entry.topic.label"
+                                :value="topicLabel(entry.topic)" :disabled="localeTab === 'en' && heroTopics === null"
                                 class="min-w-0 flex-1 rounded border px-2 py-1 text-sm"
                                 @focus="ensureTopics"
                                 @input="
@@ -470,7 +494,7 @@ onMounted(load);
                                 class="rounded p-1 text-neutral-charcoal/60 hover:bg-neutral-soft disabled:opacity-30"
                                 title="Naikkan urutan"
                                 aria-label="Naikkan urutan"
-                                :disabled="entry.index === 0"
+                                :disabled="localeTab === 'en' || entry.index === 0"
                                 @click="
                                     ensureTopics();
                                     moveTopic(entry.index, -1);
@@ -482,7 +506,7 @@ onMounted(load);
                                 class="rounded p-1 text-neutral-charcoal/60 hover:bg-neutral-soft disabled:opacity-30"
                                 title="Turunkan urutan"
                                 aria-label="Turunkan urutan"
-                                :disabled="entry.index === topicRows.length - 1"
+                                :disabled="localeTab === 'en' || entry.index === topicRows.length - 1"
                                 @click="
                                     ensureTopics();
                                     moveTopic(entry.index, 1);
@@ -492,7 +516,7 @@ onMounted(load);
                             ><button
                                 type="button"
                                 class="rounded p-1 text-red-700 hover:bg-red-50"
-                                title="Hapus topik"
+                                title="Hapus topik" :disabled="localeTab === 'en'"
                                 aria-label="Hapus topik"
                                 @click="
                                     ensureTopics();
@@ -771,7 +795,7 @@ onMounted(load);
             </div>
         </div>
         <div
-            v-if="preview"
+            v-if="preview" aria-label="Preview Home"
             class="fixed inset-0 z-50 flex items-center justify-center bg-neutral-charcoal/50 p-4"
         >
             <section
@@ -827,10 +851,10 @@ onMounted(load);
                             class="-mt-48 relative flex h-48 flex-col justify-end p-6"
                         >
                             <h3 class="font-heading text-2xl font-bold">
-                                {{ hero.headline || "Headline hero" }}
+                                {{ editorHero.headline || (localeTab === "en" ? "English headline (empty)" : "Headline hero") }}
                             </h3>
                             <p class="mt-2 text-sm opacity-80">
-                                {{ hero.subheadline || "Subheadline hero" }}
+                                {{ editorHero.subheadline || (localeTab === "en" ? "English subheadline (empty)" : "Subheadline hero") }}
                             </p>
                         </div>
                     </div>
@@ -851,22 +875,22 @@ onMounted(load);
                         Sorotan
                     </h3>
                     <div class="mt-4 grid gap-3 sm:grid-cols-2">
-                        <div v-if="featured" class="rounded-xl border p-3">
+                        <div v-if="featured && previewItem(featured)" class="rounded-xl border p-3">
                             <img
-                                v-if="item(featured)?.heroImage"
-                                :src="item(featured).heroImage"
+                                v-if="previewItem(featured)?.heroImage"
+                                :src="previewItem(featured).heroImage"
                                 class="h-32 w-full rounded-lg object-cover"
                             /><b class="mt-2 block">{{
-                                item(featured)?.title
+                                previewItem(featured)?.title
                             }}</b>
                         </div>
                         <div class="space-y-2">
                             <div
-                                v-for="id in supporting"
+                                v-for="id in supporting.filter(id => previewItem(id))"
                                 :key="id"
                                 class="rounded-lg border p-2 text-sm"
                             >
-                                {{ item(id)?.title }}
+                                {{ previewItem(id)?.title }}
                             </div>
                         </div>
                     </div>
@@ -875,11 +899,11 @@ onMounted(load);
                     </h3>
                     <div class="mt-3 grid gap-3 sm:grid-cols-3">
                         <div
-                            v-for="id in explore"
+                            v-for="id in explore.filter(id => previewItem(id))"
                             :key="id"
                             class="rounded-lg border p-3 text-sm"
                         >
-                            {{ item(id)?.title }}
+                            {{ previewItem(id)?.title }}
                         </div>
                     </div>
                 </div>

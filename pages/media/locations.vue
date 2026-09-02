@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { mediaEditorTranslation, isCompleteLocationTranslation, type LocationTranslation } from '~/shared/media-localization';
+import type { SupportedLocale } from '~/shared/locales';
 import { Plus } from "lucide-vue-next";
 definePageMeta({ layout: "admin", middleware: "admin-auth" });
 type Item = {
@@ -17,6 +19,7 @@ type Item = {
     sortOrder: number;
     isActive: boolean;
     updatedAt: string;
+    translations?: Partial<Record<SupportedLocale, LocationTranslation & { complete: boolean }>>;
 };
 const { show } = useAdminToast();
 const cities = ["MAKKAH", "MADINAH"],
@@ -42,6 +45,10 @@ const items = ref<Item[]>([]),
     editingId = ref<number | null>(null),
     confirmDelete = ref(false),
     toast = ref("");
+const localeTab = ref<SupportedLocale>('id');
+const translationFilter = ref('');
+const previewOpen = ref(false);
+const english = reactive({ name: '', shortDescription: '', altText: '' });
 const form = reactive({
     name: "",
     city: "MAKKAH",
@@ -57,10 +64,13 @@ const form = reactive({
     sortOrder: 10,
     isActive: true,
 });
+const editorText = computed(() => localeTab.value === 'en' ? english : form);
 const pageCount = computed(() => Math.ceil(total.value / pageSize.value));
 const editing = computed(() => editingId.value !== null);
 function reset() {
     editingId.value = null;
+    localeTab.value = 'id'; previewOpen.value = false;
+    Object.assign(english, { name: '', shortDescription: '', altText: '' });
     Object.assign(form, {
         name: "",
         city: "MAKKAH",
@@ -79,19 +89,25 @@ function reset() {
 }
 function edit(x: Item) {
     editingId.value = x.id;
+    const idText = mediaEditorTranslation<LocationTranslation>(x, 'id', { name: x.name, shortDescription: x.shortDescription, altText: x.altText }, { name: '', shortDescription: '', altText: null });
+    const enText = mediaEditorTranslation<LocationTranslation>(x, 'en', idText, { name: '', shortDescription: '', altText: null });
+    Object.assign(english, { name: enText.name ?? "", shortDescription: enText.shortDescription ?? "", altText: enText.altText ?? "" });
+    localeTab.value = 'id'; previewOpen.value = false;
     Object.assign(form, {
         ...x,
+        name: idText.name ?? "", shortDescription: idText.shortDescription ?? "", altText: idText.altText ?? "",
         latitude: String(x.latitude),
         longitude: String(x.longitude),
         googleMapsUrl: x.googleMapsUrl || "",
         imageUrl: x.imageUrl || "",
         imageFileId: x.imageFileId || "",
-        altText: x.altText || "",
+
         tags: x.tags.join(", "),
     });
     window.scrollTo({ top: 0, behavior: "smooth" });
 }
 function num(v: string) {
+    if (!v.trim()) return null;
     const n = Number(v.trim().replace(",", "."));
     return Number.isFinite(n) ? n : null;
 }
@@ -101,6 +117,7 @@ async function load() {
         const r = await $fetch<any>("/api/admin/media/locations", {
             query: {
                 search: search.value || undefined,
+                translation: translationFilter.value || undefined,
                 city: city.value || undefined,
                 category: category.value || undefined,
                 active: active.value || undefined,
@@ -118,18 +135,13 @@ async function load() {
 }
 function payload() {
     return {
-        ...form,
-        latitude: num(form.latitude),
-        longitude: num(form.longitude),
-        googleMapsUrl: form.googleMapsUrl || null,
-        imageUrl: form.imageUrl || null,
-        imageFileId: form.imageFileId || null,
-        altText: form.altText || null,
-        tags: form.tags
-            .split(",")
-            .map((x) => x.trim().toLowerCase())
-            .filter(Boolean),
-        sortOrder: Number(form.sortOrder) || 0,
+        city: form.city, category: form.category, latitude: num(form.latitude), longitude: num(form.longitude),
+        googleMapsUrl: form.googleMapsUrl || null, imageUrl: form.imageUrl || null, imageFileId: form.imageFileId || null,
+        tags: form.tags.split(',').map((x) => x.trim().toLowerCase()).filter(Boolean), sortOrder: Number(form.sortOrder) || 0, isActive: form.isActive,
+        translations: {
+            id: { name: form.name.trim(), shortDescription: form.shortDescription.trim(), altText: form.altText.trim() || null },
+            en: { name: english.name.trim(), shortDescription: english.shortDescription.trim(), altText: english.altText.trim() || null },
+        },
     };
 }
 async function save() {
@@ -186,7 +198,7 @@ async function remove() {
         );
     }
 }
-watch([search, city, category, active], () => {
+watch([search, city, category, active, translationFilter], () => {
     page.value = 1;
     load();
 });
@@ -218,7 +230,7 @@ async function applyBulk(value: string) {
         show(e.data?.statusMessage || "Bulk action gagal.", "error");
     }
 }
-watch([search, city, category, active], () => clear());
+watch([search, city, category, active, translationFilter], () => clear());
 watch(page, () => clear());
 </script>
 <template>
@@ -262,6 +274,7 @@ watch(page, () => clear());
                     <option value="true">Aktif</option>
                     <option value="false">Nonaktif</option>
                 </select>
+                <MediaTranslationFilter v-model="translationFilter" />
             </div>
         </section>
         <BulkActionBar
@@ -320,6 +333,7 @@ watch(page, () => clear());
                                 {{ x.isActive ? "Aktif" : "Nonaktif" }}</small
                             ></span
                         >
+                        <MediaTranslationBadges :id-complete="isCompleteLocationTranslation(x.translations?.id ?? x)" :en-complete="isCompleteLocationTranslation(x.translations?.en)" />
                     </button>
                 </div>
                 <p
@@ -370,6 +384,7 @@ watch(page, () => clear());
                 <h2 class="font-heading text-lg font-semibold">
                     {{ editing ? "Edit Lokasi" : "Lokasi Baru" }}
                 </h2>
+                <MediaLocaleTabs v-model="localeTab" />
                 <div class="mt-4 space-y-3">
                     <MediaImageUploader
                         v-model="form.imageUrl"
@@ -377,7 +392,7 @@ watch(page, () => clear());
                         label="Location image"
                         folder="locations"
                     /><input
-                        v-model="form.name"
+                        v-model="editorText.name"
                         placeholder="Nama lokasi"
                         class="w-full rounded-lg border px-3 py-2 text-sm"
                     /><select
@@ -391,7 +406,7 @@ watch(page, () => clear());
                     >
                         <option v-for="x in categories">{{ x }}</option></select
                     ><textarea
-                        v-model="form.shortDescription"
+                        v-model="editorText.shortDescription"
                         placeholder="Deskripsi singkat"
                         rows="3"
                         class="w-full rounded-lg border px-3 py-2 text-sm"
@@ -416,7 +431,7 @@ watch(page, () => clear());
                         placeholder="Google Maps URL (opsional)"
                         class="w-full rounded-lg border px-3 py-2 text-sm"
                     /><input
-                        v-model="form.altText"
+                        v-model="editorText.altText"
                         placeholder="Alt text (opsional)"
                         class="w-full rounded-lg border px-3 py-2 text-sm"
                     /><input
@@ -435,7 +450,15 @@ watch(page, () => clear());
                             Aktif</label
                         >
                     </div>
+                    <div class="rounded-xl border border-neutral-line p-3" v-if="previewOpen" aria-label="Preview locations">
+                        <img v-if="form.imageUrl" :src="form.imageUrl" :alt="editorText.altText || ''" class="max-h-48 rounded-lg object-cover" />
+                        <h3 class="mt-2 font-semibold">{{ editorText.name || (localeTab === 'en' ? 'English preview' : 'Preview Indonesia') }}</h3>
+                        <p class="mt-1 text-sm">{{ editorText.shortDescription }}</p>
+
+                    </div>
+                    <p v-if="localeTab === 'en'" class="text-xs text-neutral-charcoal/55">Nama dan deskripsi singkat diperlukan untuk publik English. Gambar, kategori, koordinat, dan status berlaku untuk kedua bahasa.</p>
                     <div class="flex flex-wrap gap-2 border-t pt-4">
+                        <button type="button" class="rounded-full border px-3 py-2 text-sm" @click="previewOpen = !previewOpen">{{ previewOpen ? 'Tutup Preview' : 'Preview' }}</button>
                         <button
                             class="rounded-full bg-sht-olive px-4 py-2 text-sm text-white"
                             @click="save"
