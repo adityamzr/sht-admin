@@ -1,6 +1,7 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 import { applyArticleImageUpload, createArticleBlock, insertArticleBlock, moveArticleBlock } from '../shared/article-block-editor'
+import { articleImageFigureStyle, articleImageObjectStyle, articleImageRatioStyle } from '../shared/article-block-presentation'
 import { articleInput } from '../server/utils/validators'
 
 describe('Article block editor enhancement', () => {
@@ -28,5 +29,13 @@ describe('Article block editor enhancement', () => {
     assert.equal(result.fileId, 'file-123')
     assert.equal(result.displaySize, 'wide')
     assert.equal(result.caption, 'Caption tetap ada.')
+  })
+  it('maps image size and crop settings to explicit presentation styles', () => {
+    assert.deepEqual(articleImageFigureStyle({ displaySize: 'small' }), { maxWidth: '480px' })
+    assert.deepEqual(articleImageFigureStyle({ displaySize: 'wide' }), { maxWidth: '900px' })
+    assert.deepEqual(articleImageRatioStyle({ aspectRatio: '4:5' }), { aspectRatio: '4 / 5' })
+    assert.deepEqual(articleImageObjectStyle({ aspectRatio: '4:5' }), { height: '100%', objectFit: 'cover' })
+    assert.equal(articleImageRatioStyle({ aspectRatio: 'auto' }), undefined)
+    assert.deepEqual(articleImageObjectStyle({ aspectRatio: 'auto' }), { height: 'auto' })
   })
 })
