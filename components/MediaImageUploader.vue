@@ -1,6 +1,11 @@
 <script setup lang="ts">
 const props = withDefaults(defineProps<{ modelValue?: string; folder?: string; label?: string }>(), { modelValue: '', folder: 'articles', label: 'Image' })
-const emit = defineEmits<{ 'update:modelValue': [string]; 'update:fileId': [string]; 'update:dimensions': [{ width: number; height: number }] }>()
+const emit = defineEmits<{
+  'update:modelValue': [string]
+  'update:fileId': [string]
+  'update:dimensions': [{ width: number; height: number }]
+  uploaded: [{ url: string; fileId: string; dimensions: { width: number; height: number } | null }]
+}>()
 const input = ref<HTMLInputElement | null>(null)
 const { status, error, upload, reset } = useMediaImageUpload()
 
@@ -21,6 +26,7 @@ async function onFileChange(event: Event) {
     emit('update:modelValue', result.url)
     if (result.fileId) emit('update:fileId', result.fileId)
     if (dimensions) emit('update:dimensions', dimensions)
+    emit('uploaded', { url: result.url, fileId: result.fileId || '', dimensions })
   } catch {
     // Error is surfaced by the component; preserve the existing value.
   } finally {
