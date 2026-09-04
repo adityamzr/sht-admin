@@ -2,24 +2,30 @@ import type { ArticleBlock } from './article-localization'
 
 export type ArticleImageBlock = ArticleBlock & { type: 'image' }
 
-export function articleImageFigureClass(block: Pick<ArticleBlock, 'displaySize'>) {
+export function articleImageFigureStyle(block: Pick<ArticleBlock, 'displaySize'>) {
   return {
-    small: 'max-w-[480px]',
-    medium: 'max-w-[680px]',
-    wide: 'max-w-[900px]',
-    full: 'max-w-none',
-  }[block.displaySize ?? 'full']
+    maxWidth: {
+      small: '480px',
+      medium: '680px',
+      wide: '900px',
+      full: '100%',
+    }[block.displaySize ?? 'full'],
+  }
 }
 
-export function articleImageRatioClass(block: Pick<ArticleBlock, 'aspectRatio'>) {
-  return {
-    auto: '',
-    '16:9': 'aspect-video',
-    '4:5': 'aspect-[4/5]',
-    '1:1': 'aspect-square',
+export function articleImageRatioStyle(block: Pick<ArticleBlock, 'aspectRatio'>) {
+  const aspectRatio = {
+    auto: undefined,
+    '16:9': '16 / 9',
+    '4:5': '4 / 5',
+    '1:1': '1 / 1',
   }[block.aspectRatio ?? 'auto']
+
+  return aspectRatio ? { aspectRatio } : undefined
 }
 
-export function articleImageObjectClass(block: Pick<ArticleBlock, 'aspectRatio'>) {
-  return (block.aspectRatio ?? 'auto') === 'auto' ? 'h-auto' : 'h-full object-cover'
+export function articleImageObjectStyle(block: Pick<ArticleBlock, 'aspectRatio'>) {
+  return (block.aspectRatio ?? 'auto') === 'auto'
+    ? { height: 'auto' }
+    : { height: '100%', objectFit: 'cover' as const }
 }

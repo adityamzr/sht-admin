@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { ArticleBlock } from '~/shared/article-localization'
-import { articleImageFigureClass, articleImageObjectClass, articleImageRatioClass } from '~/shared/article-block-presentation'
+import { articleImageFigureStyle, articleImageObjectStyle, articleImageRatioStyle } from '~/shared/article-block-presentation'
 defineProps<{ title?: string; excerpt?: string; heroImage?: string; heroAlt?: string; body: ArticleBlock[]; localeLabel: string; city: string; category: string }>()
 </script>
 <template>
@@ -18,7 +18,7 @@ defineProps<{ title?: string; excerpt?: string; heroImage?: string; heroAlt?: st
         <ul v-else-if="block.type === 'list' && !block.ordered" class="mb-6 list-disc space-y-2 pl-6 text-sm leading-7"><li v-for="(item,itemIndex) in block.items" :key="itemIndex">{{ item }}</li></ul>
         <ol v-else-if="block.type === 'list'" class="mb-6 list-decimal space-y-2 pl-6 text-sm leading-7"><li v-for="(item,itemIndex) in block.items" :key="itemIndex">{{ item }}</li></ol>
         <aside v-else-if="block.type === 'callout'" class="mb-6 border-l-2 border-gold bg-gold-sand/50 px-4 py-3 text-sm leading-6">{{ block.text }}</aside>
-        <figure v-else-if="block.type === 'image'" class="mx-auto mb-6 w-full" :class="articleImageFigureClass(block)"><div class="overflow-hidden rounded-xl" :class="articleImageRatioClass(block)"><img :src="block.src" :alt="block.alt" class="w-full" :class="articleImageObjectClass(block)" /></div><figcaption v-if="block.caption" class="mt-2 text-xs leading-5 text-neutral-charcoal/50">{{ block.caption }}</figcaption></figure>
+        <figure v-else-if="block.type === 'image'" class="mx-auto mb-6 w-full" :style="articleImageFigureStyle(block)"><div class="overflow-hidden rounded-xl" :style="articleImageRatioStyle(block)"><img :src="block.src" :alt="block.alt" class="w-full" :style="articleImageObjectStyle(block)" /></div><figcaption v-if="block.caption" class="mt-2 text-xs leading-5 text-neutral-charcoal/50">{{ block.caption }}</figcaption></figure>
       </template>
     </div>
   </section>
