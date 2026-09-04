@@ -13,6 +13,7 @@ import {
     Images,
     Landmark,
     LayoutDashboard,
+    ChartNoAxesCombined,
     MapPin,
     MapPinned,
     MessageSquareHeart,
@@ -44,6 +45,7 @@ const tourMenu: Item[] = [
 ];
 const mediaMenu: Item[] = [
     { label: "Dashboard", to: "/media", icon: LayoutDashboard },
+    { label: "Analytics", to: "/media/analytics", icon: ChartNoAxesCombined },
     {
         label: "Home",
         to: "/media/settings/home",
