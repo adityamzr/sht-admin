@@ -34,6 +34,7 @@ export default defineNuxtConfig({
     // DATABASE_URL diterima sebagai fallback build-time.
     databaseUrl: process.env.NUXT_DATABASE_URL ?? process.env.DATABASE_URL ?? '',
     imagekitPrivateKey: process.env.IMAGEKIT_PRIVATE_KEY ?? '',
+    analyticsIngestSecret: process.env.NUXT_ANALYTICS_INGEST_SECRET ?? '',
     public: {
       imagekitPublicKey: process.env.IMAGEKIT_PUBLIC_KEY ?? '',
       imagekitUrlEndpoint: process.env.IMAGEKIT_URL_ENDPOINT ?? '',
