@@ -56,9 +56,16 @@ const categoryOptions = [
     "Lainnya",
 ];
 const contentTypeOptions = [
-    { value: "article", label: "Artikel" },
-    { value: "update", label: "Update" },
-    { value: "practical", label: "Panduan Praktis" },
+    { value: "article", label: "Artikel Umum" },
+    { value: "explainer", label: "Explainer" },
+    { value: "guide", label: "Panduan" },
+    { value: "how_to", label: "How-to" },
+    { value: "analysis", label: "Analisis" },
+    { value: "news", label: "Berita / Update" },
+    { value: "editorial", label: "Editorial" },
+    { value: "faq", label: "FAQ" },
+    { value: "comparison", label: "Perbandingan" },
+    { value: "story_feature", label: "Cerita / Feature" },
 ];
 const articles = ref<AdminArticle[]>([]);
 const pending = ref(false);
@@ -66,6 +73,7 @@ const search = ref("");
 const statusFilter = ref("");
 const cityFilter = ref("");
 const categoryFilter = ref("");
+const contentTypeFilter = ref("");
 const translationFilter = ref("");
 const currentPage = ref(1);
 const pageSize = ref(10);
@@ -318,6 +326,7 @@ async function loadArticles() {
                 status: statusFilter.value || undefined,
                 city: cityFilter.value || undefined,
                 category: categoryFilter.value || undefined,
+                contentType: contentTypeFilter.value || undefined,
                 translation: translationFilter.value || undefined,
                 page: currentPage.value,
                 pageSize: pageSize.value,
@@ -422,7 +431,7 @@ watch(
         if (!slugTouched.value) form.slug = slugify(title);
     },
 );
-watch([search, statusFilter, cityFilter, categoryFilter, translationFilter], () => {
+watch([search, statusFilter, cityFilter, categoryFilter, contentTypeFilter, translationFilter], () => {
     currentPage.value = 1;
     loadArticles();
 });
@@ -461,7 +470,7 @@ async function applyBulk(value: string) {
         toast.value = e.data?.statusMessage || "Bulk action gagal.";
     }
 }
-watch([search, statusFilter, cityFilter, categoryFilter, translationFilter], () => clear());
+watch([search, statusFilter, cityFilter, categoryFilter, contentTypeFilter, translationFilter], () => clear());
 watch(currentPage, () => clear());
 </script>
 
@@ -486,7 +495,7 @@ watch(currentPage, () => clear());
             aria-label="Filter artikel"
         >
             <div
-                class="grid gap-3 lg:grid-cols-[minmax(200px,1fr)_repeat(4,minmax(120px,150px))] lg:items-end"
+                class="grid gap-3 lg:grid-cols-[minmax(200px,1fr)_repeat(5,minmax(120px,150px))] lg:items-end"
             >
                 <label
                     ><span
@@ -530,6 +539,23 @@ watch(currentPage, () => clear());
                         <option>GENERAL</option>
                         <option>MAKKAH</option>
                         <option>MADINAH</option>
+                    </select></label
+                ><label
+                    ><span
+                        class="text-xs font-semibold uppercase tracking-[0.12em] text-neutral-charcoal/50"
+                        >Tipe</span
+                    ><select
+                        v-model="contentTypeFilter"
+                        class="mt-1.5 min-h-[42px] w-full rounded-xl border border-neutral-line px-3 text-sm"
+                    >
+                        <option value="">Semua tipe</option>
+                        <option
+                            v-for="option in contentTypeOptions"
+                            :key="option.value"
+                            :value="option.value"
+                        >
+                            {{ option.label }}
+                        </option>
                     </select></label
                 ><label
                     ><span
@@ -800,7 +826,7 @@ watch(currentPage, () => clear());
                                 >
                                     {{ option.label }}
                                 </option>
-                            </select></label
+                            </select><p class="mt-1 text-xs font-normal text-neutral-charcoal/55">Bentuk atau pendekatan editorial artikel.</p></label
                         >
                     </div>
                     <div class="grid gap-3 sm:grid-cols-[1fr_100px]">

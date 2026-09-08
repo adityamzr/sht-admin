@@ -134,6 +134,13 @@
       "when": 1789300000000,
       "tag": "0017_media_analytics",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1789400000000,
+      "tag": "0018_article_content_types",
+      "breakpoints": true
     }
   ]
 }

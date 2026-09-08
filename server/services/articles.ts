@@ -11,13 +11,14 @@ export { isCompleteArticleTranslation, type ArticleTranslationInput } from '../.
 export type ArticleInput = Omit<z.output<typeof articleInput>, 'publishedAt'> & { publishedAt?: Date | null }
 type ArticleRow = typeof articles.$inferSelect
 type TranslationRow = typeof articleTranslations.$inferSelect
-type ArticleFilters = { search?: string; status?: string; city?: string; category?: string; limit?: number; offset?: number }
+type ArticleFilters = { search?: string; status?: string; city?: string; category?: string; contentType?: string; limit?: number; offset?: number }
 
 function conditionsFor(filters: ArticleFilters) {
   const conditions = []
   if (filters.status) conditions.push(eq(articles.status, filters.status))
   if (filters.city) conditions.push(eq(articles.city, filters.city))
   if (filters.category) conditions.push(eq(articles.category, filters.category))
+  if (filters.contentType) conditions.push(eq(articles.contentType, filters.contentType))
   if (filters.search) conditions.push(or(ilike(articles.title, `%${filters.search}%`), ilike(articles.slug, `%${filters.search}%`), ilike(articles.category, `%${filters.search}%`)))
   return and(...conditions)
 }

@@ -13,6 +13,7 @@ export default defineEventHandler(async (event) => {
     status: typeof query.status === 'string' ? query.status : undefined,
     city: typeof query.city === 'string' ? query.city : undefined,
     category: typeof query.category === 'string' ? query.category : undefined,
+    contentType: typeof query.contentType === 'string' ? query.contentType : undefined,
   }
   const db = useDb()
   const readiness = query.translation === 'complete' || query.translation === 'incomplete' ? query.translation : undefined
