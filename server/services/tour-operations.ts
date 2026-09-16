@@ -14,6 +14,11 @@ import {
 } from '../db/schema'
 import type { DbLike } from '../db'
 
+function badRequest(msg: string): never {
+  // Throw Nitro-compatible error that will become 400, not 500
+  throw createError({ statusCode: 400, statusMessage: msg })
+}
+
 // ─── Helpers ────────────────────────────────────────────────────────────────
 export async function getTourWorkspaceId(db: DbLike): Promise<number> {
   const rows = await db.select({ id: workspaces.id }).from(workspaces).where(eq(workspaces.key, 'tour')).limit(1)
@@ -168,18 +173,18 @@ export async function createTourOrder(db: DbLike, workspaceId: number, input: Re
   const customerId = (input as any).customerId
   if (customerId) {
     const cust = await getTourCustomer(db, Number(customerId), workspaceId)
-    if (!cust) throw new Error('Customer not found or archived')
+    if (!cust) badRequest('Customer tidak ditemukan atau diarsip')
   }
   // Validate lead/estimation existence if provided
   const leadId = (input as any).leadId
   if (leadId) {
     const leadRows = await db.select({ id: leads.id }).from(leads).where(eq(leads.id, Number(leadId))).limit(1)
-    if (!leadRows[0]) throw new Error('Lead not found')
+    if (!leadRows[0]) badRequest('Lead tidak ditemukan')
   }
   const estimationId = (input as any).estimationId
   if (estimationId) {
     const estRows = await db.select({ id: estimations.id }).from(estimations).where(eq(estimations.id, Number(estimationId))).limit(1)
-    if (!estRows[0]) throw new Error('Estimation not found')
+    if (!estRows[0]) badRequest('Estimasi tidak ditemukan — biarkan kosong jika order manual tanpa estimasi, atau pilih dari daftar estimasi yang ada')
   }
 
   const rows = await db.insert(tourOrders).values({ ...input, workspaceId } as never).returning()
@@ -189,15 +194,15 @@ export async function createTourOrder(db: DbLike, workspaceId: number, input: Re
 export async function updateTourOrder(db: DbLike, id: number, workspaceId: number, patch: Record<string, unknown>) {
   if ((patch as any).customerId) {
     const cust = await getTourCustomer(db, Number((patch as any).customerId), workspaceId)
-    if (!cust) throw new Error('Customer not found or archived')
+    if (!cust) badRequest('Customer tidak ditemukan atau diarsip')
   }
   if ((patch as any).leadId) {
     const leadRows = await db.select({ id: leads.id }).from(leads).where(eq(leads.id, Number((patch as any).leadId))).limit(1)
-    if (!leadRows[0]) throw new Error('Lead not found')
+    if (!leadRows[0]) badRequest('Lead tidak ditemukan')
   }
   if ((patch as any).estimationId) {
     const estRows = await db.select({ id: estimations.id }).from(estimations).where(eq(estimations.id, Number((patch as any).estimationId))).limit(1)
-    if (!estRows[0]) throw new Error('Estimation not found')
+    if (!estRows[0]) badRequest('Estimasi tidak ditemukan — biarkan kosong jika order manual tanpa estimasi, atau pilih dari daftar estimasi yang ada')
   }
 
   const rows = await db.update(tourOrders).set({ ...patch, updatedAt: new Date() } as never).where(and(eq(tourOrders.id, id), eq(tourOrders.workspaceId, workspaceId))).returning()
@@ -305,7 +310,7 @@ export async function getTourJamaahEnriched(db: DbLike, id: number, workspaceId:
 export async function createTourJamaah(db: DbLike, workspaceId: number, input: Record<string, unknown>) {
   const orderId = Number((input as any).orderId)
   const order = await getTourOrder(db, orderId, workspaceId)
-  if (!order) throw new Error('Order not found or not in same workspace')
+  if (!order) badRequest('Order tidak ditemukan atau bukan milik workspace ini')
   const rows = await db.insert(tourJamaah).values({ ...input, workspaceId } as never).returning()
   return rows[0]
 }
@@ -313,7 +318,7 @@ export async function createTourJamaah(db: DbLike, workspaceId: number, input: R
 export async function updateTourJamaah(db: DbLike, id: number, workspaceId: number, patch: Record<string, unknown>) {
   if ((patch as any).orderId) {
     const order = await getTourOrder(db, Number((patch as any).orderId), workspaceId)
-    if (!order) throw new Error('Order not found or not in same workspace')
+    if (!order) badRequest('Order tidak ditemukan atau bukan milik workspace ini')
   }
   const rows = await db.update(tourJamaah).set({ ...patch, updatedAt: new Date() } as never).where(and(eq(tourJamaah.id, id), eq(tourJamaah.workspaceId, workspaceId))).returning()
   return rows[0] ?? null
@@ -430,9 +435,9 @@ export async function listTripOrdersEnriched(db: DbLike, workspaceId: number, tr
 export async function assignOrderToTrip(db: DbLike, workspaceId: number, tripId: number, orderId: number) {
   // ensure both belong to same workspace and exist and not deleted
   const trip = await getTourTrip(db, tripId, workspaceId)
-  if (!trip) throw new Error('Trip not found')
+  if (!trip) badRequest('Trip tidak ditemukan')
   const order = await getTourOrder(db, orderId, workspaceId)
-  if (!order) throw new Error('Order not found or not in same workspace')
+  if (!order) badRequest('Order tidak ditemukan atau bukan milik workspace ini')
   const rows = await db.insert(tourTripOrders).values({ workspaceId, tripId, orderId }).onConflictDoNothing({ target: [tourTripOrders.tripId, tourTripOrders.orderId] }).returning()
   return rows[0] ?? null
 }
@@ -617,17 +622,17 @@ export async function getTourBookingEnriched(db: DbLike, id: number, workspaceId
 export async function createTourBooking(db: DbLike, workspaceId: number, input: Record<string, unknown>) {
   const vendorId = Number((input as any).vendorId)
   const vendor = await getTourVendor(db, vendorId, workspaceId)
-  if (!vendor) throw new Error('Vendor not found or archived')
+  if (!vendor) badRequest('Vendor tidak ditemukan atau diarsip')
 
   const tripId = (input as any).tripId
   if (tripId) {
     const trip = await getTourTrip(db, Number(tripId), workspaceId)
-    if (!trip) throw new Error('Trip not found or not in same workspace')
+    if (!trip) badRequest('Trip tidak ditemukan atau bukan milik workspace ini')
   }
   const orderId = (input as any).orderId
   if (orderId) {
     const order = await getTourOrder(db, Number(orderId), workspaceId)
-    if (!order) throw new Error('Order not found or not in same workspace')
+    if (!order) badRequest('Order tidak ditemukan atau bukan milik workspace ini')
   }
 
   const rows = await db.insert(tourBookings).values({ ...input, workspaceId } as never).returning()
@@ -637,15 +642,15 @@ export async function createTourBooking(db: DbLike, workspaceId: number, input: 
 export async function updateTourBooking(db: DbLike, id: number, workspaceId: number, patch: Record<string, unknown>) {
   if ((patch as any).vendorId) {
     const vendor = await getTourVendor(db, Number((patch as any).vendorId), workspaceId)
-    if (!vendor) throw new Error('Vendor not found or archived')
+    if (!vendor) badRequest('Vendor tidak ditemukan atau diarsip')
   }
   if ((patch as any).tripId) {
     const trip = await getTourTrip(db, Number((patch as any).tripId), workspaceId)
-    if (!trip) throw new Error('Trip not found or not in same workspace')
+    if (!trip) badRequest('Trip tidak ditemukan atau bukan milik workspace ini')
   }
   if ((patch as any).orderId) {
     const order = await getTourOrder(db, Number((patch as any).orderId), workspaceId)
-    if (!order) throw new Error('Order not found or not in same workspace')
+    if (!order) badRequest('Order tidak ditemukan atau bukan milik workspace ini')
   }
 
   const rows = await db.update(tourBookings).set({ ...patch, updatedAt: new Date() } as never).where(and(eq(tourBookings.id, id), eq(tourBookings.workspaceId, workspaceId))).returning()

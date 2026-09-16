@@ -27,6 +27,9 @@ const customers = computed(() => customersData.value?.data ?? []);
 const { data: leadsData } = await useAdminFetch<{ data: any[] }>("/api/admin/leads");
 const leads = computed(() => (leadsData.value as any)?.data ?? []);
 
+const { data: estimationsData } = await useAdminFetch<{ data: any[] }>("/api/admin/estimations");
+const estimations = computed(() => (estimationsData.value as any)?.data ?? []);
+
 const STATUSES = ["DRAFT","CONFIRMED","IN_PROGRESS","COMPLETED","CANCELLED"];
 const ORDER_TYPES = ["UMRAH_PACKAGE","CUSTOM_PRIVATE","LAND_ARRANGEMENT","SERVICE_ONLY"];
 
@@ -73,6 +76,7 @@ async function submit() {
   formPending.value = true;
   formError.value = null;
   try {
+    // Guard: if estimationId is manually typed number that doesn't exist, backend now returns 400 with clear message
     const body: any = {
       orderDate: form.orderDate,
       customerId: Number(form.customerId),
@@ -91,7 +95,8 @@ async function submit() {
     showForm.value = false;
     await refresh();
   } catch (err: any) {
-    formError.value = err?.data?.statusMessage || "Gagal menyimpan";
+    // err.data.statusMessage now contains user-friendly 400 message like "Estimasi tidak ditemukan..."
+    formError.value = err?.data?.statusMessage || err?.message || "Gagal menyimpan — cek Lead/Estimasi ID, atau kosongkan jika order manual";
   } finally { formPending.value = false; }
 }
 async function remove(o: any) {
@@ -115,20 +120,27 @@ async function remove(o: any) {
 
     <div v-if="showForm" class="mt-6 rounded-2xl border border-neutral-line bg-white p-6">
       <h3 class="font-heading text-base font-semibold">{{ form.id ? "Edit Order" : "Buat Order" }}</h3>
+      <p class="mt-1 text-xs text-neutral-charcoal/60">Lead & Estimasi opsional — kosongkan jika order manual tanpa Lead/Estimasi. Jika diisi, harus ID yang ada (pilih dari dropdown). Error sebelumnya "Estimation not found" karena ID 123 tidak ada di DB.</p>
       <div class="mt-4 grid gap-3 sm:grid-cols-2">
         <label class="text-sm font-medium">Tanggal<input v-model="form.orderDate" type="date" class="mt-1 min-h-[44px] w-full rounded-xl border border-neutral-line px-4" /></label>
         <label class="text-sm font-medium">Customer<select v-model="form.customerId" class="mt-1 min-h-[44px] w-full rounded-xl border border-neutral-line px-3"><option value="">Pilih Customer...</option><option v-for="c in customers" :key="c.id" :value="c.id">{{ c.customerCode }} · {{ c.name }}</option></select></label>
-        <label class="text-sm font-medium">Lead (opsional)<select v-model="form.leadId" class="mt-1 min-h-[44px] w-full rounded-xl border border-neutral-line px-3"><option value="">Tanpa Lead</option><option v-for="l in leads" :key="l.id" :value="l.id">{{ l.name }} · {{ l.whatsapp }} ({{ l.status }})</option></select></label>
-        <label class="text-sm font-medium">Estimation ID (opsional)<input v-model="form.estimationId" type="number" class="mt-1 min-h-[44px] w-full rounded-xl border border-neutral-line px-4" placeholder="ID estimasi" /></label>
+        <label class="text-sm font-medium">Lead (opsional)<select v-model="form.leadId" class="mt-1 min-h-[44px] w-full rounded-xl border border-neutral-line px-3"><option value="">Tanpa Lead (order manual)</option><option v-for="l in leads" :key="l.id" :value="l.id">{{ l.name }} · {{ l.whatsapp }} ({{ l.status }})</option></select></label>
+        <label class="text-sm font-medium">Estimasi (opsional)
+          <select v-model="form.estimationId" class="mt-1 min-h-[44px] w-full rounded-xl border border-neutral-line px-3">
+            <option value="">Tanpa Estimasi (order manual)</option>
+            <option v-for="e in estimations" :key="e.id" :value="e.id">{{ e.estimationNumber }} · {{ e.pilgrims }} jamaah · {{ e.departureCity }} · Rp {{ Number(e.totalAmount||0).toLocaleString('id-ID') }}</option>
+          </select>
+          <span class="mt-1 block text-[11px] text-neutral-charcoal/50">Kosongkan jika tidak ada estimasi. Jangan input manual ID 123 jika tidak ada — pilih dari daftar.</span>
+        </label>
         <label class="text-sm font-medium">Tipe Order<select v-model="form.orderType" class="mt-1 min-h-[44px] w-full rounded-xl border border-neutral-line px-3"><option v-for="t in ORDER_TYPES" :key="t" :value="t">{{ orderTypeLabel(t) }}</option></select></label>
         <label class="text-sm font-medium">Status<select v-model="form.status" class="mt-1 min-h-[44px] w-full rounded-xl border border-neutral-line px-3"><option v-for="s in STATUSES" :key="s" :value="s">{{ orderStatusLabel(s) }}</option></select></label>
-        <label class="text-sm font-medium">Package Name<input v-model="form.packageName" class="mt-1 min-h-[44px] w-full rounded-xl border border-neutral-line px-4" placeholder="Umroh 12D" /></label>
+        <label class="text-sm font-medium">Package Name<input v-model="form.packageName" class="mt-1 min-h-[44px] w-full rounded-xl border border-neutral-line px-4" placeholder="Umroh 12D / Umrah 14 Hari Turkey" /></label>
         <label class="text-sm font-medium">Pax Count<input v-model="form.paxCount" type="number" min="1" class="mt-1 min-h-[44px] w-full rounded-xl border border-neutral-line px-4" /></label>
-        <label class="sm:col-span-2 text-sm font-medium">Service Summary<textarea v-model="form.serviceSummary" rows="2" class="mt-1 w-full rounded-xl border border-neutral-line px-4 py-2" placeholder="Ringkasan layanan" /></label>
+        <label class="sm:col-span-2 text-sm font-medium">Service Summary<textarea v-model="form.serviceSummary" rows="2" class="mt-1 w-full rounded-xl border border-neutral-line px-4 py-2" placeholder="Perjalanan umrah + turki selama 14 hari" /></label>
         <label class="text-sm font-medium">Selling Price IDR<input v-model="form.sellingPriceIdr" type="number" min="0" class="mt-1 min-h-[44px] w-full rounded-xl border border-neutral-line px-4" /></label>
         <label class="text-sm font-medium">Notes<textarea v-model="form.notes" rows="2" class="mt-1 w-full rounded-xl border border-neutral-line px-4 py-2" /></label>
       </div>
-      <p v-if="formError" class="mt-3 rounded-xl border border-gold-soft bg-gold-sand/50 px-4 py-2 text-sm">{{ formError }}</p>
+      <p v-if="formError" class="mt-3 rounded-xl border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700">{{ formError }}</p>
       <div class="mt-4 flex gap-2">
         <button type="button" class="min-h-[40px] rounded-xl bg-sht-olive px-4 py-2 text-sm font-semibold text-white" :disabled="formPending" @click="submit">Simpan</button>
         <button type="button" class="min-h-[40px] rounded-xl border border-neutral-line px-4 py-2 text-sm font-medium" @click="showForm=false">Batal</button>
