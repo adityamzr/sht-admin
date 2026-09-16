@@ -9,7 +9,7 @@ const jamaah = computed(() => data.value?.data ?? null);
 <template>
   <div>
     <PageHead :title="jamaah ? jamaah.fullName : 'Detail Jamaah'" :subtitle="jamaah ? `${jamaah.jamaahCode} · ${jamaah.order?.orderCode || `Order #${jamaah.orderId}`} · ${jamaah.order?.customer?.name || ''}` : ''">
-      <template #actions><NuxtLink to="/tour/bookings" class="min-h-[40px] rounded-xl border border-neutral-line px-4 py-2 text-sm font-medium">← Ke Bookings</NuxtLink></template>
+      <template #actions><NuxtLink :to="jamaah ? `/tour/orders/${jamaah.orderId}` : '/tour/orders'" class="min-h-[40px] rounded-xl border border-neutral-line px-4 py-2 text-sm font-medium">← Ke Order</NuxtLink></template>
     </PageHead>
     <div v-if="jamaah" class="mt-6 rounded-2xl border border-neutral-line bg-white p-6">
       <div class="flex flex-wrap gap-2">
@@ -30,7 +30,7 @@ const jamaah = computed(() => data.value?.data ?? null);
         <div><dt class="text-xs uppercase text-neutral-charcoal/50">Tipe Kamar</dt><dd class="mt-1">{{ roomTypeLabel(jamaah.roomType) }}</dd></div>
         <div class="sm:col-span-2"><dt class="text-xs uppercase text-neutral-charcoal/50">Catatan</dt><dd class="mt-1 text-neutral-charcoal/70">{{ jamaah.notes || "—" }}</dd></div>
       </dl>
-      <p class="mt-6 text-xs text-neutral-charcoal/50">Pengelolaan jamaah utama di <NuxtLink to="/tour/bookings" class="underline">Booking Detail</NuxtLink> via Order terkait.</p>
+      <p class="mt-6 text-xs text-neutral-charcoal/50">Jamaah milik Order. Kelola lengkap di <NuxtLink :to="`/tour/orders/${jamaah.orderId}`" class="underline">Order Detail</NuxtLink>.</p>
     </div>
   </div>
 </template>

@@ -32,7 +32,7 @@ const opsStats = computed(() => [
     </div>
     <div class="mt-8 rounded-2xl border border-neutral-line bg-white p-6">
       <h4 class="font-heading text-sm font-semibold">Alur Kerja</h4>
-      <p class="mt-2 text-sm text-neutral-charcoal/70">Kelola calon jamaah (Leads), pelanggan, pesanan, perjalanan, dan pemesanan ke penyedia (Vendors) dalam satu tempat. Pesanan bisa dibuat manual atau dari Lead dan Estimasi. Biaya vendor disimpan sesuai nilai saat booking agar riwayat tetap konsisten walau kurs berubah.</p>
+      <p class="mt-2 text-sm text-neutral-charcoal/70">Lead → Customer → Order → (Jamaah, Trips, Bookings → Vendors). Order adalah pusat operasional: satu Order memiliki banyak Jamaah, beberapa Trip, dan banyak Booking ke Vendor. Biaya vendor disimpan sesuai nilai saat booking agar riwayat tetap konsisten walau kurs berubah.</p>
       <div class="mt-4 flex flex-wrap gap-2">
         <NuxtLink to="/tour/customers" class="rounded-xl bg-sht-olive px-3 py-1.5 text-xs font-semibold text-white">Customers</NuxtLink>
         <NuxtLink to="/tour/orders" class="rounded-xl bg-sht-olive px-3 py-1.5 text-xs font-semibold text-white">Orders</NuxtLink>

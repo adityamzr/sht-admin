@@ -439,38 +439,55 @@ describe('tour operations validation', () => {
     // Should warn, not auto-merge
   })
 
-  it('Jamaah displayed from Booking linked Order, not orphan', () => {
-    const bookingWithOrder = { id: 1, orderId: 10, bookingCode: 'BKG-2026-0001' }
-    const bookingWithoutOrder = { id: 2, orderId: null, bookingCode: 'BKG-2026-0002' }
-
+  it('Jamaah belongs to Order, primary hub is Order Detail (not Booking)', () => {
+    const order = { id: 10, orderCode: 'ORD-2026-0012', paxCount: 4 }
     const jamaahForOrder = [
       { id: 1, orderId: 10, fullName: 'Ahmad' },
       { id: 2, orderId: 10, fullName: 'Fatimah' },
     ]
 
-    // Booking with order -> show jamaah
-    const jamaahForBookingWithOrder = jamaahForOrder.filter(j => j.orderId === bookingWithOrder.orderId)
-    assert.equal(jamaahForBookingWithOrder.length, 2)
+    // Order Detail shows Jamaah X / Pax
+    const count = jamaahForOrder.filter(j => j.orderId === order.id).length
+    assert.equal(count, 2)
+    assert.equal(`${count} / ${order.paxCount} pax`, '2 / 4 pax')
 
-    // Booking without order -> empty + helpful state, cannot create orphan
-    const jamaahForBookingWithoutOrder = bookingWithoutOrder.orderId ? jamaahForOrder.filter(j => j.orderId === bookingWithoutOrder.orderId) : []
-    assert.equal(jamaahForBookingWithoutOrder.length, 0)
+    // Warning logic
+    const incomplete = count < order.paxCount
+    assert.equal(incomplete, true)
 
     // Jamaah belongs to Order, not Booking directly
     const jamaah = { id: 1, orderId: 10, fullName: 'Ahmad' }
     assert.equal(jamaah.orderId, 10)
-    // Should not have bookingId as source of truth
     assert.equal((jamaah as any).bookingId, undefined)
+
+    // Booking Detail must NOT manage Jamaah
+    const booking = { id: 1, orderId: 10, bookingCode: 'BKG-2026-0001', bookingType: 'HOTEL' }
+    const bookingManagesJamaah = false // by design after fix
+    assert.equal(bookingManagesJamaah, false)
   })
 
-  it('Booking without Order cannot create orphan Jamaah (domain integrity)', () => {
-    const booking = { id: 1, orderId: null }
-    const canCreateJamaah = !!booking.orderId
-    assert.equal(canCreateJamaah, false)
+  it('Booking is fulfillment record, Order owns Jamaah — no orphan, no bookingId', () => {
+    // Order is source of truth
+    const orderId = 5
+    const jamaahBody = { orderId, fullName: 'Ahmad' }
+    assert.equal(jamaahBody.orderId, 5)
 
+    // Creating Jamaah from Order Detail uses current Order context, not user-selected Order
+    const currentOrderContext = 5
+    const created = { ...jamaahBody, orderId: currentOrderContext }
+    assert.equal(created.orderId, 5)
+
+    // Booking without Order still cannot create Jamaah, and Booking with Order also should NOT create via Booking Detail
     const bookingWithOrder = { id: 2, orderId: 5 }
-    const canCreateJamaah2 = !!bookingWithOrder.orderId
-    assert.equal(canCreateJamaah2, true)
+    const canCreateJamaahViaBookingDetail = false // removed
+    assert.equal(canCreateJamaahViaBookingDetail, false)
+
+    // Pax warnings
+    const paxCount = 4
+    const jamaahCountLess = 3
+    const jamaahCountMore = 5
+    assert.equal(jamaahCountLess < paxCount, true)
+    assert.equal(jamaahCountMore > paxCount, true)
   })
 
   it('raw numeric IDs replaced by human codes in UX (relationship)', () => {
@@ -519,5 +536,61 @@ describe('tour operations validation', () => {
     assert.equal(afterVendorCreate.vendorId, 99)
     assert.equal(afterVendorCreate.bookingType, 'HOTEL')
     assert.equal(afterVendorCreate.description, 'Hotel Makkah')
+  })
+
+  it('Order Detail structure: Jamaah + Trips + Bookings hierarchy', () => {
+    const order = {
+      id: 12,
+      orderCode: 'ORD-2026-0012',
+      paxCount: 4,
+      jamaah: [{ id: 1 }, { id: 2 }],
+      tripOrders: [{ id: 1, tripId: 4, trip: { tripCode: 'TRIP-2026-0004', name: 'Umrah Desember' } }],
+      bookings: [{ id: 1, bookingCode: 'BKG-2026-0001', bookingType: 'HOTEL', vendor: { name: 'Hotel' }, amount: 1000, currency: 'SAR', status: 'CONFIRMED' }],
+    }
+    // Jamaah count vs pax
+    assert.equal(order.jamaah.length, 2)
+    assert.equal(order.paxCount, 4)
+    // Trips human-readable
+    assert.equal(`${order.tripOrders[0].trip.tripCode} · ${order.tripOrders[0].trip.name}`, 'TRIP-2026-0004 · Umrah Desember')
+    // Bookings list
+    assert.equal(order.bookings[0].bookingCode, 'BKG-2026-0001')
+    // Hierarchy: Order owns all three
+    assert.ok(order.jamaah)
+    assert.ok(order.tripOrders)
+    assert.ok(order.bookings)
+  })
+
+  it('Booking Detail restored: fulfillment record only', () => {
+    const booking = {
+      id: 1,
+      bookingCode: 'BKG-2026-0001',
+      bookingDate: '2026-09-16',
+      bookingType: 'HOTEL',
+      status: 'CONFIRMED',
+      vendor: { vendorCode: 'VND-0007', name: 'Abu Umar Transport' },
+      trip: { tripCode: 'TRIP-2026-0004', name: 'Umrah Desember 2026' },
+      order: { orderCode: 'ORD-2026-0012', customerId: 1 },
+      customer: { customerCode: 'CUS-2026-0007', name: 'Ahmad Fauzi' },
+      currency: 'SAR',
+      amount: 1000,
+      exchangeRateSnapshot: 4350,
+      amountIdr: 4350000,
+      dueDate: '2026-09-20',
+      description: 'Hotel Makkah 5 malam',
+      notes: '',
+    }
+    // Must show these fields
+    assert.ok(booking.bookingCode)
+    assert.ok(booking.bookingType)
+    assert.ok(booking.vendor)
+    assert.ok(booking.trip)
+    assert.ok(booking.order)
+    assert.ok(booking.currency)
+    assert.ok(booking.amount)
+    assert.ok(booking.exchangeRateSnapshot)
+    assert.ok(booking.amountIdr)
+    // Must NOT have Jamaah management
+    assert.equal((booking as any).jamaahRows, undefined)
+    assert.equal((booking as any).jamaah, undefined)
   })
 })

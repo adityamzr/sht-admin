@@ -61,12 +61,12 @@ async function remove(j: any) { if (!confirm(`Hapus jamaah ${j.fullName}?`)) ret
 
 <template>
   <div>
-    <PageHead title="Jamaah" subtitle="Rute kompatibilitas — pengelolaan utama kini via Booking Detail.">
+    <PageHead title="Jamaah" subtitle="Rute kompatibilitas — pengelolaan utama di Order Detail.">
       <template #actions><button type="button" class="min-h-[40px] rounded-xl bg-sht-olive px-4 py-2 text-sm font-semibold text-white" @click="openCreate">+ Tambah Jamaah</button></template>
     </PageHead>
 
     <div class="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-800">
-      Halaman ini tetap berfungsi untuk kompatibilitas bookmark, tapi workflow utama sekarang di <NuxtLink to="/tour/bookings" class="font-semibold underline">Booking Detail → Jamaah Terkait</NuxtLink>. Jamaah tetap milik Order.
+      Halaman ini tetap berfungsi untuk kompatibilitas bookmark, tapi workflow utama sekarang di <NuxtLink to="/tour/orders" class="font-semibold underline">Order Detail → Jamaah (X / Pax)</NuxtLink>. Jamaah tetap milik Order, bukan Booking.
     </div>
 
     <div class="mt-6 flex flex-wrap gap-3">
