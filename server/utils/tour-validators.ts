@@ -18,8 +18,8 @@ import {
 
 const int = (min: number, max: number) => z.number().int().min(min).max(max)
 const numStr = z.coerce.number()
-const isoDate = z.coerce.date().transform((d) => d.toISOString().slice(0, 10))
-const optionalDate = z.preprocess((v) => (v === '' || v === null ? null : v), z.coerce.date().transform((d) => d.toISOString().slice(0, 10)).nullable().optional())
+const isoDate = z.coerce.date()
+const optionalDate = z.preprocess((v) => (v === '' || v === null ? null : v), z.coerce.date().nullable().optional())
 
 // ─── Customers ──────────────────────────────────────────────────────────────
 export const tourCustomerInput = z.object({
@@ -81,7 +81,7 @@ export const tourTripInput = z.object({
   status: z.enum(TOUR_TRIP_STATUSES),
   picUserId: z.number().int().positive().nullable().optional(),
   notes: z.string().max(2000).nullable().optional(),
-}).refine((v) => v.returnDate >= v.departureDate, { message: 'returnDate harus >= departureDate', path: ['returnDate'] })
+}).refine((v) => v.returnDate.getTime() >= v.departureDate.getTime(), { message: 'returnDate harus >= departureDate', path: ['returnDate'] })
 
 export const tourTripPatch = z.object({
   name: z.string().min(2).max(200).optional(),
@@ -92,7 +92,7 @@ export const tourTripPatch = z.object({
   status: z.enum(TOUR_TRIP_STATUSES).optional(),
   picUserId: z.number().int().positive().nullable().optional(),
   notes: z.string().max(2000).nullable().optional(),
-}).refine((v) => !v.departureDate || !v.returnDate || v.returnDate >= v.departureDate, { message: 'returnDate harus >= departureDate', path: ['returnDate'] })
+}).refine((v) => !v.departureDate || !v.returnDate || v.returnDate.getTime() >= v.departureDate.getTime(), { message: 'returnDate harus >= departureDate', path: ['returnDate'] })
 
 // ─── Trip-Order assignment ──────────────────────────────────────────────────
 export const tourTripOrderInput = z.object({

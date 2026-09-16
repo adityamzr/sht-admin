@@ -19,10 +19,10 @@ export default defineEventHandler(async (event) => {
   if (!existing) throw createError({ statusCode: 404, statusMessage: 'Trip tidak ditemukan' })
 
   // Merge existing with patch to validate final state
-  const finalDeparture = (body.data.departureDate as string) ?? toISODate(existing.departureDate)
-  const finalReturn = (body.data.returnDate as string) ?? toISODate(existing.returnDate)
+  const finalDeparture = (body.data.departureDate as Date | undefined) ?? (existing.departureDate as Date)
+  const finalReturn = (body.data.returnDate as Date | undefined) ?? (existing.returnDate as Date)
 
-  if (finalDeparture && finalReturn && finalReturn < finalDeparture) {
+  if (finalDeparture && finalReturn && finalReturn.getTime() < finalDeparture.getTime()) {
     throw createError({ statusCode: 400, statusMessage: 'returnDate harus >= departureDate (final state)' })
   }
 
