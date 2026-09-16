@@ -118,6 +118,9 @@ export const tourVendorInput = z.object({
 export const tourVendorPatch = tourVendorInput.partial()
 
 // ─── Bookings ───────────────────────────────────────────────────────────────
+const optionalPositiveNumber = z.preprocess((v) => (v === '' || v === undefined || v === null ? null : v), z.coerce.number().positive().nullable().optional())
+const optionalNumber = z.preprocess((v) => (v === '' || v === undefined || v === null ? null : v), z.coerce.number().min(0).nullable().optional())
+
 const tourBookingBase = z.object({
   bookingDate: isoDate,
   tripId: int(1, 999999999).nullable().optional(),
@@ -127,8 +130,8 @@ const tourBookingBase = z.object({
   description: z.string().max(2000).default(''),
   currency: z.enum(CURRENCIES),
   amount: numStr.min(0),
-  exchangeRateSnapshot: numStr.positive().nullable().optional(),
-  amountIdr: numStr.min(0),
+  exchangeRateSnapshot: optionalPositiveNumber,
+  amountIdr: optionalNumber,
   status: z.enum(TOUR_BOOKING_STATUSES),
   dueDate: optionalDate,
   notes: z.string().max(2000).nullable().optional(),

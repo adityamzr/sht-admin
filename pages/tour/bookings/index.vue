@@ -76,6 +76,9 @@ async function submit() {
   formPending.value = true;
   formError.value = null;
   try {
+    // Server computes amountIdr authoritatively; client only sends amount + snapshot
+    // For IDR, snapshot must be null (server will nullify anyway)
+    const isIdr = form.currency === 'IDR';
     const body: any = {
       bookingDate: form.bookingDate,
       tripId: form.tripId ? Number(form.tripId) : null,
@@ -85,7 +88,7 @@ async function submit() {
       description: form.description,
       currency: form.currency,
       amount: Number(form.amount),
-      exchangeRateSnapshot: form.exchangeRateSnapshot ? Number(form.exchangeRateSnapshot) : null,
+      exchangeRateSnapshot: isIdr ? null : (form.exchangeRateSnapshot ? Number(form.exchangeRateSnapshot) : null),
       status: form.status,
       dueDate: form.dueDate || null,
       notes: form.notes || null,
@@ -95,7 +98,7 @@ async function submit() {
     showForm.value = false;
     await refresh();
   } catch (err: any) {
-    formError.value = err?.data?.statusMessage || "Gagal menyimpan";
+    formError.value = err?.data?.statusMessage || err?.message || "Gagal menyimpan — cek amount, currency, dan snapshot";
   } finally { formPending.value = false; }
 }
 async function remove(b: any) {
