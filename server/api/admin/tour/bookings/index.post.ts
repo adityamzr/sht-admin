@@ -21,16 +21,22 @@ export default defineEventHandler(async (event) => {
     if (!order) throw createError({ statusCode: 400, statusMessage: 'Order tidak ditemukan' })
   }
 
-  // Compute amountIdr if not provided? Input requires amountIdr, but we trust client for now. In real, compute from exchange snapshot.
-  // For currency snapshot, if currency != IDR and exchangeRateSnapshot missing, already validated.
-  // Ensure amountIdr computed correctly: if currency == IDR, amountIdr = amount, else amount * snapshot
-  let amountIdr = body.data.amountIdr
-  if (body.data.currency === 'IDR') {
-    amountIdr = body.data.amount
-  } else if (body.data.exchangeRateSnapshot) {
-    amountIdr = Number(body.data.amount) * Number(body.data.exchangeRateSnapshot)
+  // Server-authoritative amountIdr
+  const currency = body.data.currency
+  const amount = Number(body.data.amount)
+  let exchangeRateSnapshot: number | null = body.data.exchangeRateSnapshot !== undefined && body.data.exchangeRateSnapshot !== null ? Number(body.data.exchangeRateSnapshot) : null
+  let amountIdr: number
+
+  if (currency === 'IDR') {
+    exchangeRateSnapshot = null
+    amountIdr = amount
+  } else {
+    if (!exchangeRateSnapshot || exchangeRateSnapshot <= 0) {
+      throw createError({ statusCode: 400, statusMessage: 'exchangeRateSnapshot wajib >0 untuk non-IDR' })
+    }
+    amountIdr = amount * exchangeRateSnapshot
   }
 
-  const row = await createTourBooking(db, workspaceId, { ...body.data, amountIdr })
+  const row = await createTourBooking(db, workspaceId, { ...body.data, exchangeRateSnapshot, amountIdr })
   return { data: adminTourBooking(row) }
 })

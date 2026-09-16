@@ -12,8 +12,8 @@ const stats = computed(() => [
 const opsStats = computed(() => [
   { label:'Active Orders', value:String(summary.value?.activeOrders ?? '—'), hint:'CONFIRMED + IN_PROGRESS' },
   { label:'Total Orders', value:String(summary.value?.totalOrders ?? '—'), hint:'semua status' },
-  { label:'Total Pax', value:String(summary.value?.totalPax ?? '—'), hint:'sum paxCount' },
-  { label:'Upcoming Trips', value:String(summary.value?.upcomingTrips ?? '—'), hint:'status CONFIRMED' },
+  { label:'Total Pax', value:String(summary.value?.totalPax ?? '—'), hint:'sum paxCount exclude CANCELLED' },
+  { label:'Upcoming Trips', value:String(summary.value?.upcomingTrips ?? '—'), hint:'PLANNED/CONFIRMED & date ≥ today' },
   { label:'Confirmed Bookings', value:String(summary.value?.confirmedBookings ?? '—'), hint:'status CONFIRMED' },
   { label:'Total Customers', value:String(summary.value?.totalCustomers ?? '—'), hint:'B2C/B2B/Inst' },
   { label:'Total Trips', value:String(summary.value?.totalTrips ?? '—'), hint:'semua status' },

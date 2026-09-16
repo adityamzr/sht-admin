@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { TourCustomer } from "~/types";
 definePageMeta({ layout: "admin", middleware: "admin-auth" });
+const { customerTypeLabel, customerSourceLabel } = useTourLabels();
 
 const search = ref("");
 const customerType = ref("");
@@ -111,11 +112,11 @@ function onSearch() {
       <input v-model="search" placeholder="Cari nama / WA / kode..." class="min-h-[44px] w-64 rounded-xl border border-neutral-line px-4 text-sm" @input="onSearch" />
       <select v-model="customerType" class="min-h-[44px] rounded-xl border border-neutral-line px-3 text-sm" @change="onSearch">
         <option value="">Semua Tipe</option>
-        <option v-for="t in CUSTOMER_TYPES" :key="t" :value="t">{{ t }}</option>
+        <option v-for="t in CUSTOMER_TYPES" :key="t" :value="t">{{ customerTypeLabel(t) }}</option>
       </select>
       <select v-model="source" class="min-h-[44px] rounded-xl border border-neutral-line px-3 text-sm" @change="onSearch">
         <option value="">Semua Source</option>
-        <option v-for="s in SOURCES" :key="s" :value="s">{{ s }}</option>
+        <option v-for="s in SOURCES" :key="s" :value="s">{{ customerSourceLabel(s) }}</option>
       </select>
     </div>
 
@@ -176,8 +177,8 @@ function onSearch() {
               <p v-if="c.email" class="text-xs text-neutral-charcoal/50">{{ c.email }}</p>
             </td>
             <td class="px-5 py-3">{{ c.whatsapp }}</td>
-            <td class="px-5 py-3"><span class="rounded-full bg-neutral-warm px-2.5 py-1 text-xs font-semibold">{{ c.customerType }}</span></td>
-            <td class="px-5 py-3 text-xs">{{ c.source }}</td>
+            <td class="px-5 py-3"><span class="rounded-full bg-neutral-warm px-2.5 py-1 text-xs font-semibold">{{ customerTypeLabel(c.customerType) }}</span></td>
+            <td class="px-5 py-3 text-xs">{{ customerSourceLabel(c.source) }}</td>
             <td class="px-5 py-3 text-neutral-charcoal/60">{{ c.city || "—" }}</td>
             <td class="px-5 py-3 text-right">
               <button type="button" class="rounded-lg px-3 py-1.5 text-xs font-semibold text-brand-teal hover:bg-sht-olive/5" @click="openEdit(c)">Edit</button>

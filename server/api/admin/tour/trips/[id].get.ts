@@ -1,5 +1,5 @@
 import { useDb } from '~/server/db'
-import { getTourTrip, getTourWorkspaceId, listTripOrders, listTourBookings } from '~/server/services/tour-operations'
+import { getTourTrip, getTourWorkspaceId, listTripOrdersEnriched, listTourBookings, getTripDerivedPax } from '~/server/services/tour-operations'
 import { adminTourTrip } from '~/server/utils/tour-serializers'
 
 export default defineEventHandler(async (event) => {
@@ -9,9 +9,10 @@ export default defineEventHandler(async (event) => {
   const row = await getTourTrip(db, id, workspaceId)
   if (!row) throw createError({ statusCode: 404, statusMessage: 'Trip tidak ditemukan' })
 
-  const [tripOrders, bookings] = await Promise.all([
-    listTripOrders(db, workspaceId, id, undefined),
+  const [tripOrders, bookings, totalPax] = await Promise.all([
+    listTripOrdersEnriched(db, workspaceId, id, undefined),
     listTourBookings(db, { workspaceId, tripId: id, page: 1, pageSize: 100 }),
+    getTripDerivedPax(db, workspaceId, id),
   ])
 
   return {
@@ -19,7 +20,7 @@ export default defineEventHandler(async (event) => {
       ...adminTourTrip(row),
       tripOrders,
       bookings: bookings.data,
-      totalPax: 0, // will be derived in frontend via orders
+      totalPax,
     },
   }
 })
