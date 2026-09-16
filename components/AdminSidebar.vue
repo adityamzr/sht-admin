@@ -25,14 +25,28 @@ import {
     House,
     Menu,
     X,
+    ShoppingBag,
+    Contact,
+    Ticket,
+    ClipboardList,
+    Store,
 } from "lucide-vue-next";
 const route = useRoute(),
     isOpen = ref(false);
 type Item = { label: string; to: string; icon: any; section?: string };
 const tourMenu: Item[] = [
-    { label: "Dashboard", to: "/tour", icon: LayoutDashboard },
-    { label: "Leads", to: "/leads", icon: Users },
-    { label: "Estimations", to: "/estimations", icon: Calculator },
+    // TOUR
+    { label: "Dashboard", to: "/tour", icon: LayoutDashboard, section: "TOUR" },
+    // SALES / OPERATIONS — new core + existing Leads
+    { label: "Leads", to: "/leads", icon: Users, section: "SALES / OPERATIONS" },
+    { label: "Customers", to: "/tour/customers", icon: Contact },
+    { label: "Orders", to: "/tour/orders", icon: ShoppingBag },
+    { label: "Jamaah", to: "/tour/jamaah", icon: Users },
+    { label: "Trips", to: "/tour/trips", icon: MapPinned },
+    { label: "Bookings", to: "/tour/bookings", icon: Ticket },
+    { label: "Vendors", to: "/tour/vendors", icon: Store },
+    // WEBSITE / CATALOG — existing catalog preserved
+    { label: "Estimations", to: "/estimations", icon: Calculator, section: "WEBSITE / CATALOG" },
     { label: "Hotels", to: "/hotels", icon: Hotel },
     { label: "Flights", to: "/flights", icon: Plane },
     { label: "Transport", to: "/transport", icon: CarFront },
@@ -41,7 +55,8 @@ const tourMenu: Item[] = [
     { label: "Pricing Periods", to: "/pricing-periods", icon: CalendarRange },
     { label: "Exchange Rates", to: "/exchange-rates", icon: ArrowLeftRight },
     { label: "Departure Cities", to: "/departure-cities", icon: MapPin },
-    { label: "Settings", to: "/settings", icon: Settings },
+    // SETTINGS
+    { label: "Settings", to: "/settings", icon: Settings, section: "SETTINGS" },
 ];
 const mediaMenu: Item[] = [
     { label: "Dashboard", to: "/media", icon: LayoutDashboard },
@@ -78,7 +93,10 @@ const mediaMenu: Item[] = [
 const activeWorkspace = useCookie<"media" | "tour">("admin-active-workspace", { default: () => "media" });
 const currentWorkspaceKey = computed(() => {
     if (route.path === "/media" || route.path.startsWith("/media/")) return "media";
-    if (route.path === "/tour" || route.path === "/") return "tour";
+    if (route.path === "/tour" || route.path.startsWith("/tour/") || route.path === "/") return "tour";
+    // legacy flat tour routes
+    const flatTour = ["/leads","/estimations","/hotels","/flights","/transport","/services","/pricing","/pricing-periods","/exchange-rates","/departure-cities","/settings"];
+    if (flatTour.some(p => route.path === p || route.path.startsWith(p + "/"))) return "tour";
     const queryWorkspace = route.query.workspace;
     if (queryWorkspace === "media" || queryWorkspace === "tour") return queryWorkspace;
     return activeWorkspace.value;

@@ -180,4 +180,131 @@ export interface AdminSummary {
   totalLeads: number
   totalEstimations: number
   activeProducts: number
+  activeOrders?: number
+  totalOrders?: number
+  totalPax?: number
+  upcomingTrips?: number
+  confirmedBookings?: number
+  totalCustomers?: number
+  totalTrips?: number
+}
+
+export interface TourCustomer {
+  id: number
+  workspaceId: number
+  customerCode: string
+  name: string
+  whatsapp: string
+  email: string | null
+  city: string | null
+  customerType: string
+  source: string
+  picUserId: number | null
+  notes: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface TourOrder {
+  id: number
+  workspaceId: number
+  orderCode: string
+  orderDate: string
+  customerId: number
+  leadId: number | null
+  estimationId: number | null
+  orderType: string
+  packageName: string | null
+  serviceSummary: string
+  paxCount: number
+  status: string
+  sellingPriceIdr: number
+  picUserId: number | null
+  source: string | null
+  notes: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface TourJamaah {
+  id: number
+  workspaceId: number
+  jamaahCode: string
+  orderId: number
+  fullName: string
+  gender: string | null
+  birthDate: string | null
+  passportNumber: string | null
+  passportExpiry: string | null
+  visaStatus: string
+  siskopatuhStatus: string
+  roomType: string
+  whatsapp: string | null
+  notes: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface TourTrip {
+  id: number
+  workspaceId: number
+  tripCode: string
+  name: string
+  departureDate: string
+  returnDate: string
+  routeSummary: string
+  capacity: number
+  status: string
+  picUserId: number | null
+  notes: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface TourVendor {
+  id: number
+  workspaceId: number
+  vendorCode: string
+  name: string
+  vendorType: string
+  contactName: string | null
+  whatsapp: string | null
+  email: string | null
+  city: string | null
+  country: string | null
+  defaultCurrency: string
+  paymentInfo: string | null
+  status: string
+  notes: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface TourBooking {
+  id: number
+  workspaceId: number
+  bookingCode: string
+  bookingDate: string
+  tripId: number | null
+  orderId: number | null
+  vendorId: number
+  bookingType: string
+  description: string
+  currency: string
+  amount: number
+  exchangeRateSnapshot: number | null
+  amountIdr: number
+  status: string
+  dueDate: string | null
+  notes: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface TourTripOrder {
+  id: number
+  workspaceId: number
+  tripId: number
+  orderId: number
+  createdAt: string
 }
