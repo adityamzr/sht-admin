@@ -8,23 +8,29 @@ const jamaah = computed(() => data.value?.data ?? null);
 </script>
 <template>
   <div>
-    <PageHead :title="jamaah ? jamaah.fullName : 'Jamaah Detail'" :subtitle="jamaah ? `${jamaah.jamaahCode} · Order ${jamaah.order?.orderCode || '#'+jamaah.orderId} · Customer ${jamaah.order?.customer?.name || ''}` : ''">
-      <template #actions><NuxtLink to="/tour/jamaah" class="min-h-[40px] rounded-xl border border-neutral-line px-4 py-2 text-sm font-medium">← Kembali</NuxtLink></template>
+    <PageHead :title="jamaah ? jamaah.fullName : 'Detail Jamaah'" :subtitle="jamaah ? `${jamaah.jamaahCode} · ${jamaah.order?.orderCode || `Order #${jamaah.orderId}`} · ${jamaah.order?.customer?.name || ''}` : ''">
+      <template #actions><NuxtLink to="/tour/bookings" class="min-h-[40px] rounded-xl border border-neutral-line px-4 py-2 text-sm font-medium">← Ke Bookings</NuxtLink></template>
     </PageHead>
-    <div v-if="jamaah" class="mt-6 rounded-2xl border bg-white p-6">
-      <dl class="grid gap-4 sm:grid-cols-2 text-sm">
-        <div><dt class="text-xs text-neutral-charcoal/50">Kode</dt><dd class="font-mono font-semibold">{{ jamaah.jamaahCode }}</dd></div>
-        <div><dt class="text-xs text-neutral-charcoal/50">Order / Customer</dt><dd><NuxtLink :to="`/tour/orders/${jamaah.orderId}`" class="text-brand-teal hover:underline font-medium">{{ jamaah.order?.orderCode || `#${jamaah.orderId}` }}</NuxtLink> <span class="text-neutral-charcoal/60">{{ jamaah.order?.customer?.name || "" }}</span></dd></div>
-        <div><dt class="text-xs text-neutral-charcoal/50">Nama</dt><dd class="font-medium">{{ jamaah.fullName }}</dd></div>
-        <div><dt class="text-xs text-neutral-charcoal/50">Gender</dt><dd>{{ jamaah.gender ? genderLabel(jamaah.gender) : "—" }}</dd></div>
-        <div><dt class="text-xs text-neutral-charcoal/50">Birth</dt><dd>{{ jamaah.birthDate || "—" }}</dd></div>
-        <div><dt class="text-xs text-neutral-charcoal/50">Passport</dt><dd>{{ jamaah.passportNumber || "—" }} exp {{ jamaah.passportExpiry || "—" }}</dd></div>
-        <div><dt class="text-xs text-neutral-charcoal/50">Visa</dt><dd>{{ visaStatusLabel(jamaah.visaStatus) }}</dd></div>
-        <div><dt class="text-xs text-neutral-charcoal/50">Siskopatuh</dt><dd>{{ siskopatuhStatusLabel(jamaah.siskopatuhStatus) }}</dd></div>
-        <div><dt class="text-xs text-neutral-charcoal/50">Room</dt><dd>{{ roomTypeLabel(jamaah.roomType) }}</dd></div>
-        <div><dt class="text-xs text-neutral-charcoal/50">WhatsApp</dt><dd>{{ jamaah.whatsapp || "—" }}</dd></div>
-        <div class="sm:col-span-2"><dt class="text-xs text-neutral-charcoal/50">Notes</dt><dd>{{ jamaah.notes || "—" }}</dd></div>
+    <div v-if="jamaah" class="mt-6 rounded-2xl border border-neutral-line bg-white p-6">
+      <div class="flex flex-wrap gap-2">
+        <TourStatusBadge :status="jamaah.visaStatus" type="visa" />
+        <TourStatusBadge :status="jamaah.siskopatuhStatus" type="siskopatuh" />
+        <span class="rounded-full bg-neutral-warm px-3 py-1 text-xs">{{ roomTypeLabel(jamaah.roomType) }}</span>
+      </div>
+      <dl class="mt-6 grid gap-4 text-sm sm:grid-cols-2">
+        <div><dt class="text-xs uppercase text-neutral-charcoal/50">Kode Jamaah</dt><dd class="mt-1 font-mono font-semibold">{{ jamaah.jamaahCode }}</dd></div>
+        <div><dt class="text-xs uppercase text-neutral-charcoal/50">Order / Pelanggan</dt><dd class="mt-1"><NuxtLink :to="`/tour/orders/${jamaah.orderId}`" class="font-medium text-brand-teal hover:underline">{{ jamaah.order?.orderCode || `Order #${jamaah.orderId}` }}</NuxtLink> <span class="text-neutral-charcoal/60">{{ jamaah.order?.customer?.name || "" }}</span></dd></div>
+        <div><dt class="text-xs uppercase text-neutral-charcoal/50">Nama Lengkap</dt><dd class="mt-1 font-medium">{{ jamaah.fullName }}</dd></div>
+        <div><dt class="text-xs uppercase text-neutral-charcoal/50">Gender</dt><dd class="mt-1">{{ jamaah.gender ? genderLabel(jamaah.gender) : "—" }}</dd></div>
+        <div><dt class="text-xs uppercase text-neutral-charcoal/50">Tanggal Lahir</dt><dd class="mt-1">{{ jamaah.birthDate || "—" }}</dd></div>
+        <div><dt class="text-xs uppercase text-neutral-charcoal/50">WhatsApp</dt><dd class="mt-1">{{ jamaah.whatsapp || "—" }}</dd></div>
+        <div><dt class="text-xs uppercase text-neutral-charcoal/50">Paspor</dt><dd class="mt-1">{{ jamaah.passportNumber || "—" }} • exp {{ jamaah.passportExpiry || "—" }}</dd></div>
+        <div><dt class="text-xs uppercase text-neutral-charcoal/50">Visa</dt><dd class="mt-1">{{ visaStatusLabel(jamaah.visaStatus) }}</dd></div>
+        <div><dt class="text-xs uppercase text-neutral-charcoal/50">Siskopatuh</dt><dd class="mt-1">{{ siskopatuhStatusLabel(jamaah.siskopatuhStatus) }}</dd></div>
+        <div><dt class="text-xs uppercase text-neutral-charcoal/50">Tipe Kamar</dt><dd class="mt-1">{{ roomTypeLabel(jamaah.roomType) }}</dd></div>
+        <div class="sm:col-span-2"><dt class="text-xs uppercase text-neutral-charcoal/50">Catatan</dt><dd class="mt-1 text-neutral-charcoal/70">{{ jamaah.notes || "—" }}</dd></div>
       </dl>
+      <p class="mt-6 text-xs text-neutral-charcoal/50">Pengelolaan jamaah utama di <NuxtLink to="/tour/bookings" class="underline">Booking Detail</NuxtLink> via Order terkait.</p>
     </div>
   </div>
 </template>
