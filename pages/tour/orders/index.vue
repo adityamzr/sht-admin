@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { TourOrder, TourCustomer } from "~/types";
+import { Pencil, Trash2, Eye } from 'lucide-vue-next'
 definePageMeta({ layout: "admin", middleware: "admin-auth" });
 const { orderTypeLabel, orderStatusLabel } = useTourLabels();
 
@@ -45,14 +46,14 @@ const form = reactive({
   serviceSummary: "",
   paxCount: 1,
   status: "DRAFT",
-  sellingPriceIdr: 0,
+  sellingPriceIdr: null as number | null,
   notes: "",
 });
 const formError = ref<string | null>(null);
 const formPending = ref(false);
 
 function openCreate() {
-  Object.assign(form, { id: null, orderDate: new Date().toISOString().slice(0,10), customerId: "", leadId: "", estimationId: "", orderType: "UMRAH_PACKAGE", packageName: "", serviceSummary: "", paxCount: 1, status: "DRAFT", sellingPriceIdr: 0, notes: "" });
+  Object.assign(form, { id: null, orderDate: new Date().toISOString().slice(0,10), customerId: "", leadId: "", estimationId: "", orderType: "UMRAH_PACKAGE", packageName: "", serviceSummary: "", paxCount: 1, status: "DRAFT", sellingPriceIdr: null, notes: "" });
   showForm.value = true;
 }
 function openEdit(o: any) {
@@ -76,7 +77,6 @@ async function submit() {
   formPending.value = true;
   formError.value = null;
   try {
-    // Guard: if estimationId is manually typed number that doesn't exist, backend now returns 400 with clear message
     const body: any = {
       orderDate: form.orderDate,
       customerId: Number(form.customerId),
@@ -87,7 +87,7 @@ async function submit() {
       serviceSummary: form.serviceSummary,
       paxCount: Number(form.paxCount),
       status: form.status,
-      sellingPriceIdr: Number(form.sellingPriceIdr),
+      sellingPriceIdr: form.sellingPriceIdr !== null ? Number(form.sellingPriceIdr) : 0,
       notes: form.notes || null,
     };
     if (form.id) await adminPatch(`/api/admin/tour/orders/${form.id}`, body);
@@ -95,8 +95,7 @@ async function submit() {
     showForm.value = false;
     await refresh();
   } catch (err: any) {
-    // err.data.statusMessage now contains user-friendly 400 message like "Estimasi tidak ditemukan..."
-    formError.value = err?.data?.statusMessage || err?.message || "Gagal menyimpan — cek Lead/Estimasi ID, atau kosongkan jika order manual";
+    formError.value = err?.data?.statusMessage || err?.message || "Gagal menyimpan";
   } finally { formPending.value = false; }
 }
 async function remove(o: any) {
@@ -108,7 +107,7 @@ async function remove(o: any) {
 
 <template>
   <div>
-    <PageHead title="Orders" subtitle="Order = transaksi terkonfirmasi manual, bukan auto checkout. Bisa tanpa Lead/Estimation, optional link Lead→Order & Estimation→Order.">
+    <PageHead title="Orders" subtitle="Kelola pesanan umrah dan layanan. Pesanan bisa dibuat manual atau dari Lead dan Estimasi.">
       <template #actions><button type="button" class="min-h-[40px] rounded-xl bg-sht-olive px-4 py-2 text-sm font-semibold text-white" @click="openCreate">+ Buat Order</button></template>
     </PageHead>
 
@@ -118,60 +117,68 @@ async function remove(o: any) {
       <select v-model="orderType" class="min-h-[44px] rounded-xl border border-neutral-line px-3 text-sm" @change="page=1"><option value="">Semua Tipe</option><option v-for="t in ORDER_TYPES" :key="t" :value="t">{{ orderTypeLabel(t) }}</option></select>
     </div>
 
-    <div v-if="showForm" class="mt-6 rounded-2xl border border-neutral-line bg-white p-6">
-      <h3 class="font-heading text-base font-semibold">{{ form.id ? "Edit Order" : "Buat Order" }}</h3>
-      <p class="mt-1 text-xs text-neutral-charcoal/60">Lead & Estimasi opsional — kosongkan jika order manual tanpa Lead/Estimasi. Jika diisi, harus ID yang ada (pilih dari dropdown). Error sebelumnya "Estimation not found" karena ID 123 tidak ada di DB.</p>
-      <div class="mt-4 grid gap-3 sm:grid-cols-2">
-        <label class="text-sm font-medium">Tanggal<input v-model="form.orderDate" type="date" class="mt-1 min-h-[44px] w-full rounded-xl border border-neutral-line px-4" /></label>
-        <label class="text-sm font-medium">Customer<select v-model="form.customerId" class="mt-1 min-h-[44px] w-full rounded-xl border border-neutral-line px-3"><option value="">Pilih Customer...</option><option v-for="c in customers" :key="c.id" :value="c.id">{{ c.customerCode }} · {{ c.name }}</option></select></label>
-        <label class="text-sm font-medium">Lead (opsional)<select v-model="form.leadId" class="mt-1 min-h-[44px] w-full rounded-xl border border-neutral-line px-3"><option value="">Tanpa Lead (order manual)</option><option v-for="l in leads" :key="l.id" :value="l.id">{{ l.name }} · {{ l.whatsapp }} ({{ l.status }})</option></select></label>
-        <label class="text-sm font-medium">Estimasi (opsional)
-          <select v-model="form.estimationId" class="mt-1 min-h-[44px] w-full rounded-xl border border-neutral-line px-3">
-            <option value="">Tanpa Estimasi (order manual)</option>
-            <option v-for="e in estimations" :key="e.id" :value="e.id">{{ e.estimationNumber }} · {{ e.pilgrims }} jamaah · {{ e.departureCity }} · Rp {{ Number(e.totalAmount||0).toLocaleString('id-ID') }}</option>
-          </select>
-          <span class="mt-1 block text-[11px] text-neutral-charcoal/50">Kosongkan jika tidak ada estimasi. Jangan input manual ID 123 jika tidak ada — pilih dari daftar.</span>
-        </label>
-        <label class="text-sm font-medium">Tipe Order<select v-model="form.orderType" class="mt-1 min-h-[44px] w-full rounded-xl border border-neutral-line px-3"><option v-for="t in ORDER_TYPES" :key="t" :value="t">{{ orderTypeLabel(t) }}</option></select></label>
-        <label class="text-sm font-medium">Status<select v-model="form.status" class="mt-1 min-h-[44px] w-full rounded-xl border border-neutral-line px-3"><option v-for="s in STATUSES" :key="s" :value="s">{{ orderStatusLabel(s) }}</option></select></label>
-        <label class="text-sm font-medium">Package Name<input v-model="form.packageName" class="mt-1 min-h-[44px] w-full rounded-xl border border-neutral-line px-4" placeholder="Umroh 12D / Umrah 14 Hari Turkey" /></label>
-        <label class="text-sm font-medium">Pax Count<input v-model="form.paxCount" type="number" min="1" class="mt-1 min-h-[44px] w-full rounded-xl border border-neutral-line px-4" /></label>
-        <label class="sm:col-span-2 text-sm font-medium">Service Summary<textarea v-model="form.serviceSummary" rows="2" class="mt-1 w-full rounded-xl border border-neutral-line px-4 py-2" placeholder="Perjalanan umrah + turki selama 14 hari" /></label>
-        <label class="text-sm font-medium">Selling Price IDR<input v-model="form.sellingPriceIdr" type="number" min="0" class="mt-1 min-h-[44px] w-full rounded-xl border border-neutral-line px-4" /></label>
-        <label class="text-sm font-medium">Notes<textarea v-model="form.notes" rows="2" class="mt-1 w-full rounded-xl border border-neutral-line px-4 py-2" /></label>
+    <TourModal :open="showForm" :title="form.id ? 'Edit Order' : 'Buat Order'" subtitle="Pesanan terkonfirmasi, bisa tanpa Lead/Estimasi" max-width="max-w-3xl" @close="showForm=false">
+      <div class="space-y-6">
+        <div>
+          <h4 class="text-xs font-semibold uppercase tracking-wide text-neutral-charcoal/50">Informasi Pesanan</h4>
+          <div class="mt-3 grid gap-3 sm:grid-cols-2">
+            <label class="text-sm font-medium">Customer *<select v-model="form.customerId" class="mt-1 min-h-[44px] w-full rounded-xl border border-neutral-line px-3 text-sm"><option value="">Pilih Customer...</option><option v-for="c in customers" :key="c.id" :value="c.id">{{ c.customerCode }} · {{ c.name }}</option></select></label>
+            <label class="text-sm font-medium">Tanggal Pesanan<input v-model="form.orderDate" type="date" class="mt-1 min-h-[44px] w-full rounded-xl border border-neutral-line px-4 text-sm" /></label>
+            <label class="text-sm font-medium">Jenis Pesanan<select v-model="form.orderType" class="mt-1 min-h-[44px] w-full rounded-xl border border-neutral-line px-3 text-sm"><option v-for="t in ORDER_TYPES" :key="t" :value="t">{{ orderTypeLabel(t) }}</option></select></label>
+            <label class="text-sm font-medium">Jumlah Pax<input v-model.number="form.paxCount" type="number" min="1" class="mt-1 min-h-[44px] w-full rounded-xl border border-neutral-line px-4 text-sm" /></label>
+            <label class="text-sm font-medium">Nama Paket<input v-model="form.packageName" class="mt-1 min-h-[44px] w-full rounded-xl border border-neutral-line px-4 text-sm" placeholder="Umrah 14 Hari Turkey" /></label>
+            <label class="sm:col-span-2 text-sm font-medium">Ringkasan Layanan<textarea v-model="form.serviceSummary" rows="2" class="mt-1 w-full rounded-xl border border-neutral-line px-4 py-2 text-sm" placeholder="Perjalanan umrah + turki selama 14 hari" /></label>
+          </div>
+        </div>
+
+        <div>
+          <h4 class="text-xs font-semibold uppercase tracking-wide text-neutral-charcoal/50">Nilai & Status</h4>
+          <div class="mt-3 grid gap-3 sm:grid-cols-2">
+            <label class="text-sm font-medium">Harga Jual IDR<TourMoneyInput v-model="form.sellingPriceIdr" currency="IDR" placeholder="0" /></label>
+            <label class="text-sm font-medium">Status<select v-model="form.status" class="mt-1 min-h-[44px] w-full rounded-xl border border-neutral-line px-3 text-sm"><option v-for="s in STATUSES" :key="s" :value="s">{{ orderStatusLabel(s) }}</option></select></label>
+          </div>
+        </div>
+
+        <div>
+          <h4 class="text-xs font-semibold uppercase tracking-wide text-neutral-charcoal/50">Referensi Opsional</h4>
+          <div class="mt-3 grid gap-3 sm:grid-cols-2">
+            <label class="text-sm font-medium">Lead<select v-model="form.leadId" class="mt-1 min-h-[44px] w-full rounded-xl border border-neutral-line px-3 text-sm"><option value="">Tanpa Lead (manual)</option><option v-for="l in leads" :key="l.id" :value="l.id">{{ l.name }} · {{ l.whatsapp }} ({{ l.status }})</option></select></label>
+            <label class="text-sm font-medium">Estimasi<select v-model="form.estimationId" class="mt-1 min-h-[44px] w-full rounded-xl border border-neutral-line px-3 text-sm"><option value="">Tanpa Estimasi</option><option v-for="e in estimations" :key="e.id" :value="e.id">{{ e.estimationNumber }} · {{ e.pilgrims }} pax · Rp {{ Number(e.totalAmount||0).toLocaleString('id-ID') }}</option></select></label>
+          </div>
+        </div>
+
+        <label class="block text-sm font-medium">Catatan<textarea v-model="form.notes" rows="2" class="mt-1 w-full rounded-xl border border-neutral-line px-4 py-2 text-sm" /></label>
+        <p v-if="formError" class="rounded-xl bg-red-50 px-4 py-2 text-sm text-red-700">{{ formError }}</p>
       </div>
-      <p v-if="formError" class="mt-3 rounded-xl border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700">{{ formError }}</p>
-      <div class="mt-4 flex gap-2">
-        <button type="button" class="min-h-[40px] rounded-xl bg-sht-olive px-4 py-2 text-sm font-semibold text-white" :disabled="formPending" @click="submit">Simpan</button>
-        <button type="button" class="min-h-[40px] rounded-xl border border-neutral-line px-4 py-2 text-sm font-medium" @click="showForm=false">Batal</button>
-      </div>
-    </div>
+      <template #footer>
+        <div class="flex justify-end gap-2">
+          <button type="button" class="min-h-[40px] rounded-xl border px-4 py-2 text-sm" @click="showForm=false">Batal</button>
+          <button type="button" class="min-h-[40px] rounded-xl bg-sht-olive px-5 py-2 text-sm font-semibold text-white" :disabled="formPending" @click="submit">Simpan</button>
+        </div>
+      </template>
+    </TourModal>
 
     <div class="mt-6 overflow-x-auto rounded-2xl border border-neutral-line bg-white">
       <table class="w-full min-w-[1100px] text-left text-sm">
-        <thead class="border-b bg-neutral-warm text-xs uppercase text-neutral-charcoal/60"><tr><th class="px-5 py-3">Kode / Paket</th><th class="px-5 py-3">Tanggal</th><th class="px-5 py-3">Customer</th><th class="px-5 py-3">Tipe</th><th class="px-5 py-3">Pax</th><th class="px-5 py-3">Harga IDR</th><th class="px-5 py-3">Status</th><th class="px-5 py-3 text-right">Aksi</th></tr></thead>
+        <thead class="border-b bg-neutral-warm text-xs uppercase text-neutral-charcoal/60"><tr><th class="px-5 py-3">Kode / Paket</th><th class="px-5 py-3">Tanggal</th><th class="px-5 py-3">Customer</th><th class="px-5 py-3">Tipe</th><th class="px-5 py-3">Pax</th><th class="px-5 py-3">Harga</th><th class="px-5 py-3">Status</th><th class="px-5 py-3 text-right">Aksi</th></tr></thead>
         <tbody class="divide-y">
           <tr v-for="o in rows" :key="o.id">
-            <td class="px-5 py-3">
-              <p class="font-mono text-xs font-semibold">{{ o.orderCode }}</p>
-              <p class="text-[11px] text-neutral-charcoal/60">{{ o.packageName || o.serviceSummary?.slice(0,40) || "—" }}</p>
-            </td>
+            <td class="px-5 py-3"><p class="font-mono text-xs font-semibold">{{ o.orderCode }}</p><p class="text-[11px] text-neutral-charcoal/60">{{ o.packageName || o.serviceSummary?.slice(0,40) || "—" }}</p></td>
             <td class="px-5 py-3 text-xs">{{ o.orderDate }}</td>
-            <td class="px-5 py-3 text-xs">
-              <p class="font-medium">{{ o.customer?.name || `#${o.customerId}` }}</p>
-              <p class="font-mono text-[11px] text-neutral-charcoal/50">{{ o.customer?.customerCode || "" }} <span v-if="o.customer?.deletedAt" class="rounded bg-amber-100 px-1 text-amber-700">Arsip</span></p>
-            </td>
+            <td class="px-5 py-3 text-xs"><p class="font-medium">{{ o.customer?.name || `Customer #${o.customerId}` }}</p><p class="font-mono text-[11px] text-neutral-charcoal/50">{{ o.customer?.customerCode || "" }} <span v-if="o.customer?.deletedAt" class="rounded bg-amber-100 px-1 text-amber-700">Arsip</span></p></td>
             <td class="px-5 py-3 text-xs">{{ orderTypeLabel(o.orderType) }}</td>
             <td class="px-5 py-3">{{ o.paxCount }} pax</td>
             <td class="px-5 py-3 font-medium">Rp {{ Number(o.sellingPriceIdr).toLocaleString('id-ID') }}</td>
-            <td class="px-5 py-3"><span class="rounded-full px-2.5 py-1 text-xs font-semibold" :class="o.status==='CONFIRMED' ? 'bg-sht-olive/10 text-brand-green' : 'bg-neutral-warm text-neutral-charcoal/60'">{{ orderStatusLabel(o.status) }}</span></td>
+            <td class="px-5 py-3"><TourStatusBadge :status="o.status" type="order" /></td>
             <td class="px-5 py-3 text-right">
-              <button class="rounded-lg px-3 py-1.5 text-xs font-semibold text-brand-teal hover:bg-sht-olive/5" @click="openEdit(o)">Edit</button>
-              <NuxtLink :to="`/tour/orders/${o.id}`" class="rounded-lg px-3 py-1.5 text-xs font-semibold text-neutral-charcoal/60 hover:text-brand-green">Detail</NuxtLink>
-              <button class="rounded-lg px-3 py-1.5 text-xs font-semibold text-neutral-charcoal/50 hover:text-red-600" @click="remove(o)">Hapus</button>
+              <div class="flex justify-end gap-1">
+                <button class="rounded-xl p-2 text-neutral-charcoal/60 hover:bg-neutral-warm" title="Edit" @click="openEdit(o)"><Pencil class="h-4 w-4" /></button>
+                <NuxtLink :to="`/tour/orders/${o.id}`" class="rounded-xl p-2 text-neutral-charcoal/50 hover:bg-neutral-warm hover:text-brand-green" title="Detail"><Eye class="h-4 w-4" /></NuxtLink>
+                <button class="rounded-xl p-2 text-neutral-charcoal/40 hover:bg-red-50 hover:text-red-600" title="Hapus" @click="remove(o)"><Trash2 class="h-4 w-4" /></button>
+              </div>
             </td>
           </tr>
-          <tr v-if="rows.length===0"><td colspan="8" class="px-5 py-10 text-center text-neutral-charcoal/50">Belum ada order. Buat manual tanpa Lead/Estimation diperbolehkan.</td></tr>
+          <tr v-if="rows.length===0"><td colspan="8" class="px-5 py-10 text-center text-neutral-charcoal/50">Belum ada order.</td></tr>
         </tbody>
       </table>
     </div>

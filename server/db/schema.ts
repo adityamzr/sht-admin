@@ -477,15 +477,16 @@ export const leads = pgTable(
     whatsapp: text('whatsapp').notNull(),
     email: text('email'),
     origin: text('origin').notNull().default('service_inquiry'), // estimation | service_inquiry
-    source: text('source'), // kanal: 'trip-builder' | 'services' | 'hotels' | ...
+    source: text('source'), // kanal: 'trip-builder' | 'services' | 'hotels' | 'whatsapp' | 'instagram' | ...
     serviceId: integer('service_id').references(() => services.id, { onDelete: 'set null' }),
     estimationId: integer('estimation_id').references(() => estimations.id, { onDelete: 'set null' }),
+    paxEstimate: integer('pax_estimate'),
     notes: text('notes'),
     status: text('status').notNull().default('NEW'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [index('leads_status_idx').on(t.status), unique('leads_estimation_unique').on(t.estimationId)],
+  (t) => [index('leads_status_idx').on(t.status), unique('leads_estimation_unique').on(t.estimationId), index('leads_whatsapp_idx').on(t.whatsapp)],
 )
 
 // ─── Media localization (ID canonical, optional EN) ────────────────────────

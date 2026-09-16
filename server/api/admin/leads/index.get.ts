@@ -16,6 +16,7 @@ export default defineEventHandler(async (event) => {
       source: r.lead.source,
       status: r.lead.status,
       notes: r.lead.notes,
+      paxEstimate: r.lead.paxEstimate,
       createdAt: r.lead.createdAt,
       updatedAt: r.lead.updatedAt,
       serviceId: r.lead.serviceId,

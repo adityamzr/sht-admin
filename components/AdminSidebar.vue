@@ -41,10 +41,9 @@ const tourMenu: Item[] = [
     { label: "Leads", to: "/leads", icon: Users, section: "SALES / OPERATIONS" },
     { label: "Customers", to: "/tour/customers", icon: Contact },
     { label: "Orders", to: "/tour/orders", icon: ShoppingBag },
-    { label: "Jamaah", to: "/tour/jamaah", icon: Users },
     { label: "Trips", to: "/tour/trips", icon: MapPinned },
-    { label: "Bookings", to: "/tour/bookings", icon: Ticket },
     { label: "Vendors", to: "/tour/vendors", icon: Store },
+    { label: "Bookings", to: "/tour/bookings", icon: Ticket },
     // WEBSITE / CATALOG — existing catalog preserved
     { label: "Estimations", to: "/estimations", icon: Calculator, section: "WEBSITE / CATALOG" },
     { label: "Hotels", to: "/hotels", icon: Hotel },

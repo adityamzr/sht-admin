@@ -1,34 +1,11 @@
 <script setup lang="ts">
+import { Eye } from 'lucide-vue-next'
 definePageMeta({ layout: "admin", middleware: "admin-auth" });
-const { orderTypeLabel, orderStatusLabel, visaStatusLabel, siskopatuhStatusLabel, roomTypeLabel, genderLabel, bookingTypeLabel, bookingStatusLabel, tripStatusLabel } = useTourLabels();
+const { orderTypeLabel, orderStatusLabel, visaStatusLabel, siskopatuhStatusLabel, roomTypeLabel, bookingTypeLabel, bookingStatusLabel, tripStatusLabel } = useTourLabels();
 const route = useRoute();
 const id = Number(route.params.id);
 const { data } = await useAdminFetch<{ data: any }>(`/api/admin/tour/orders/${id}`);
 const order = computed(() => data.value?.data ?? null);
-
-const showJamaahForm = ref(false);
-const jamaahForm = reactive({ fullName: "", gender: "", birthDate: "", passportNumber: "", visaStatus: "NOT_STARTED", siskopatuhStatus: "PENDING", roomType: "NA", whatsapp: "", notes: "" });
-const jamaahError = ref<string | null>(null);
-async function addJamaah() {
-  jamaahError.value = null;
-  try {
-    await adminPost("/api/admin/tour/jamaah", {
-      orderId: id,
-      fullName: jamaahForm.fullName,
-      gender: jamaahForm.gender || null,
-      birthDate: jamaahForm.birthDate || null,
-      passportNumber: jamaahForm.passportNumber || null,
-      visaStatus: jamaahForm.visaStatus,
-      siskopatuhStatus: jamaahForm.siskopatuhStatus,
-      roomType: jamaahForm.roomType,
-      whatsapp: jamaahForm.whatsapp || null,
-      notes: jamaahForm.notes || null,
-    });
-    showJamaahForm.value = false;
-    Object.assign(jamaahForm, { fullName: "", gender: "", birthDate: "", passportNumber: "", visaStatus: "NOT_STARTED", siskopatuhStatus: "PENDING", roomType: "NA", whatsapp: "", notes: "" });
-    await refreshNuxtData();
-  } catch (e: any) { jamaahError.value = e?.data?.statusMessage || "Gagal tambah jamaah"; }
-}
 </script>
 
 <template>
@@ -39,55 +16,74 @@ async function addJamaah() {
 
     <div v-if="order" class="mt-6 grid gap-6 lg:grid-cols-3">
       <div class="rounded-2xl border bg-white p-6 lg:col-span-1">
-        <h3 class="font-heading font-semibold">Summary</h3>
+        <h3 class="font-heading font-semibold">Ringkasan Pesanan</h3>
         <dl class="mt-4 space-y-3 text-sm">
-          <div><dt class="text-xs text-neutral-charcoal/50">Kode / Paket</dt><dd class="font-mono font-semibold">{{ order.orderCode }}</dd><dd class="text-xs text-neutral-charcoal/60">{{ order.packageName || order.serviceSummary?.slice(0,80) }}</dd></div>
+          <div><dt class="text-xs text-neutral-charcoal/50">Kode Pesanan</dt><dd class="font-mono font-semibold">{{ order.orderCode }}</dd><dd class="text-xs text-neutral-charcoal/60">{{ order.packageName || order.serviceSummary?.slice(0,80) }}</dd></div>
           <div><dt class="text-xs text-neutral-charcoal/50">Tanggal</dt><dd>{{ order.orderDate }}</dd></div>
-          <div><dt class="text-xs text-neutral-charcoal/50">Customer</dt><dd><NuxtLink v-if="order.customer" :to="`/tour/customers/${order.customerId}`" class="text-brand-teal hover:underline font-medium">{{ order.customer.name }}</NuxtLink><span v-else>#{{ order.customerId }}</span> <span class="font-mono text-[11px] text-neutral-charcoal/50">{{ order.customer?.customerCode || "" }}</span> <span v-if="order.customer?.deletedAt" class="rounded bg-amber-100 px-1 text-amber-700 text-[11px]">Arsip</span></dd></div>
-          <div><dt class="text-xs text-neutral-charcoal/50">Lead</dt><dd>{{ order.leadId || "— (manual)" }}</dd></div>
-          <div><dt class="text-xs text-neutral-charcoal/50">Estimation</dt><dd>{{ order.estimationId || "— (manual)" }}</dd></div>
-          <div><dt class="text-xs text-neutral-charcoal/50">Tipe</dt><dd>{{ orderTypeLabel(order.orderType) }}</dd></div>
-          <div><dt class="text-xs text-neutral-charcoal/50">Pax</dt><dd>{{ order.paxCount }} pax</dd></div>
-          <div><dt class="text-xs text-neutral-charcoal/50">Harga</dt><dd class="font-semibold">Rp {{ Number(order.sellingPriceIdr).toLocaleString('id-ID') }}</dd></div>
-          <div><dt class="text-xs text-neutral-charcoal/50">Status</dt><dd><span class="rounded-full bg-neutral-warm px-2.5 py-1 text-xs font-semibold">{{ orderStatusLabel(order.status) }}</span></dd></div>
-          <div><dt class="text-xs text-neutral-charcoal/50">Notes</dt><dd class="text-neutral-charcoal/70">{{ order.notes || "—" }}</dd></div>
+          <div><dt class="text-xs text-neutral-charcoal/50">Customer</dt><dd><NuxtLink v-if="order.customer" :to="`/tour/customers/${order.customerId}`" class="text-brand-teal hover:underline font-medium">{{ order.customer.name }}</NuxtLink><span v-else>Customer #{{ order.customerId }}</span> <span class="font-mono text-[11px] text-neutral-charcoal/50">{{ order.customer?.customerCode || "" }}</span> <span v-if="order.customer?.deletedAt" class="rounded bg-amber-100 px-1 text-amber-700 text-[11px]">Arsip</span></dd></div>
+          <div><dt class="text-xs text-neutral-charcoal/50">Sumber Lead</dt><dd>{{ order.leadId ? `Lead #${order.leadId}` : "Pesanan manual" }}</dd></div>
+          <div><dt class="text-xs text-neutral-charcoal/50">Estimasi</dt><dd>{{ order.estimationId ? `Estimasi #${order.estimationId}` : "Tanpa estimasi" }}</dd></div>
+          <div><dt class="text-xs text-neutral-charcoal/50">Jenis</dt><dd>{{ orderTypeLabel(order.orderType) }}</dd></div>
+          <div><dt class="text-xs text-neutral-charcoal/50">Jumlah Pax</dt><dd>{{ order.paxCount }} pax</dd></div>
+          <div><dt class="text-xs text-neutral-charcoal/50">Harga Jual</dt><dd class="font-semibold">Rp {{ Number(order.sellingPriceIdr).toLocaleString('id-ID') }}</dd></div>
+          <div><dt class="text-xs text-neutral-charcoal/50">Status</dt><dd><TourStatusBadge :status="order.status" type="order" /></dd></div>
+          <div><dt class="text-xs text-neutral-charcoal/50">Catatan</dt><dd class="text-neutral-charcoal/70">{{ order.notes || "—" }}</dd></div>
         </dl>
       </div>
 
       <div class="space-y-6 lg:col-span-2">
         <div class="rounded-2xl border bg-white p-6">
-          <div class="flex items-center justify-between"><h3 class="font-heading font-semibold">Jamaah ({{ order.jamaah?.length || 0 }})</h3><button class="rounded-xl bg-sht-olive px-3 py-1.5 text-xs font-semibold text-white" @click="showJamaahForm=!showJamaahForm">+ Tambah Jamaah</button></div>
-          <div v-if="showJamaahForm" class="mt-4 rounded-xl border bg-neutral-warm/50 p-4">
-            <div class="grid gap-3 sm:grid-cols-2">
-              <label class="text-sm">Nama Lengkap<input v-model="jamaahForm.fullName" class="mt-1 min-h-[40px] w-full rounded-xl border px-3" /></label>
-              <label class="text-sm">Gender<select v-model="jamaahForm.gender" class="mt-1 min-h-[40px] w-full rounded-xl border px-3"><option value="">—</option><option value="MALE">Laki-laki</option><option value="FEMALE">Perempuan</option></select></label>
-              <label class="text-sm">Passport<input v-model="jamaahForm.passportNumber" class="mt-1 min-h-[40px] w-full rounded-xl border px-3" /></label>
-              <label class="text-sm">Visa<select v-model="jamaahForm.visaStatus" class="mt-1 min-h-[40px] w-full rounded-xl border px-3"><option value="NOT_STARTED">{{ visaStatusLabel("NOT_STARTED") }}</option><option value="PROCESSING">{{ visaStatusLabel("PROCESSING") }}</option><option value="APPROVED">{{ visaStatusLabel("APPROVED") }}</option><option value="ISSUED">{{ visaStatusLabel("ISSUED") }}</option></select></label>
-              <label class="text-sm">Siskopatuh<select v-model="jamaahForm.siskopatuhStatus" class="mt-1 min-h-[40px] w-full rounded-xl border px-3"><option value="PENDING">{{ siskopatuhStatusLabel("PENDING") }}</option><option value="REGISTERED">{{ siskopatuhStatusLabel("REGISTERED") }}</option><option value="ACTIVE">{{ siskopatuhStatusLabel("ACTIVE") }}</option></select></label>
-              <label class="text-sm">Room<select v-model="jamaahForm.roomType" class="mt-1 min-h-[40px] w-full rounded-xl border px-3"><option value="SINGLE">{{ roomTypeLabel("SINGLE") }}</option><option value="DOUBLE">{{ roomTypeLabel("DOUBLE") }}</option><option value="TRIPLE">{{ roomTypeLabel("TRIPLE") }}</option><option value="QUAD">{{ roomTypeLabel("QUAD") }}</option><option value="QUINT">{{ roomTypeLabel("QUINT") }}</option><option value="NA">{{ roomTypeLabel("NA") }}</option></select></label>
-            </div>
-            <p v-if="jamaahError" class="mt-2 text-sm text-red-600">{{ jamaahError }}</p>
-            <div class="mt-3 flex gap-2"><button class="rounded-xl bg-sht-olive px-4 py-2 text-xs font-semibold text-white" @click="addJamaah">Simpan</button><button class="rounded-xl border px-4 py-2 text-xs" @click="showJamaahForm=false">Batal</button></div>
+          <div class="flex items-center justify-between">
+            <h3 class="font-heading font-semibold">Jamaah ({{ order.jamaah?.length || 0 }})</h3>
+            <span class="text-xs text-neutral-charcoal/50">Kelola lengkap di Booking Detail</span>
           </div>
-          <div v-if="!order.jamaah?.length" class="mt-4 text-sm text-neutral-charcoal/50">Belum ada jamaah — customer ≠ jamaah, tambahkan per order.</div>
-          <div v-else class="mt-4 overflow-x-auto"><table class="w-full text-left text-sm"><thead class="border-b text-xs uppercase text-neutral-charcoal/50"><tr><th class="py-2">Kode</th><th class="py-2">Nama</th><th class="py-2">Visa</th><th class="py-2">Sisko</th><th class="py-2">Room</th></tr></thead><tbody class="divide-y"><tr v-for="j in order.jamaah" :key="j.id"><td class="py-2 font-mono text-xs">{{ j.jamaahCode }}</td><td class="py-2"><NuxtLink :to="`/tour/jamaah/${j.id}`" class="text-brand-teal hover:underline">{{ j.fullName }}</NuxtLink></td><td class="py-2 text-xs">{{ visaStatusLabel(j.visaStatus) }}</td><td class="py-2 text-xs">{{ siskopatuhStatusLabel(j.siskopatuhStatus) }}</td><td class="py-2 text-xs">{{ roomTypeLabel(j.roomType) }}</td></tr></tbody></table></div>
+          <p class="mt-1 text-xs text-neutral-charcoal/60">Ringkasan jamaah untuk pesanan ini. Untuk tambah/edit, buka Booking yang terhubung.</p>
+          <div v-if="!order.jamaah?.length" class="mt-4 text-sm text-neutral-charcoal/50">Belum ada jamaah.</div>
+          <div v-else class="mt-4 overflow-x-auto">
+            <table class="w-full text-left text-sm">
+              <thead class="border-b text-xs uppercase text-neutral-charcoal/50"><tr><th class="py-2">Kode</th><th class="py-2">Nama</th><th class="py-2">Visa</th><th class="py-2">Kamar</th></tr></thead>
+              <tbody class="divide-y">
+                <tr v-for="j in order.jamaah" :key="j.id">
+                  <td class="py-2 font-mono text-xs">{{ j.jamaahCode }}</td>
+                  <td class="py-2 font-medium">{{ j.fullName }}</td>
+                  <td class="py-2 text-xs"><TourStatusBadge :status="j.visaStatus" type="visa" /></td>
+                  <td class="py-2 text-xs">{{ roomTypeLabel(j.roomType) }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div v-if="order.jamaah?.length" class="mt-3 text-xs"><NuxtLink :to="`/tour/bookings?orderId=${order.id}`" class="text-brand-teal hover:underline">Lihat Bookings untuk kelola jamaah →</NuxtLink></div>
         </div>
 
         <div class="rounded-2xl border bg-white p-6">
-          <h3 class="font-heading font-semibold">Trips ({{ order.tripOrders?.length || 0 }}) — many-to-many via tour_trip_orders</h3>
-          <div v-if="!order.tripOrders?.length" class="mt-4 text-sm text-neutral-charcoal/50">Belum di-assign ke trip. Assign di halaman Trip detail.</div>
+          <h3 class="font-heading font-semibold">Perjalanan Terkait ({{ order.tripOrders?.length || 0 }})</h3>
+          <p class="mt-1 text-xs text-neutral-charcoal/60">Pesanan ini terhubung ke beberapa trip. Atur di detail Trip.</p>
+          <div v-if="!order.tripOrders?.length" class="mt-4 text-sm text-neutral-charcoal/50">Belum terhubung ke perjalanan.</div>
           <ul v-else class="mt-4 divide-y text-sm">
             <li v-for="to in order.tripOrders" :key="to.id" class="py-2 flex justify-between">
-              <span>{{ to.trip?.tripCode || `Trip #${to.tripId}` }} · {{ to.trip?.name || "" }} — {{ to.trip ? tripStatusLabel(to.trip.status) : "" }}</span>
-              <NuxtLink :to="`/tour/trips/${to.tripId}`" class="text-brand-teal hover:underline text-xs">Detail Trip</NuxtLink>
+              <span class="font-medium">{{ to.trip?.tripCode || `Trip #${to.tripId}` }} · {{ to.trip?.name || "" }}</span>
+              <span class="flex items-center gap-2"><TourStatusBadge v-if="to.trip" :status="to.trip.status" type="trip" /><NuxtLink :to="`/tour/trips/${to.tripId}`" class="text-brand-teal hover:underline text-xs inline-flex items-center gap-1"><Eye class="h-3 w-3" /> Detail</NuxtLink></span>
             </li>
           </ul>
         </div>
 
         <div class="rounded-2xl border bg-white p-6">
-          <h3 class="font-heading font-semibold">Bookings ({{ order.bookings?.length || 0 }})</h3>
-          <div v-if="!order.bookings?.length" class="mt-4 text-sm text-neutral-charcoal/50">Belum ada booking untuk order ini.</div>
-          <div v-else class="mt-4 overflow-x-auto"><table class="w-full text-left text-sm"><thead class="border-b text-xs uppercase text-neutral-charcoal/50"><tr><th class="py-2">Kode</th><th class="py-2">Tipe</th><th class="py-2">Vendor</th><th class="py-2">Amount</th><th class="py-2">Status</th></tr></thead><tbody class="divide-y"><tr v-for="b in order.bookings" :key="b.id"><td class="py-2 font-mono text-xs"><NuxtLink :to="`/tour/bookings/${b.id}`" class="text-brand-teal hover:underline">{{ b.bookingCode }}</NuxtLink></td><td class="py-2 text-xs">{{ bookingTypeLabel(b.bookingType) }}</td><td class="py-2 text-xs">{{ b.vendor?.name || b.vendorId }} <span v-if="b.vendor?.deletedAt" class="rounded bg-amber-100 px-1 text-amber-700">Arsip</span></td><td class="py-2 text-xs">{{ b.amount }} {{ b.currency }}</td><td class="py-2 text-xs">{{ bookingStatusLabel(b.status) }}</td></tr></tbody></table></div>
+          <h3 class="font-heading font-semibold">Pemesanan Vendor ({{ order.bookings?.length || 0 }})</h3>
+          <div v-if="!order.bookings?.length" class="mt-4 text-sm text-neutral-charcoal/50">Belum ada pemesanan vendor untuk pesanan ini.</div>
+          <div v-else class="mt-4 overflow-x-auto">
+            <table class="w-full text-left text-sm">
+              <thead class="border-b text-xs uppercase text-neutral-charcoal/50"><tr><th class="py-2">Kode</th><th class="py-2">Layanan</th><th class="py-2">Vendor</th><th class="py-2">Biaya</th><th class="py-2">Status</th></tr></thead>
+              <tbody class="divide-y">
+                <tr v-for="b in order.bookings" :key="b.id">
+                  <td class="py-2 font-mono text-xs"><NuxtLink :to="`/tour/bookings/${b.id}`" class="text-brand-teal hover:underline">{{ b.bookingCode }}</NuxtLink></td>
+                  <td class="py-2 text-xs">{{ bookingTypeLabel(b.bookingType) }}</td>
+                  <td class="py-2 text-xs">{{ b.vendor?.name || `Vendor #${b.vendorId}` }}</td>
+                  <td class="py-2 text-xs">{{ b.currency }} {{ Number(b.amount).toLocaleString('id-ID') }}</td>
+                  <td class="py-2 text-xs"><TourStatusBadge :status="b.status" type="booking" /></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     </div>

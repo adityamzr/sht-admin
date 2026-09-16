@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { TourTrip } from "~/types";
+import { Pencil, Trash2, Eye } from 'lucide-vue-next'
 definePageMeta({ layout: "admin", middleware: "admin-auth" });
 const { tripStatusLabel } = useTourLabels();
 
@@ -33,7 +34,7 @@ async function remove(t: any) { if (!confirm(`Hapus trip ${t.name}?`)) return; a
 
 <template>
   <div>
-    <PageHead title="Trips" subtitle="Manajemen keberangkatan — tanggal, rute, kapasitas, status. Validasi returnDate ≥ departureDate. Total pax derived exclude CANCELLED.">
+    <PageHead title="Trips" subtitle="Kelola jadwal keberangkatan dan kapasitas perjalanan.">
       <template #actions><button type="button" class="min-h-[40px] rounded-xl bg-sht-olive px-4 py-2 text-sm font-semibold text-white" @click="openCreate">+ Tambah Trip</button></template>
     </PageHead>
 
@@ -42,20 +43,24 @@ async function remove(t: any) { if (!confirm(`Hapus trip ${t.name}?`)) return; a
       <select v-model="status" class="min-h-[44px] rounded-xl border border-neutral-line px-3 text-sm" @change="page=1"><option value="">Semua Status</option><option v-for="s in STATUSES" :key="s" :value="s">{{ tripStatusLabel(s) }}</option></select>
     </div>
 
-    <div v-if="showForm" class="mt-6 rounded-2xl border border-neutral-line bg-white p-6">
-      <h3 class="font-heading text-base font-semibold">{{ form.id ? "Edit Trip" : "Tambah Trip" }}</h3>
-      <div class="mt-4 grid gap-3 sm:grid-cols-2">
-        <label class="text-sm font-medium">Nama<input v-model="form.name" class="mt-1 min-h-[44px] w-full rounded-xl border border-neutral-line px-4" placeholder="Umroh Reguler 12D" /></label>
-        <label class="text-sm font-medium">Rute<input v-model="form.routeSummary" class="mt-1 min-h-[44px] w-full rounded-xl border border-neutral-line px-4" placeholder="CGK-JED-MED-CGK" /></label>
-        <label class="text-sm font-medium">Departure<input v-model="form.departureDate" type="date" class="mt-1 min-h-[44px] w-full rounded-xl border border-neutral-line px-4" /></label>
-        <label class="text-sm font-medium">Return<input v-model="form.returnDate" type="date" class="mt-1 min-h-[44px] w-full rounded-xl border border-neutral-line px-4" /></label>
-        <label class="text-sm font-medium">Kapasitas<input v-model="form.capacity" type="number" min="1" class="mt-1 min-h-[44px] w-full rounded-xl border border-neutral-line px-4" /></label>
-        <label class="text-sm font-medium">Status<select v-model="form.status" class="mt-1 min-h-[44px] w-full rounded-xl border border-neutral-line px-3"><option v-for="s in STATUSES" :key="s" :value="s">{{ tripStatusLabel(s) }}</option></select></label>
-        <label class="sm:col-span-2 text-sm font-medium">Notes<textarea v-model="form.notes" rows="2" class="mt-1 w-full rounded-xl border border-neutral-line px-4 py-2" /></label>
+    <TourModal :open="showForm" :title="form.id ? 'Edit Trip' : 'Tambah Trip'" subtitle="Tanggal, rute, kapasitas, dan status perjalanan" @close="showForm=false">
+      <div class="grid gap-4 sm:grid-cols-2">
+        <label class="sm:col-span-2 text-sm font-medium">Nama Trip *<input v-model="form.name" class="mt-1 min-h-[44px] w-full rounded-xl border border-neutral-line px-4 text-sm" placeholder="Umrah Reguler Desember 2026" /></label>
+        <label class="text-sm font-medium">Tanggal Berangkat<input v-model="form.departureDate" type="date" class="mt-1 min-h-[44px] w-full rounded-xl border border-neutral-line px-4 text-sm" /></label>
+        <label class="text-sm font-medium">Tanggal Pulang<input v-model="form.returnDate" type="date" class="mt-1 min-h-[44px] w-full rounded-xl border border-neutral-line px-4 text-sm" /></label>
+        <label class="text-sm font-medium">Rute<input v-model="form.routeSummary" class="mt-1 min-h-[44px] w-full rounded-xl border border-neutral-line px-4 text-sm" placeholder="CGK-JED-MED-CGK" /></label>
+        <label class="text-sm font-medium">Kapasitas<input v-model.number="form.capacity" type="number" min="1" class="mt-1 min-h-[44px] w-full rounded-xl border border-neutral-line px-4 text-sm" /></label>
+        <label class="text-sm font-medium">Status<select v-model="form.status" class="mt-1 min-h-[44px] w-full rounded-xl border border-neutral-line px-3 text-sm"><option v-for="s in STATUSES" :key="s" :value="s">{{ tripStatusLabel(s) }}</option></select></label>
+        <label class="sm:col-span-2 text-sm font-medium">Catatan<textarea v-model="form.notes" rows="2" class="mt-1 w-full rounded-xl border border-neutral-line px-4 py-2 text-sm" /></label>
       </div>
-      <p v-if="formError" class="mt-3 rounded-xl border border-gold-soft bg-gold-sand/50 px-4 py-2 text-sm">{{ formError }}</p>
-      <div class="mt-4 flex gap-2"><button type="button" class="min-h-[40px] rounded-xl bg-sht-olive px-4 py-2 text-sm font-semibold text-white" :disabled="formPending" @click="submit">Simpan</button><button type="button" class="min-h-[40px] rounded-xl border border-neutral-line px-4 py-2 text-sm font-medium" @click="showForm=false">Batal</button></div>
-    </div>
+      <p v-if="formError" class="mt-4 rounded-xl bg-red-50 px-4 py-2 text-sm text-red-700">{{ formError }}</p>
+      <template #footer>
+        <div class="flex justify-end gap-2">
+          <button type="button" class="min-h-[40px] rounded-xl border px-4 py-2 text-sm" @click="showForm=false">Batal</button>
+          <button type="button" class="min-h-[40px] rounded-xl bg-sht-olive px-5 py-2 text-sm font-semibold text-white" :disabled="formPending" @click="submit">Simpan</button>
+        </div>
+      </template>
+    </TourModal>
 
     <div class="mt-6 overflow-x-auto rounded-2xl border border-neutral-line bg-white">
       <table class="w-full min-w-[900px] text-left text-sm">
@@ -65,9 +70,15 @@ async function remove(t: any) { if (!confirm(`Hapus trip ${t.name}?`)) return; a
             <td class="px-5 py-3"><p class="font-mono text-xs font-semibold">{{ t.tripCode }}</p><p class="font-medium">{{ t.name }}</p></td>
             <td class="px-5 py-3 text-xs">{{ t.departureDate }} → {{ t.returnDate }}</td>
             <td class="px-5 py-3 text-xs text-neutral-charcoal/60">{{ t.routeSummary || "—" }}</td>
-            <td class="px-5 py-3">{{ t.capacity }}</td>
-            <td class="px-5 py-3"><span class="rounded-full px-2.5 py-1 text-xs font-semibold" :class="t.status==='CONFIRMED' ? 'bg-sht-olive/10 text-brand-green' : 'bg-neutral-warm text-neutral-charcoal/60'">{{ tripStatusLabel(t.status) }}</span></td>
-            <td class="px-5 py-3 text-right"><button class="rounded-lg px-3 py-1.5 text-xs font-semibold text-brand-teal hover:bg-sht-olive/5" @click="openEdit(t)">Edit</button><NuxtLink :to="`/tour/trips/${t.id}`" class="rounded-lg px-3 py-1.5 text-xs font-semibold text-neutral-charcoal/60 hover:text-brand-green">Detail</NuxtLink><button class="rounded-lg px-3 py-1.5 text-xs font-semibold text-neutral-charcoal/50 hover:text-red-600" @click="remove(t)">Hapus</button></td>
+            <td class="px-5 py-3 text-xs"><span class="font-medium">{{ t.capacity }} pax</span><br/><span class="text-neutral-charcoal/50">terisi dari Orders</span></td>
+            <td class="px-5 py-3"><TourStatusBadge :status="t.status" type="trip" /></td>
+            <td class="px-5 py-3 text-right">
+              <div class="flex justify-end gap-1">
+                <button class="rounded-xl p-2 text-neutral-charcoal/60 hover:bg-neutral-warm" title="Edit" @click="openEdit(t)"><Pencil class="h-4 w-4" /></button>
+                <NuxtLink :to="`/tour/trips/${t.id}`" class="rounded-xl p-2 text-neutral-charcoal/50 hover:bg-neutral-warm hover:text-brand-green" title="Detail"><Eye class="h-4 w-4" /></NuxtLink>
+                <button class="rounded-xl p-2 text-neutral-charcoal/40 hover:bg-red-50 hover:text-red-600" title="Hapus" @click="remove(t)"><Trash2 class="h-4 w-4" /></button>
+              </div>
+            </td>
           </tr>
           <tr v-if="rows.length===0"><td colspan="6" class="px-5 py-10 text-center text-neutral-charcoal/50">Belum ada trip.</td></tr>
         </tbody>

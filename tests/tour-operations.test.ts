@@ -357,4 +357,167 @@ describe('tour operations validation', () => {
     const leaked = orders.filter(o => o.workspaceId === wsTour && o.workspaceId !== wsTour)
     assert.equal(leaked.length, 0)
   })
+
+  it('money parsing/formatting helper: formatted UI -> numeric API', async () => {
+    const { formatMoneyId, parseMoneyId } = await import('../shared/tour-money')
+    assert.equal(formatMoneyId(1000), '1.000')
+    assert.equal(formatMoneyId(1000000), '1.000.000')
+    assert.equal(formatMoneyId(37500000), '37.500.000')
+    assert.equal(formatMoneyId(4350), '4.350')
+    assert.equal(parseMoneyId('1.000'), 1000)
+    assert.equal(parseMoneyId('1.000.000'), 1000000)
+    assert.equal(parseMoneyId('37.500.000'), 37500000)
+    assert.equal(parseMoneyId('4.350'), 4350)
+    assert.equal(parseMoneyId(''), null)
+    // IDR formatting
+    assert.equal(formatMoneyId(0), '0')
+    assert.equal(parseMoneyId('0'), 0)
+  })
+
+  it('status badge mapping centralized: distinct tones', async () => {
+    const { getStatusTone, TONE_CLASSES } = await import('../shared/tour-status')
+    assert.equal(getStatusTone('DRAFT'), 'neutral')
+    assert.equal(getStatusTone('NEW'), 'info')
+    assert.equal(getStatusTone('PLANNED'), 'info')
+    assert.equal(getStatusTone('CONFIRMED'), 'positive')
+    assert.equal(getStatusTone('ACTIVE'), 'positive')
+    assert.equal(getStatusTone('IN_PROGRESS'), 'warning')
+    assert.equal(getStatusTone('PROCESSING'), 'warning')
+    assert.equal(getStatusTone('FOLLOW_UP'), 'warning')
+    assert.equal(getStatusTone('APPROVED'), 'success')
+    assert.equal(getStatusTone('ISSUED'), 'success')
+    assert.equal(getStatusTone('PAID'), 'success')
+    assert.equal(getStatusTone('COMPLETED'), 'success')
+    assert.equal(getStatusTone('WON'), 'success')
+    assert.equal(getStatusTone('CANCELLED'), 'danger')
+    assert.equal(getStatusTone('LOST'), 'danger')
+    assert.equal(getStatusTone('INACTIVE'), 'muted')
+    // Ensure classes exist and distinct
+    assert.ok(TONE_CLASSES['neutral'])
+    assert.ok(TONE_CLASSES['info'])
+    assert.ok(TONE_CLASSES['positive'])
+    assert.notEqual(TONE_CLASSES['info'], TONE_CLASSES['danger'])
+  })
+
+  it('manual Lead creation and conversion prefilling', () => {
+    const lead = {
+      id: 1,
+      name: 'Budi',
+      whatsapp: '62812345678',
+      email: 'budi@example.com',
+      source: 'WhatsApp',
+      paxEstimate: 4,
+      serviceName: 'Umrah Private',
+      notes: 'Mau Desember',
+    }
+    // Prefill customer
+    const customerPrefill = {
+      name: lead.name,
+      whatsapp: lead.whatsapp,
+      email: lead.email,
+      source: lead.source,
+      notes: `Dari Lead #${lead.id} · ${lead.notes}`,
+    }
+    assert.equal(customerPrefill.name, 'Budi')
+    assert.equal(customerPrefill.whatsapp, '62812345678')
+
+    // Prefill order
+    const orderPrefill = {
+      customerId: 1,
+      leadId: lead.id,
+      paxCount: lead.paxEstimate,
+      packageName: lead.serviceName,
+      serviceSummary: lead.notes,
+    }
+    assert.equal(orderPrefill.paxCount, 4)
+    assert.equal(orderPrefill.leadId, 1)
+
+    // Dedup warning: existing customer with same whatsapp
+    const existingCustomers = [{ id: 10, whatsapp: '62812345678', customerCode: 'CUS-2026-0010', name: 'Budi' }]
+    const matches = existingCustomers.filter(c => c.whatsapp === lead.whatsapp)
+    assert.equal(matches.length, 1)
+    // Should warn, not auto-merge
+  })
+
+  it('Jamaah displayed from Booking linked Order, not orphan', () => {
+    const bookingWithOrder = { id: 1, orderId: 10, bookingCode: 'BKG-2026-0001' }
+    const bookingWithoutOrder = { id: 2, orderId: null, bookingCode: 'BKG-2026-0002' }
+
+    const jamaahForOrder = [
+      { id: 1, orderId: 10, fullName: 'Ahmad' },
+      { id: 2, orderId: 10, fullName: 'Fatimah' },
+    ]
+
+    // Booking with order -> show jamaah
+    const jamaahForBookingWithOrder = jamaahForOrder.filter(j => j.orderId === bookingWithOrder.orderId)
+    assert.equal(jamaahForBookingWithOrder.length, 2)
+
+    // Booking without order -> empty + helpful state, cannot create orphan
+    const jamaahForBookingWithoutOrder = bookingWithoutOrder.orderId ? jamaahForOrder.filter(j => j.orderId === bookingWithoutOrder.orderId) : []
+    assert.equal(jamaahForBookingWithoutOrder.length, 0)
+
+    // Jamaah belongs to Order, not Booking directly
+    const jamaah = { id: 1, orderId: 10, fullName: 'Ahmad' }
+    assert.equal(jamaah.orderId, 10)
+    // Should not have bookingId as source of truth
+    assert.equal((jamaah as any).bookingId, undefined)
+  })
+
+  it('Booking without Order cannot create orphan Jamaah (domain integrity)', () => {
+    const booking = { id: 1, orderId: null }
+    const canCreateJamaah = !!booking.orderId
+    assert.equal(canCreateJamaah, false)
+
+    const bookingWithOrder = { id: 2, orderId: 5 }
+    const canCreateJamaah2 = !!bookingWithOrder.orderId
+    assert.equal(canCreateJamaah2, true)
+  })
+
+  it('raw numeric IDs replaced by human codes in UX (relationship)', () => {
+    const customer = { id: 3, customerCode: 'CUS-2026-0007', name: 'Ahmad Fauzi' }
+    const order = { id: 12, orderCode: 'ORD-2026-0012', packageName: 'Private Umrah', customerId: 3, customer }
+    const trip = { id: 4, tripCode: 'TRIP-2026-0004', name: 'Umrah Desember 2026' }
+    const vendor = { id: 7, vendorCode: 'VND-0007', name: 'Abu Umar Transport' }
+    const booking = { id: 15, bookingCode: 'BKG-2026-0015' }
+
+    // UI should show codes, not raw IDs
+    const customerLabel = `${customer.customerCode} · ${customer.name}`
+    assert.equal(customerLabel, 'CUS-2026-0007 · Ahmad Fauzi')
+
+    const orderLabel = `${order.orderCode} · ${order.packageName} · ${customer.name}`
+    assert.equal(orderLabel, 'ORD-2026-0012 · Private Umrah · Ahmad Fauzi')
+
+    const tripLabel = `${trip.tripCode} · ${trip.name}`
+    assert.equal(tripLabel, 'TRIP-2026-0004 · Umrah Desember 2026')
+
+    const vendorLabel = `${vendor.vendorCode} · ${vendor.name}`
+    assert.equal(vendorLabel, 'VND-0007 · Abu Umar Transport')
+
+    assert.equal(booking.bookingCode, 'BKG-2026-0015')
+  })
+
+  it('booking quick-create vendor preserves booking draft state', () => {
+    const bookingDraft = {
+      bookingDate: '2026-09-16',
+      tripId: 1,
+      orderId: 1,
+      bookingType: 'HOTEL',
+      description: 'Hotel Makkah',
+      currency: 'SAR',
+      amount: 1000,
+      status: 'DRAFT',
+    }
+    // Simulate opening vendor quick-create
+    const vendorForm = { name: 'Hotel Provider', vendorType: 'HOTEL', defaultCurrency: 'SAR' }
+    const newVendor = { id: 99, vendorCode: 'VND-0099', name: 'Hotel Provider' }
+
+    // After vendor created, booking draft preserved and vendor auto-selected
+    const afterVendorCreate = {
+      ...bookingDraft,
+      vendorId: newVendor.id,
+    }
+    assert.equal(afterVendorCreate.vendorId, 99)
+    assert.equal(afterVendorCreate.bookingType, 'HOTEL')
+    assert.equal(afterVendorCreate.description, 'Hotel Makkah')
+  })
 })

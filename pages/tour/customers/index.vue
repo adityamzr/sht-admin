@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { TourCustomer } from "~/types";
+import { Pencil, Trash2, Eye, MessageCircle } from 'lucide-vue-next'
 definePageMeta({ layout: "admin", middleware: "admin-auth" });
 const { customerTypeLabel, customerSourceLabel } = useTourLabels();
 
@@ -99,10 +100,7 @@ function onSearch() {
 
 <template>
   <div>
-    <PageHead
-      title="Customers"
-      subtitle="Database pelanggan — B2C Jamaah, B2B Travel, Institusi. Kode unik per workspace, searchable, filter type/source."
-    >
+    <PageHead title="Customers" subtitle="Kelola data pelanggan untuk pemesanan umrah dan layanan.">
       <template #actions>
         <button type="button" class="min-h-[40px] rounded-xl bg-sht-olive px-4 py-2 text-sm font-semibold text-white" @click="openCreate">+ Tambah Customer</button>
       </template>
@@ -115,91 +113,55 @@ function onSearch() {
         <option v-for="t in CUSTOMER_TYPES" :key="t" :value="t">{{ customerTypeLabel(t) }}</option>
       </select>
       <select v-model="source" class="min-h-[44px] rounded-xl border border-neutral-line px-3 text-sm" @change="onSearch">
-        <option value="">Semua Source</option>
+        <option value="">Semua Sumber</option>
         <option v-for="s in SOURCES" :key="s" :value="s">{{ customerSourceLabel(s) }}</option>
       </select>
     </div>
 
-    <div v-if="showForm" class="mt-6 rounded-2xl border border-neutral-line bg-white p-6">
-      <h3 class="font-heading text-base font-semibold">{{ form.id ? "Edit Customer" : "Tambah Customer" }}</h3>
-      <div class="mt-4 grid gap-3 sm:grid-cols-2">
-        <label class="text-sm font-medium">Nama
-          <input v-model="form.name" class="mt-1 min-h-[44px] w-full rounded-xl border border-neutral-line px-4" placeholder="Nama lengkap / perusahaan" />
-        </label>
-        <label class="text-sm font-medium">WhatsApp
-          <input v-model="form.whatsapp" class="mt-1 min-h-[44px] w-full rounded-xl border border-neutral-line px-4" placeholder="62812xxxx" />
-        </label>
-        <label class="text-sm font-medium">Email
-          <input v-model="form.email" class="mt-1 min-h-[44px] w-full rounded-xl border border-neutral-line px-4" placeholder="opsional" />
-        </label>
-        <label class="text-sm font-medium">Kota
-          <input v-model="form.city" class="mt-1 min-h-[44px] w-full rounded-xl border border-neutral-line px-4" placeholder="Jakarta" />
-        </label>
-        <label class="text-sm font-medium">Tipe
-          <select v-model="form.customerType" class="mt-1 min-h-[44px] w-full rounded-xl border border-neutral-line px-3">
-            <option v-for="t in CUSTOMER_TYPES" :key="t" :value="t">{{ t }}</option>
-          </select>
-        </label>
-        <label class="text-sm font-medium">Source
-          <select v-model="form.source" class="mt-1 min-h-[44px] w-full rounded-xl border border-neutral-line px-3">
-            <option v-for="s in SOURCES" :key="s" :value="s">{{ s }}</option>
-          </select>
-        </label>
-        <label class="sm:col-span-2 text-sm font-medium">Notes
-          <textarea v-model="form.notes" rows="2" class="mt-1 w-full rounded-xl border border-neutral-line px-4 py-2" />
-        </label>
+    <TourModal :open="showForm" :title="form.id ? 'Edit Customer' : 'Tambah Customer'" subtitle="Data pelanggan untuk transaksi" @close="showForm=false">
+      <div class="grid gap-4 sm:grid-cols-2">
+        <label class="text-sm font-medium">Nama *<input v-model="form.name" class="mt-1 min-h-[44px] w-full rounded-xl border border-neutral-line px-4 text-sm" placeholder="Ahmad Fauzi / PT Travel" /></label>
+        <label class="text-sm font-medium">WhatsApp *<input v-model="form.whatsapp" class="mt-1 min-h-[44px] w-full rounded-xl border border-neutral-line px-4 text-sm" placeholder="62812xxxx" /></label>
+        <label class="text-sm font-medium">Email<input v-model="form.email" class="mt-1 min-h-[44px] w-full rounded-xl border border-neutral-line px-4 text-sm" placeholder="opsional" /></label>
+        <label class="text-sm font-medium">Kota<input v-model="form.city" class="mt-1 min-h-[44px] w-full rounded-xl border border-neutral-line px-4 text-sm" placeholder="Jakarta" /></label>
+        <label class="text-sm font-medium">Tipe Pelanggan<select v-model="form.customerType" class="mt-1 min-h-[44px] w-full rounded-xl border border-neutral-line px-3 text-sm"><option v-for="t in CUSTOMER_TYPES" :key="t" :value="t">{{ customerTypeLabel(t) }}</option></select></label>
+        <label class="text-sm font-medium">Sumber<select v-model="form.source" class="mt-1 min-h-[44px] w-full rounded-xl border border-neutral-line px-3 text-sm"><option v-for="s in SOURCES" :key="s" :value="s">{{ customerSourceLabel(s) }}</option></select></label>
+        <label class="sm:col-span-2 text-sm font-medium">Catatan<textarea v-model="form.notes" rows="2" class="mt-1 w-full rounded-xl border border-neutral-line px-4 py-2 text-sm" /></label>
       </div>
-      <p v-if="formError" class="mt-3 rounded-xl border border-gold-soft bg-gold-sand/50 px-4 py-2 text-sm" role="alert">{{ formError }}</p>
-      <div class="mt-4 flex gap-2">
-        <button type="button" class="min-h-[40px] rounded-xl bg-sht-olive px-4 py-2 text-sm font-semibold text-white disabled:opacity-50" :disabled="formPending" @click="submit">Simpan</button>
-        <button type="button" class="min-h-[40px] rounded-xl border border-neutral-line px-4 py-2 text-sm font-medium" @click="showForm = false">Batal</button>
-      </div>
-    </div>
+      <p v-if="formError" class="mt-4 rounded-xl bg-red-50 px-4 py-2 text-sm text-red-700">{{ formError }}</p>
+      <template #footer>
+        <div class="flex justify-end gap-2">
+          <button type="button" class="min-h-[40px] rounded-xl border px-4 py-2 text-sm" @click="showForm=false">Batal</button>
+          <button type="button" class="min-h-[40px] rounded-xl bg-sht-olive px-5 py-2 text-sm font-semibold text-white disabled:opacity-50" :disabled="formPending" @click="submit">Simpan</button>
+        </div>
+      </template>
+    </TourModal>
 
     <div class="mt-6 overflow-x-auto rounded-2xl border border-neutral-line bg-white">
       <table class="w-full min-w-[900px] text-left text-sm">
-        <thead class="border-b border-neutral-line bg-neutral-warm text-xs uppercase tracking-wide text-neutral-charcoal/60">
-          <tr>
-            <th class="px-5 py-3">Kode</th>
-            <th class="px-5 py-3">Nama</th>
-            <th class="px-5 py-3">WhatsApp</th>
-            <th class="px-5 py-3">Tipe</th>
-            <th class="px-5 py-3">Source</th>
-            <th class="px-5 py-3">Kota</th>
-            <th class="px-5 py-3 text-right">Aksi</th>
-          </tr>
-        </thead>
-        <tbody class="divide-y divide-neutral-line">
+        <thead class="border-b bg-neutral-warm text-xs uppercase text-neutral-charcoal/60"><tr><th class="px-5 py-3">Kode / Nama</th><th class="px-5 py-3">Kontak</th><th class="px-5 py-3">Tipe</th><th class="px-5 py-3">Sumber</th><th class="px-5 py-3">Kota</th><th class="px-5 py-3 text-right">Aksi</th></tr></thead>
+        <tbody class="divide-y">
           <tr v-for="c in rows" :key="c.id">
-            <td class="px-5 py-3 font-mono text-xs font-semibold">{{ c.customerCode }}</td>
-            <td class="px-5 py-3">
-              <p class="font-medium">{{ c.name }}</p>
-              <p v-if="c.email" class="text-xs text-neutral-charcoal/50">{{ c.email }}</p>
-            </td>
-            <td class="px-5 py-3">{{ c.whatsapp }}</td>
-            <td class="px-5 py-3"><span class="rounded-full bg-neutral-warm px-2.5 py-1 text-xs font-semibold">{{ customerTypeLabel(c.customerType) }}</span></td>
+            <td class="px-5 py-3"><p class="font-mono text-xs font-semibold">{{ c.customerCode }}</p><p class="font-medium">{{ c.name }}</p><p v-if="c.email" class="text-xs text-neutral-charcoal/50">{{ c.email }}</p></td>
+            <td class="px-5 py-3"><a :href="`https://wa.me/${c.whatsapp}`" target="_blank" class="inline-flex items-center gap-1 text-brand-teal hover:underline"><MessageCircle class="h-3.5 w-3.5" />{{ c.whatsapp }}</a></td>
+            <td class="px-5 py-3"><TourStatusBadge :status="c.customerType" type="customerType" /></td>
             <td class="px-5 py-3 text-xs">{{ customerSourceLabel(c.source) }}</td>
             <td class="px-5 py-3 text-neutral-charcoal/60">{{ c.city || "—" }}</td>
             <td class="px-5 py-3 text-right">
-              <button type="button" class="rounded-lg px-3 py-1.5 text-xs font-semibold text-brand-teal hover:bg-sht-olive/5" @click="openEdit(c)">Edit</button>
-              <NuxtLink :to="`/tour/customers/${c.id}`" class="rounded-lg px-3 py-1.5 text-xs font-semibold text-neutral-charcoal/60 hover:text-brand-green">Detail</NuxtLink>
-              <button type="button" class="rounded-lg px-3 py-1.5 text-xs font-semibold text-neutral-charcoal/50 hover:text-red-600" @click="remove(c)">Hapus</button>
+              <div class="flex justify-end gap-1">
+                <button type="button" class="rounded-xl p-2 text-neutral-charcoal/60 hover:bg-neutral-warm" title="Edit" @click="openEdit(c)"><Pencil class="h-4 w-4" /></button>
+                <NuxtLink :to="`/tour/customers/${c.id}`" class="rounded-xl p-2 text-neutral-charcoal/50 hover:bg-neutral-warm hover:text-brand-green" title="Detail"><Eye class="h-4 w-4" /></NuxtLink>
+                <button type="button" class="rounded-xl p-2 text-neutral-charcoal/40 hover:bg-red-50 hover:text-red-600" title="Hapus" @click="remove(c)"><Trash2 class="h-4 w-4" /></button>
+              </div>
             </td>
           </tr>
-          <tr v-if="rows.length === 0 && !pending">
-            <td colspan="7" class="px-5 py-10 text-center text-neutral-charcoal/50">Belum ada customer. <button class="text-brand-teal underline" @click="openCreate">Tambah pertama</button></td>
-          </tr>
-          <tr v-if="pending">
-            <td colspan="7" class="px-5 py-10 text-center text-neutral-charcoal/50">Memuat...</td>
-          </tr>
+          <tr v-if="rows.length===0 && !pending"><td colspan="6" class="px-5 py-10 text-center text-neutral-charcoal/50">Belum ada customer.</td></tr>
+          <tr v-if="pending"><td colspan="6" class="px-5 py-10 text-center text-neutral-charcoal/50">Memuat...</td></tr>
         </tbody>
       </table>
     </div>
 
-    <div class="mt-4">
-      <AdminPagination :page="meta.page" :page-count="meta.pageCount" :total="meta.total" @change="(n) => { page = n; }" />
-    </div>
-
+    <div class="mt-4"><AdminPagination :page="meta.page" :page-count="meta.pageCount" :total="meta.total" @change="(n)=>page=n" /></div>
     <p v-if="error" class="mt-4 text-sm text-red-600">{{ error }}</p>
   </div>
 </template>
