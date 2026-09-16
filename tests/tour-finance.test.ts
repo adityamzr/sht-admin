@@ -321,7 +321,7 @@ describe('tour finance v1', () => {
     assert.equal(restored['Finance'], true)
 
     // Media unaffected: when workspace media, tour groups not rendered
-    const workspace = 'media'
+    const workspace: string = 'media'
     const tourGroups = ['Sales','Operations','Finance','Catalog','Pricing']
     const shouldShowTour = workspace === 'tour'
     assert.equal(shouldShowTour, false)
