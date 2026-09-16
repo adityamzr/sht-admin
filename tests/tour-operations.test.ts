@@ -385,7 +385,7 @@ describe('tour operations validation', () => {
     assert.equal(getStatusTone('PROCESSING'), 'warning')
     assert.equal(getStatusTone('FOLLOW_UP'), 'warning')
     assert.equal(getStatusTone('APPROVED'), 'success')
-    assert.equal(getStatusTone('ISSUED'), 'success')
+    assert.equal(getStatusTone('ISSUED'), 'info')
     assert.equal(getStatusTone('PAID'), 'success')
     assert.equal(getStatusTone('COMPLETED'), 'success')
     assert.equal(getStatusTone('WON'), 'success')

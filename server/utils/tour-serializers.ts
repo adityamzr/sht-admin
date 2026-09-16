@@ -6,6 +6,9 @@ import type {
   tourVendors,
   tourBookings,
   tourTripOrders,
+  tourInvoices,
+  tourPayments,
+  tourExpenses,
 } from '../db/schema'
 
 function toNumber(v: unknown): number | null {
@@ -157,5 +160,75 @@ export function adminTourTripOrder(r: TripOrderRow) {
     tripId: r.tripId,
     orderId: r.orderId,
     createdAt: r.createdAt,
+  }
+}
+
+type InvoiceRow = typeof tourInvoices.$inferSelect
+export function adminTourInvoice(r: InvoiceRow) {
+  return {
+    id: r.id,
+    workspaceId: r.workspaceId,
+    invoiceCode: r.invoiceCode,
+    orderId: r.orderId,
+    issueDate: toDateString(r.issueDate),
+    dueDate: toDateString(r.dueDate),
+    description: r.description,
+    amountIdr: toNumber(r.amountIdr),
+    state: r.state,
+    notes: r.notes,
+    createdAt: r.createdAt,
+    updatedAt: r.updatedAt,
+  }
+}
+
+type PaymentRow = typeof tourPayments.$inferSelect
+export function adminTourPayment(r: PaymentRow) {
+  return {
+    id: r.id,
+    workspaceId: r.workspaceId,
+    paymentCode: r.paymentCode,
+    invoiceId: r.invoiceId,
+    orderId: r.orderId,
+    paymentDate: toDateString(r.paymentDate),
+    amountIdr: toNumber(r.amountIdr),
+    method: r.method,
+    accountOrChannel: r.accountOrChannel,
+    referenceNumber: r.referenceNumber,
+    proofUrl: r.proofUrl,
+    status: r.status,
+    notes: r.notes,
+    verifiedBy: r.verifiedBy,
+    verifiedAt: r.verifiedAt,
+    createdAt: r.createdAt,
+    updatedAt: r.updatedAt,
+  }
+}
+
+type ExpenseRow = typeof tourExpenses.$inferSelect
+export function adminTourExpense(r: ExpenseRow) {
+  return {
+    id: r.id,
+    workspaceId: r.workspaceId,
+    expenseCode: r.expenseCode,
+    expenseDate: toDateString(r.expenseDate),
+    orderId: r.orderId,
+    tripId: r.tripId,
+    bookingId: r.bookingId,
+    vendorId: r.vendorId,
+    category: r.category,
+    description: r.description,
+    currency: r.currency,
+    amount: toNumber(r.amount),
+    exchangeRateSnapshot: toNumber(r.exchangeRateSnapshot),
+    amountIdr: toNumber(r.amountIdr),
+    status: r.status,
+    paymentMethod: r.paymentMethod,
+    referenceNumber: r.referenceNumber,
+    proofUrl: r.proofUrl,
+    notes: r.notes,
+    verifiedBy: r.verifiedBy,
+    verifiedAt: r.verifiedAt,
+    createdAt: r.createdAt,
+    updatedAt: r.updatedAt,
   }
 }

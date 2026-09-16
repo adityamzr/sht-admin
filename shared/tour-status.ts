@@ -12,6 +12,7 @@ export const TOUR_STATUS_TONE: Record<string, StatusTone> = {
   // New / Planned / informational (blue)
   NEW: 'info',
   PLANNED: 'info',
+  ISSUED: 'info',
 
   // Confirmed / Active / positive (olive)
   CONFIRMED: 'positive',
@@ -23,17 +24,19 @@ export const TOUR_STATUS_TONE: Record<string, StatusTone> = {
   FOLLOW_UP: 'warning',
   CONTACTED: 'warning',
   REGISTERED: 'warning',
+  PARTIAL: 'warning',
 
-  // Approved / Issued / Paid / Completed / Won / success (green)
+  // Approved / Issued / Paid / Completed / Won / Verified / success (green)
   APPROVED: 'success',
-  ISSUED: 'success',
   PAID: 'success',
   COMPLETED: 'success',
   WON: 'success',
+  VERIFIED: 'success',
 
-  // Cancelled / Lost / danger (red)
+  // Cancelled / Lost / Overdue / danger (red)
   CANCELLED: 'danger',
   LOST: 'danger',
+  OVERDUE: 'danger',
 
   // Inactive / Archived / muted (gray)
   INACTIVE: 'muted',
@@ -41,6 +44,8 @@ export const TOUR_STATUS_TONE: Record<string, StatusTone> = {
   PENDING: 'muted',
   NOT_STARTED: 'muted',
   NA: 'muted',
+  UNPAID: 'muted',
+  VOID: 'muted',
 }
 
 export const TONE_CLASSES: Record<StatusTone, string> = {

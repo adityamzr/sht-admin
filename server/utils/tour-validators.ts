@@ -14,6 +14,11 @@ import {
   TOUR_BOOKING_STATUSES,
   TOUR_GENDERS,
   CURRENCIES,
+  TOUR_INVOICE_STATES,
+  TOUR_PAYMENT_STATUSES,
+  TOUR_PAYMENT_METHODS,
+  TOUR_EXPENSE_CATEGORIES,
+  TOUR_EXPENSE_STATUSES,
 } from '../db/schema'
 
 const int = (min: number, max: number) => z.number().int().min(min).max(max)
@@ -151,6 +156,68 @@ export const tourBookingPatch = tourBookingBase.partial().superRefine((v, ctx) =
     // if patching currency to non-IDR without snapshot, we can't know existing snapshot, so skip strict check here — API will recompute
     // Only validate if snapshot provided and <=0
   }
+  if (v.exchangeRateSnapshot !== null && v.exchangeRateSnapshot !== undefined && v.exchangeRateSnapshot <= 0) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'exchangeRateSnapshot harus > 0', path: ['exchangeRateSnapshot'] })
+  }
+})
+
+// ─── Finance: Invoices ──────────────────────────────────────────────────────
+const tourInvoiceBase = z.object({
+  orderId: int(1, 999999999),
+  issueDate: isoDate,
+  dueDate: optionalDate,
+  description: z.string().max(500).nullable().optional(),
+  amountIdr: numStr.min(1),
+  state: z.enum(TOUR_INVOICE_STATES).default('DRAFT'),
+  notes: z.string().max(2000).nullable().optional(),
+})
+export const tourInvoiceInput = tourInvoiceBase.refine((v: any) => !v.dueDate || v.dueDate.getTime() >= v.issueDate.getTime(), { message: 'dueDate tidak boleh sebelum issueDate', path: ['dueDate'] })
+export const tourInvoicePatch = tourInvoiceBase.partial().refine((v: any) => !v.issueDate || !v.dueDate || v.dueDate.getTime() >= v.issueDate.getTime(), { message: 'dueDate tidak boleh sebelum issueDate', path: ['dueDate'] })
+
+// ─── Finance: Payments ──────────────────────────────────────────────────────
+const tourPaymentBase = z.object({
+  invoiceId: int(1, 999999999),
+  orderId: int(1, 999999999).optional(),
+  paymentDate: isoDate,
+  amountIdr: numStr.min(1),
+  method: z.enum(TOUR_PAYMENT_METHODS).default('BANK_TRANSFER'),
+  accountOrChannel: z.string().max(200).nullable().optional(),
+  referenceNumber: z.string().max(200).nullable().optional(),
+  proofUrl: z.string().max(1000).nullable().optional(),
+  status: z.enum(TOUR_PAYMENT_STATUSES).default('DRAFT'),
+  notes: z.string().max(2000).nullable().optional(),
+})
+export const tourPaymentInput = tourPaymentBase
+export const tourPaymentPatch = tourPaymentBase.partial()
+
+// ─── Finance: Expenses ──────────────────────────────────────────────────────
+const tourExpenseBase = z.object({
+  expenseDate: isoDate,
+  orderId: int(1, 999999999).nullable().optional(),
+  tripId: int(1, 999999999).nullable().optional(),
+  bookingId: int(1, 999999999).nullable().optional(),
+  vendorId: int(1, 999999999).nullable().optional(),
+  category: z.enum(TOUR_EXPENSE_CATEGORIES),
+  description: z.string().max(500).default(''),
+  currency: z.enum(CURRENCIES).default('IDR'),
+  amount: numStr.min(0.01),
+  exchangeRateSnapshot: optionalPositiveNumber,
+  amountIdr: optionalNumber,
+  status: z.enum(TOUR_EXPENSE_STATUSES).default('DRAFT'),
+  paymentMethod: z.string().max(100).nullable().optional(),
+  referenceNumber: z.string().max(200).nullable().optional(),
+  proofUrl: z.string().max(1000).nullable().optional(),
+  notes: z.string().max(2000).nullable().optional(),
+})
+export const tourExpenseInput = tourExpenseBase.superRefine((v: any, ctx: any) => {
+  if (v.currency !== 'IDR' && (v.exchangeRateSnapshot === null || v.exchangeRateSnapshot === undefined)) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'exchangeRateSnapshot wajib untuk non-IDR', path: ['exchangeRateSnapshot'] })
+  }
+  if (v.currency !== 'IDR' && v.exchangeRateSnapshot !== null && v.exchangeRateSnapshot !== undefined && v.exchangeRateSnapshot <= 0) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'exchangeRateSnapshot harus > 0', path: ['exchangeRateSnapshot'] })
+  }
+})
+export const tourExpensePatch = tourExpenseBase.partial().superRefine((v: any, ctx: any) => {
   if (v.exchangeRateSnapshot !== null && v.exchangeRateSnapshot !== undefined && v.exchangeRateSnapshot <= 0) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'exchangeRateSnapshot harus > 0', path: ['exchangeRateSnapshot'] })
   }

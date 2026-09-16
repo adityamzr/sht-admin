@@ -10,6 +10,7 @@ const order = computed(() => data.value?.data ?? null);
 const jamaahList = computed(() => order.value?.jamaah ?? []);
 const bookingsList = computed(() => order.value?.bookings ?? []);
 const tripOrdersList = computed(() => order.value?.tripOrders ?? []);
+const finance = computed(() => (order.value as any)?.finance ?? null);
 
 const paxCount = computed(() => order.value?.paxCount ?? 0);
 const jamaahCount = computed(() => jamaahList.value.length);
@@ -102,6 +103,43 @@ async function deleteJamaah(j: any) {
   await adminDelete(`/api/admin/tour/jamaah/${j.id}`).catch(()=>{});
   await refreshOrder();
 }
+
+// Finance: Invoice quick-create from Order Detail
+const showInvoiceForm = ref(false);
+const invoiceForm = reactive({
+  issueDate: new Date().toISOString().slice(0,10),
+  dueDate: "",
+  description: "",
+  amountIdr: null as number | null,
+  state: "DRAFT",
+  notes: "",
+});
+const invoiceError = ref<string | null>(null);
+const invoicePending = ref(false);
+
+function openInvoiceCreate() {
+  Object.assign(invoiceForm, { issueDate: new Date().toISOString().slice(0,10), dueDate: "", description: "", amountIdr: null, state: "DRAFT", notes: "" });
+  invoiceError.value = null;
+  showInvoiceForm.value = true;
+}
+async function submitInvoice() {
+  invoicePending.value = true; invoiceError.value = null;
+  try {
+    if (!order.value?.id) throw new Error("Order tidak ditemukan");
+    const body: any = {
+      orderId: order.value.id,
+      issueDate: invoiceForm.issueDate,
+      dueDate: invoiceForm.dueDate || null,
+      description: invoiceForm.description || null,
+      amountIdr: Number(invoiceForm.amountIdr),
+      state: invoiceForm.state,
+      notes: invoiceForm.notes || null,
+    };
+    await adminPost("/api/admin/tour/invoices", body);
+    showInvoiceForm.value = false;
+    await refreshOrder();
+  } catch (e: any) { invoiceError.value = e?.data?.statusMessage || e.message || "Gagal simpan invoice"; } finally { invoicePending.value = false; }
+}
 </script>
 
 <template>
@@ -131,8 +169,59 @@ async function deleteJamaah(j: any) {
         </div>
       </div>
 
-      <!-- RIGHT OPERATIONAL SECTIONS: Jamaah, Trips, Bookings -->
+      <!-- RIGHT OPERATIONAL SECTIONS: Finance, Jamaah, Trips, Bookings -->
       <div class="space-y-6 lg:col-span-2">
+        <!-- FINANCE SUMMARY -->
+        <div class="rounded-2xl border border-neutral-line bg-white p-6">
+          <div class="flex items-center justify-between">
+            <div>
+              <h3 class="font-heading text-sm font-semibold">Keuangan</h3>
+              <p class="mt-1 text-xs text-neutral-charcoal/60">Ringkasan tagihan & pembayaran untuk Order ini</p>
+            </div>
+            <div class="flex gap-2">
+              <NuxtLink :to="`/tour/finance/invoices?orderId=${order.id}`" class="min-h-[32px] rounded-xl border border-neutral-line px-3 py-1.5 text-xs font-medium">Invoices</NuxtLink>
+              <button type="button" class="min-h-[32px] rounded-xl bg-sht-olive px-3 py-1.5 text-xs font-semibold text-white" @click="openInvoiceCreate">+ Invoice</button>
+            </div>
+          </div>
+          <div v-if="finance" class="mt-4 grid gap-3 sm:grid-cols-4">
+            <div class="rounded-xl bg-neutral-warm/50 px-4 py-3">
+              <p class="text-[11px] uppercase tracking-wide text-neutral-charcoal/50">Order Value</p>
+              <p class="mt-1 text-sm font-semibold">Rp {{ Number(finance.orderValue).toLocaleString('id-ID') }}</p>
+            </div>
+            <div class="rounded-xl bg-sky-50 px-4 py-3">
+              <p class="text-[11px] uppercase tracking-wide text-sky-700/60">Invoiced</p>
+              <p class="mt-1 text-sm font-semibold text-sky-700">Rp {{ Number(finance.totalInvoiced).toLocaleString('id-ID') }}</p>
+            </div>
+            <div class="rounded-xl bg-emerald-50 px-4 py-3">
+              <p class="text-[11px] uppercase tracking-wide text-emerald-700/60">Received (Verified)</p>
+              <p class="mt-1 text-sm font-semibold text-emerald-700">Rp {{ Number(finance.verifiedPayments).toLocaleString('id-ID') }}</p>
+            </div>
+            <div class="rounded-xl" :class="finance.outstanding > 0 ? 'bg-amber-50' : 'bg-neutral-warm/50'">
+              <div class="px-4 py-3">
+                <p class="text-[11px] uppercase tracking-wide" :class="finance.outstanding > 0 ? 'text-amber-700/60' : 'text-neutral-charcoal/50'">Outstanding</p>
+                <p class="mt-1 text-sm font-semibold" :class="finance.outstanding > 0 ? 'text-amber-700' : ''">Rp {{ Number(finance.outstanding).toLocaleString('id-ID') }}</p>
+              </div>
+            </div>
+          </div>
+          <div v-if="finance && finance.invoices?.length" class="mt-4 overflow-x-auto">
+            <table class="w-full text-left text-xs">
+              <thead class="border-b text-[11px] uppercase text-neutral-charcoal/50"><tr><th class="py-1.5">Invoice</th><th class="py-1.5">Issue / Due</th><th class="py-1.5">Amount</th><th class="py-1.5">Paid</th><th class="py-1.5">Outstanding</th><th class="py-1.5">Status</th></tr></thead>
+              <tbody class="divide-y">
+                <tr v-for="inv in finance.invoices.slice(0,5)" :key="inv.id">
+                  <td class="py-1.5 font-mono font-semibold">{{ inv.invoiceCode }}</td>
+                  <td class="py-1.5">{{ inv.issueDate }}<br/><span class="text-neutral-charcoal/50">Due {{ inv.dueDate || '—' }}</span></td>
+                  <td class="py-1.5">Rp {{ Number(inv.amountIdr).toLocaleString('id-ID') }}</td>
+                  <td class="py-1.5 text-emerald-700">Rp {{ Number(inv.totalPaid || 0).toLocaleString('id-ID') }}</td>
+                  <td class="py-1.5 font-medium">Rp {{ Number(inv.outstanding || 0).toLocaleString('id-ID') }}</td>
+                  <td class="py-1.5"><TourStatusBadge :status="inv.paymentStatus" type="paymentStatus" /></td>
+                </tr>
+              </tbody>
+            </table>
+            <NuxtLink :to="`/tour/finance/invoices?orderId=${order.id}`" class="mt-2 inline-block text-xs font-semibold text-brand-teal hover:underline">Lihat semua invoices →</NuxtLink>
+          </div>
+          <div v-if="finance && !finance.invoices?.length" class="mt-4 text-xs text-neutral-charcoal/50">Belum ada invoice untuk Order ini.</div>
+        </div>
+
         <!-- 1. JAMA'AH HUB -->
         <div class="rounded-2xl border border-neutral-line bg-white p-6">
           <div class="flex items-center justify-between gap-3">
@@ -246,6 +335,27 @@ async function deleteJamaah(j: any) {
         </div>
       </div>
     </div>
+
+    <!-- INVOICE MODAL -->
+    <TourModal :open="showInvoiceForm" title="Buat Invoice" :subtitle="order ? `Untuk ${order.orderCode} · ${order.customer?.name || ''}` : 'Invoice'" max-width="max-w-lg" @close="showInvoiceForm=false">
+      <div class="space-y-4">
+        <div class="grid gap-3 sm:grid-cols-2">
+          <label class="text-sm font-medium">Issue Date *<input v-model="invoiceForm.issueDate" type="date" class="mt-1 min-h-[44px] w-full rounded-xl border border-neutral-line px-4 text-sm" /></label>
+          <label class="text-sm font-medium">Due Date<input v-model="invoiceForm.dueDate" type="date" class="mt-1 min-h-[44px] w-full rounded-xl border border-neutral-line px-4 text-sm" /></label>
+          <label class="sm:col-span-2 text-sm font-medium">Description<input v-model="invoiceForm.description" class="mt-1 min-h-[44px] w-full rounded-xl border border-neutral-line px-4 text-sm" placeholder="DP 50%, Pelunasan..." /></label>
+          <label class="text-sm font-medium">Amount IDR *<TourMoneyInput v-model="invoiceForm.amountIdr" currency="IDR" placeholder="0" /></label>
+          <label class="text-sm font-medium">State<select v-model="invoiceForm.state" class="mt-1 min-h-[44px] w-full rounded-xl border border-neutral-line px-3 text-sm"><option>DRAFT</option><option>ISSUED</option><option>CANCELLED</option></select></label>
+          <label class="sm:col-span-2 text-sm font-medium">Notes<textarea v-model="invoiceForm.notes" rows="2" class="mt-1 w-full rounded-xl border border-neutral-line px-4 py-2 text-sm" /></label>
+        </div>
+        <p v-if="invoiceError" class="rounded-xl bg-red-50 px-4 py-2 text-sm text-red-700">{{ invoiceError }}</p>
+      </div>
+      <template #footer>
+        <div class="flex justify-end gap-2">
+          <button type="button" class="min-h-[40px] rounded-xl border px-4 py-2 text-sm" @click="showInvoiceForm=false">Batal</button>
+          <button type="button" class="min-h-[40px] rounded-xl bg-sht-olive px-5 py-2 text-sm font-semibold text-white" :disabled="invoicePending" @click="submitInvoice">Simpan Invoice</button>
+        </div>
+      </template>
+    </TourModal>
 
     <!-- JAMA'AH MODAL -->
     <TourModal :open="showJamaahForm" :title="editingJamaah ? 'Edit Jamaah' : 'Tambah Jamaah'" :subtitle="order ? `Untuk ${order.orderCode} · ${order.customer?.name || ''} — Jamaah milik Order` : 'Jamaah milik Order'" max-width="max-w-2xl" @close="showJamaahForm=false">

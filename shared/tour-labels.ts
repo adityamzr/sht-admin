@@ -98,6 +98,50 @@ export const TOUR_GENDER_LABELS: Record<string, string> = {
   FEMALE: 'Perempuan',
 }
 
+export const TOUR_INVOICE_STATE_LABELS: Record<string, string> = {
+  DRAFT: 'Draft',
+  ISSUED: 'Terbit',
+  CANCELLED: 'Dibatalkan',
+}
+
+export const TOUR_PAYMENT_STATUS_LABELS: Record<string, string> = {
+  DRAFT: 'Draft',
+  VERIFIED: 'Terverifikasi',
+  VOID: 'Void / Batal',
+}
+
+export const TOUR_PAYMENT_METHOD_LABELS: Record<string, string> = {
+  BANK_TRANSFER: 'Transfer Bank',
+  CASH: 'Tunai',
+  QRIS: 'QRIS',
+  OTHER: 'Lainnya',
+}
+
+export const TOUR_PAYMENT_STATUS_DERIVED_LABELS: Record<string, string> = {
+  UNPAID: 'Belum Bayar',
+  PARTIAL: 'Bayar Sebagian',
+  PAID: 'Lunas',
+  OVERDUE: 'Overdue',
+  CANCELLED: 'Dibatalkan',
+}
+
+export const TOUR_EXPENSE_STATUS_LABELS: Record<string, string> = {
+  DRAFT: 'Draft',
+  VERIFIED: 'Terverifikasi',
+  VOID: 'Void / Batal',
+}
+
+export const TOUR_EXPENSE_CATEGORY_LABELS: Record<string, string> = {
+  HOTEL: 'Hotel',
+  TRANSPORT: 'Transport',
+  VISA: 'Visa',
+  FLIGHT: 'Penerbangan',
+  SISKOPATUH: 'Siskopatuh',
+  MUTHAWWIF: 'Muthawwif',
+  HANDLING: 'Handling',
+  OTHER: 'Lainnya',
+}
+
 export function labelOrRaw(map: Record<string, string>, key: string | null | undefined): string {
   if (!key) return '—'
   return map[key] ?? key

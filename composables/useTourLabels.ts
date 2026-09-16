@@ -12,6 +12,12 @@ import {
   TOUR_BOOKING_TYPE_LABELS,
   TOUR_BOOKING_STATUS_LABELS,
   TOUR_GENDER_LABELS,
+  TOUR_INVOICE_STATE_LABELS,
+  TOUR_PAYMENT_STATUS_LABELS,
+  TOUR_PAYMENT_METHOD_LABELS,
+  TOUR_PAYMENT_STATUS_DERIVED_LABELS,
+  TOUR_EXPENSE_STATUS_LABELS,
+  TOUR_EXPENSE_CATEGORY_LABELS,
   labelOrRaw,
 } from '~/shared/tour-labels'
 
@@ -31,5 +37,11 @@ export function useTourLabels() {
     bookingTypeLabel: (k: string) => labelOrRaw(TOUR_BOOKING_TYPE_LABELS, k),
     bookingStatusLabel: (k: string) => labelOrRaw(TOUR_BOOKING_STATUS_LABELS, k),
     genderLabel: (k: string) => labelOrRaw(TOUR_GENDER_LABELS, k),
+    invoiceStateLabel: (k: string) => labelOrRaw(TOUR_INVOICE_STATE_LABELS, k),
+    paymentStatusLabel: (k: string) => labelOrRaw(TOUR_PAYMENT_STATUS_LABELS, k),
+    paymentMethodLabel: (k: string) => labelOrRaw(TOUR_PAYMENT_METHOD_LABELS, k),
+    paymentStatusDerivedLabel: (k: string) => labelOrRaw(TOUR_PAYMENT_STATUS_DERIVED_LABELS, k),
+    expenseStatusLabel: (k: string) => labelOrRaw(TOUR_EXPENSE_STATUS_LABELS, k),
+    expenseCategoryLabel: (k: string) => labelOrRaw(TOUR_EXPENSE_CATEGORY_LABELS, k),
   }
 }

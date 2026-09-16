@@ -68,6 +68,11 @@ export const TOUR_VENDOR_STATUSES = ['ACTIVE', 'INACTIVE'] as const
 export const TOUR_BOOKING_TYPES = ['HOTEL', 'TRANSPORT', 'VISA', 'FLIGHT', 'SISKOPATUH', 'MUTHAWWIF', 'HANDLING', 'OTHER'] as const
 export const TOUR_BOOKING_STATUSES = ['DRAFT', 'CONFIRMED', 'PAID', 'COMPLETED', 'CANCELLED'] as const
 export const TOUR_GENDERS = ['MALE', 'FEMALE'] as const
+export const TOUR_INVOICE_STATES = ['DRAFT', 'ISSUED', 'CANCELLED'] as const
+export const TOUR_PAYMENT_STATUSES = ['DRAFT', 'VERIFIED', 'VOID'] as const
+export const TOUR_PAYMENT_METHODS = ['BANK_TRANSFER', 'CASH', 'QRIS', 'OTHER'] as const
+export const TOUR_EXPENSE_CATEGORIES = ['HOTEL', 'TRANSPORT', 'VISA', 'FLIGHT', 'SISKOPATUH', 'MUTHAWWIF', 'HANDLING', 'OTHER'] as const
+export const TOUR_EXPENSE_STATUSES = ['DRAFT', 'VERIFIED', 'VOID'] as const
 
 // ─── Admin User ─────────────────────────────────────────────────────────────
 export const adminUsers = pgTable('admin_users', {
@@ -552,6 +557,9 @@ export const tourJamaahSeq = pgSequence('tour_jamaah_seq', { startWith: 1 })
 export const tourTripsSeq = pgSequence('tour_trips_seq', { startWith: 1 })
 export const tourVendorsSeq = pgSequence('tour_vendors_seq', { startWith: 1 })
 export const tourBookingsSeq = pgSequence('tour_bookings_seq', { startWith: 1 })
+export const tourInvoicesSeq = pgSequence('tour_invoices_seq', { startWith: 1 })
+export const tourPaymentsSeq = pgSequence('tour_payments_seq', { startWith: 1 })
+export const tourExpensesSeq = pgSequence('tour_expenses_seq', { startWith: 1 })
 
 // ─── Tour Customers ─────────────────────────────────────────────────────────
 export const tourCustomers = pgTable('tour_customers', {
@@ -738,4 +746,102 @@ export const tourBookings = pgTable('tour_bookings', {
   index('tour_bookings_type_idx').on(t.bookingType),
   index('tour_bookings_date_idx').on(t.bookingDate),
   index('tour_bookings_deleted_idx').on(t.deletedAt),
+])
+
+// ─── Tour Finance Phase 2 ───────────────────────────────────────────────────
+export const tourInvoices = pgTable('tour_invoices', {
+  id: serial('id').primaryKey(),
+  workspaceId: integer('workspace_id').notNull().references(() => workspaces.id, { onDelete: 'restrict' }),
+  invoiceCode: text('invoice_code').notNull().default(sql`'INV-' || to_char(now(), 'YYYY') || '-' || lpad(nextval('tour_invoices_seq')::text, 4, '0')`),
+  orderId: integer('order_id').notNull().references(() => tourOrders.id, { onDelete: 'restrict' }),
+  issueDate: date('issue_date', { mode: 'date' }).notNull(),
+  dueDate: date('due_date', { mode: 'date' }),
+  description: text('description'),
+  amountIdr: numeric('amount_idr', { precision: 18, scale: 2 }).notNull(),
+  state: text('state').notNull().default('DRAFT'),
+  notes: text('notes'),
+  createdBy: integer('created_by').references(() => adminUsers.id, { onDelete: 'set null' }),
+  updatedBy: integer('updated_by').references(() => adminUsers.id, { onDelete: 'set null' }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  deletedAt: timestamp('deleted_at', { withTimezone: true }),
+}, (t) => [
+  uniqueIndex('tour_invoices_workspace_code_unique').on(t.workspaceId, t.invoiceCode),
+  index('tour_invoices_workspace_idx').on(t.workspaceId),
+  index('tour_invoices_order_idx').on(t.orderId),
+  index('tour_invoices_state_idx').on(t.state),
+  index('tour_invoices_issue_date_idx').on(t.issueDate),
+  index('tour_invoices_due_date_idx').on(t.dueDate),
+  index('tour_invoices_deleted_idx').on(t.deletedAt),
+])
+
+export const tourPayments = pgTable('tour_payments', {
+  id: serial('id').primaryKey(),
+  workspaceId: integer('workspace_id').notNull().references(() => workspaces.id, { onDelete: 'restrict' }),
+  paymentCode: text('payment_code').notNull().default(sql`'PAY-' || to_char(now(), 'YYYY') || '-' || lpad(nextval('tour_payments_seq')::text, 4, '0')`),
+  invoiceId: integer('invoice_id').notNull().references(() => tourInvoices.id, { onDelete: 'restrict' }),
+  orderId: integer('order_id').notNull().references(() => tourOrders.id, { onDelete: 'restrict' }),
+  paymentDate: date('payment_date', { mode: 'date' }).notNull(),
+  amountIdr: numeric('amount_idr', { precision: 18, scale: 2 }).notNull(),
+  method: text('method').notNull().default('BANK_TRANSFER'),
+  accountOrChannel: text('account_or_channel'),
+  referenceNumber: text('reference_number'),
+  proofUrl: text('proof_url'),
+  status: text('status').notNull().default('DRAFT'),
+  notes: text('notes'),
+  verifiedBy: integer('verified_by').references(() => adminUsers.id, { onDelete: 'set null' }),
+  verifiedAt: timestamp('verified_at', { withTimezone: true }),
+  createdBy: integer('created_by').references(() => adminUsers.id, { onDelete: 'set null' }),
+  updatedBy: integer('updated_by').references(() => adminUsers.id, { onDelete: 'set null' }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  deletedAt: timestamp('deleted_at', { withTimezone: true }),
+}, (t) => [
+  uniqueIndex('tour_payments_workspace_code_unique').on(t.workspaceId, t.paymentCode),
+  index('tour_payments_workspace_idx').on(t.workspaceId),
+  index('tour_payments_invoice_idx').on(t.invoiceId),
+  index('tour_payments_order_idx').on(t.orderId),
+  index('tour_payments_status_idx').on(t.status),
+  index('tour_payments_date_idx').on(t.paymentDate),
+  index('tour_payments_deleted_idx').on(t.deletedAt),
+])
+
+export const tourExpenses = pgTable('tour_expenses', {
+  id: serial('id').primaryKey(),
+  workspaceId: integer('workspace_id').notNull().references(() => workspaces.id, { onDelete: 'restrict' }),
+  expenseCode: text('expense_code').notNull().default(sql`'EXP-' || to_char(now(), 'YYYY') || '-' || lpad(nextval('tour_expenses_seq')::text, 4, '0')`),
+  expenseDate: date('expense_date', { mode: 'date' }).notNull(),
+  orderId: integer('order_id').references(() => tourOrders.id, { onDelete: 'set null' }),
+  tripId: integer('trip_id').references(() => tourTrips.id, { onDelete: 'set null' }),
+  bookingId: integer('booking_id').references(() => tourBookings.id, { onDelete: 'set null' }),
+  vendorId: integer('vendor_id').references(() => tourVendors.id, { onDelete: 'set null' }),
+  category: text('category').notNull(),
+  description: text('description').notNull().default(''),
+  currency: text('currency').notNull().default('IDR'),
+  amount: numeric('amount', { precision: 18, scale: 2 }).notNull(),
+  exchangeRateSnapshot: numeric('exchange_rate_snapshot', { precision: 18, scale: 6 }),
+  amountIdr: numeric('amount_idr', { precision: 18, scale: 2 }).notNull(),
+  status: text('status').notNull().default('DRAFT'),
+  paymentMethod: text('payment_method'),
+  referenceNumber: text('reference_number'),
+  proofUrl: text('proof_url'),
+  notes: text('notes'),
+  verifiedBy: integer('verified_by').references(() => adminUsers.id, { onDelete: 'set null' }),
+  verifiedAt: timestamp('verified_at', { withTimezone: true }),
+  createdBy: integer('created_by').references(() => adminUsers.id, { onDelete: 'set null' }),
+  updatedBy: integer('updated_by').references(() => adminUsers.id, { onDelete: 'set null' }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  deletedAt: timestamp('deleted_at', { withTimezone: true }),
+}, (t) => [
+  uniqueIndex('tour_expenses_workspace_code_unique').on(t.workspaceId, t.expenseCode),
+  index('tour_expenses_workspace_idx').on(t.workspaceId),
+  index('tour_expenses_order_idx').on(t.orderId),
+  index('tour_expenses_trip_idx').on(t.tripId),
+  index('tour_expenses_booking_idx').on(t.bookingId),
+  index('tour_expenses_vendor_idx').on(t.vendorId),
+  index('tour_expenses_category_idx').on(t.category),
+  index('tour_expenses_status_idx').on(t.status),
+  index('tour_expenses_date_idx').on(t.expenseDate),
+  index('tour_expenses_deleted_idx').on(t.deletedAt),
 ])
