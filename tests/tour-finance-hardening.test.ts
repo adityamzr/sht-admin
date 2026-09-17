@@ -72,7 +72,8 @@ describe('Phase 2.1 Finance Integrity Hardening', () => {
     assert.equal(outstandingReceivables, 8000000)
     assert.equal(invoices.filter(i => i.state === 'DRAFT').length, 1)
     // DRAFT excluded
-    assert.equal(outstandingReceivables !== 10000000 + 8000000 + 10000000, true)
+    assert.notEqual(outstandingReceivables, 10000000 + 8000000 + 10000000)
+    assert.ok(outstandingReceivables < 28000000)
   })
 
   it('Invoice DRAFT not overdue, ISSUED overdue only', () => {
@@ -318,7 +319,8 @@ describe('Phase 2.1 Finance Integrity Hardening', () => {
     const sliced = allOverdue.slice(0,10)
     assert.equal(count, 25)
     assert.equal(sliced.length, 10)
-    assert.equal(count !== sliced.length, true, 'overdueCount separate before slice, not capped at 10')
+    assert.notEqual(count, sliced.length, 'overdueCount separate before slice, not capped at 10')
+    assert.ok(count > sliced.length, 'count uncapped > sliced')
   })
 
   // ── Reports ───────────────────────────────────────────────────────────────
