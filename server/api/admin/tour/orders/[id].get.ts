@@ -10,7 +10,6 @@ export default defineEventHandler(async (event) => {
   const row = await getTourOrder(db, id, workspaceId)
   if (!row) throw createError({ statusCode: 404, statusMessage: 'Order tidak ditemukan' })
 
-  // Fetch linked data for operational center view — include archived customer
   const [jamaahRes, bookingsRes, tripOrders, customer, invoicesRes, paymentsRes, expensesRes] = await Promise.all([
     listTourJamaah(db, { workspaceId, orderId: id, page: 1, pageSize: 100 }),
     listTourBookings(db, { workspaceId, orderId: id, page: 1, pageSize: 100 }),
@@ -21,13 +20,24 @@ export default defineEventHandler(async (event) => {
     listTourExpensesEnriched(db, { workspaceId, orderId: id, page: 1, pageSize: 100 }).catch(() => ({ data: [] })),
   ])
 
-  // Finance summary derived
   const orderValue = Number(row.sellingPriceIdr ?? 0)
   const invoices = (invoicesRes as any).data ?? []
-  const totalInvoiced = invoices.filter((i: any) => i.state !== 'CANCELLED').reduce((s: number, i: any) => s + Number(i.amountIdr ?? 0), 0)
+  // Only ISSUED counts as receivable per hardening
+  const activeInvoices = invoices.filter((i: any) => i.state === 'ISSUED')
+  const totalInvoiced = activeInvoices.reduce((s: number, i: any) => s + Number(i.amountIdr ?? 0), 0)
+  const totalOutstanding = activeInvoices.reduce((s: number, i: any) => s + Number(i.outstanding ?? 0), 0)
+
   const payments = (paymentsRes as any).data ?? []
   const verifiedPayments = payments.filter((p: any) => p.status === 'VERIFIED').reduce((s: number, p: any) => s + Number(p.amountIdr ?? 0), 0)
-  const totalOutstanding = invoices.filter((i: any) => i.state !== 'CANCELLED').reduce((s: number, i: any) => s + Number(i.outstanding ?? 0), 0)
+
+  const bookings = (bookingsRes as any).data ?? []
+  const committedBookingCost = bookings.reduce((s: number, b: any) => s + Number(b.amountIdr ?? 0), 0)
+
+  const expenses = (expensesRes as any).data ?? []
+  const verifiedExpenses = expenses.filter((e: any) => e.status === 'VERIFIED').reduce((s: number, e: any) => s + Number(e.amountIdr ?? 0), 0)
+
+  const expectedDirectMargin = orderValue - committedBookingCost
+  const currentCashMargin = verifiedPayments - verifiedExpenses
 
   return {
     data: {
@@ -41,9 +51,13 @@ export default defineEventHandler(async (event) => {
         totalInvoiced,
         verifiedPayments,
         outstanding: totalOutstanding,
+        committedBookingCost,
+        verifiedExpenses,
+        expectedDirectMargin,
+        currentCashMargin,
         invoices,
         payments,
-        expenses: (expensesRes as any).data ?? [],
+        expenses,
       },
     },
   }

@@ -28,7 +28,6 @@ function toIsoDateString(d: any): string | null {
   return String(d).slice(0, 10)
 }
 
-// Workspace helper
 export async function getTourWorkspaceIdFinance(db: DbLike): Promise<number> {
   const rows = await db.select({ id: workspaces.id }).from(workspaces).where(eq(workspaces.key, 'tour')).limit(1)
   if (!rows[0]) throw new Error('Tour workspace not found')
@@ -43,6 +42,8 @@ export interface ListInvoicesFilter {
   orderId?: number
   page?: number
   pageSize?: number
+  startDate?: string
+  endDate?: string
 }
 
 export async function listTourInvoices(db: DbLike, f: ListInvoicesFilter) {
@@ -52,6 +53,8 @@ export async function listTourInvoices(db: DbLike, f: ListInvoicesFilter) {
   const conds: any[] = [eq(tourInvoices.workspaceId, f.workspaceId), notDeleted(tourInvoices)]
   if (f.state) conds.push(eq(tourInvoices.state, f.state))
   if (f.orderId) conds.push(eq(tourInvoices.orderId, f.orderId))
+  if (f.startDate) conds.push(gte(tourInvoices.issueDate, f.startDate as any))
+  if (f.endDate) conds.push(lte(tourInvoices.issueDate, f.endDate as any))
   if (f.search) {
     const s = `%${f.search}%`
     conds.push(or(ilike(tourInvoices.invoiceCode, s), ilike(tourInvoices.description, s)))
@@ -71,6 +74,8 @@ export async function listTourInvoicesEnriched(db: DbLike, f: ListInvoicesFilter
   const conds: any[] = [eq(tourInvoices.workspaceId, f.workspaceId), notDeleted(tourInvoices)]
   if (f.state) conds.push(eq(tourInvoices.state, f.state))
   if (f.orderId) conds.push(eq(tourInvoices.orderId, f.orderId))
+  if (f.startDate) conds.push(gte(tourInvoices.issueDate, f.startDate as any))
+  if (f.endDate) conds.push(lte(tourInvoices.issueDate, f.endDate as any))
   if (f.search) {
     const s = `%${f.search}%`
     conds.push(or(ilike(tourInvoices.invoiceCode, s), ilike(tourInvoices.description, s)))
@@ -88,7 +93,6 @@ export async function listTourInvoicesEnriched(db: DbLike, f: ListInvoicesFilter
     db.select({ v: count() }).from(tourInvoices).where(where),
   ])
 
-  // For each invoice, compute paid/outstanding
   const invoiceIds = rows.map(r => r.invoice.id)
   let paymentsMap: Record<number, { totalPaid: number; count: number }> = {}
   if (invoiceIds.length) {
@@ -108,10 +112,10 @@ export async function listTourInvoicesEnriched(db: DbLike, f: ListInvoicesFilter
     const outstanding = Math.max(amount - totalPaid, 0)
     let paymentStatus: string = 'UNPAID'
     if (r.invoice.state === 'CANCELLED') paymentStatus = 'CANCELLED'
+    else if (r.invoice.state === 'DRAFT') paymentStatus = 'DRAFT'
     else if (outstanding === 0 && totalPaid > 0) paymentStatus = 'PAID'
     else if (totalPaid > 0 && outstanding > 0) paymentStatus = 'PARTIAL'
     else {
-      // check overdue
       if (r.invoice.dueDate) {
         const today = new Date().toISOString().slice(0, 10)
         const due = toIsoDateString(r.invoice.dueDate)
@@ -152,7 +156,6 @@ export async function getTourInvoiceEnriched(db: DbLike, id: number, workspaceId
   if (!rows[0]) return null
   const r = rows[0]
 
-  // compute payments
   const payments = await db.select({
     total: sql<number>`coalesce(sum(CASE WHEN ${tourPayments.status} = 'VERIFIED' THEN ${tourPayments.amountIdr} ELSE 0 END),0)`,
   }).from(tourPayments).where(and(eq(tourPayments.workspaceId, workspaceId), eq(tourPayments.invoiceId, id), notDeleted(tourPayments)))
@@ -163,6 +166,7 @@ export async function getTourInvoiceEnriched(db: DbLike, id: number, workspaceId
 
   let paymentStatus = 'UNPAID'
   if (r.invoice.state === 'CANCELLED') paymentStatus = 'CANCELLED'
+  else if (r.invoice.state === 'DRAFT') paymentStatus = 'DRAFT'
   else if (outstanding === 0 && totalPaid > 0) paymentStatus = 'PAID'
   else if (totalPaid > 0 && outstanding > 0) paymentStatus = 'PARTIAL'
   else {
@@ -187,7 +191,7 @@ export async function createTourInvoice(db: DbLike, workspaceId: number, input: 
   const orderId = Number((input as any).orderId)
   const orderRows = await db.select().from(tourOrders).where(and(eq(tourOrders.id, orderId), eq(tourOrders.workspaceId, workspaceId), notDeleted(tourOrders))).limit(1)
   if (!orderRows[0]) badRequest('Order tidak ditemukan atau bukan milik workspace ini')
-  // dueDate validation handled by zod, but double-check
+
   const issueDate = (input as any).issueDate
   const dueDate = (input as any).dueDate
   if (issueDate && dueDate) {
@@ -195,6 +199,11 @@ export async function createTourInvoice(db: DbLike, workspaceId: number, input: 
     const due = new Date(dueDate)
     if (due.getTime() < issue.getTime()) badRequest('dueDate tidak boleh sebelum issueDate')
   }
+
+  // Prevent creating as CANCELLED directly – should be explicit action, but allow if service explicitly wants? For hardening, block CANCELLED on create
+  const state = (input as any).state || 'DRAFT'
+  if (state === 'CANCELLED') badRequest('Invoice tidak bisa dibuat langsung sebagai CANCELLED, buat sebagai DRAFT/ISSUED lalu Cancel')
+
   const rows = await db.insert(tourInvoices).values({ ...input, workspaceId, createdBy } as never).returning()
   return rows[0]
 }
@@ -202,22 +211,37 @@ export async function createTourInvoice(db: DbLike, workspaceId: number, input: 
 export async function updateTourInvoice(db: DbLike, id: number, workspaceId: number, patch: Record<string, unknown>, updatedBy?: number) {
   const existing = await getTourInvoice(db, id, workspaceId)
   if (!existing) return null
-  if (existing.state === 'CANCELLED' && (patch as any).state !== 'CANCELLED') {
-    // allow staying cancelled but not un-cancelling? For V1 allow but warn – we allow
+
+  // CANCELLED is terminal – cannot reopen via PATCH
+  if (existing.state === 'CANCELLED') {
+    const newState = (patch as any).state
+    if (newState && newState !== 'CANCELLED') {
+      badRequest('Invoice CANCELLED tidak bisa dibuka kembali, buat Invoice baru untuk koreksi')
+    }
   }
+
   if ((patch as any).orderId) {
     const orderRows = await db.select().from(tourOrders).where(and(eq(tourOrders.id, Number((patch as any).orderId)), eq(tourOrders.workspaceId, workspaceId), notDeleted(tourOrders))).limit(1)
     if (!orderRows[0]) badRequest('Order tidak ditemukan')
   }
+
+  // Merge existing + patch for date validation
+  const finalIssueDate = (patch as any).issueDate ? new Date((patch as any).issueDate) : (existing.issueDate ? new Date(existing.issueDate as any) : null)
+  const finalDueDateRaw = (patch as any).dueDate !== undefined ? (patch as any).dueDate : existing.dueDate
+  const finalDueDate = finalDueDateRaw ? new Date(finalDueDateRaw as any) : null
+  if (finalIssueDate && finalDueDate) {
+    if (finalDueDate.getTime() < finalIssueDate.getTime()) badRequest('dueDate tidak boleh sebelum issueDate')
+  }
+
   const rows = await db.update(tourInvoices).set({ ...patch, updatedBy, updatedAt: new Date() } as never).where(and(eq(tourInvoices.id, id), eq(tourInvoices.workspaceId, workspaceId))).returning()
   return rows[0] ?? null
 }
 
 export async function softDeleteTourInvoice(db: DbLike, id: number, workspaceId: number) {
-  // Only allow delete if DRAFT, otherwise prefer CANCEL
   const existing = await getTourInvoice(db, id, workspaceId)
   if (!existing) return null
   if (existing.state === 'ISSUED') badRequest('Invoice ISSUED tidak boleh dihapus, gunakan CANCEL')
+  if (existing.state === 'CANCELLED') badRequest('Invoice CANCELLED tidak boleh dihapus, simpan sebagai historis')
   const rows = await db.update(tourInvoices).set({ deletedAt: new Date(), updatedAt: new Date() } as never).where(and(eq(tourInvoices.id, id), eq(tourInvoices.workspaceId, workspaceId))).returning({ id: tourInvoices.id })
   return rows[0] ?? null
 }
@@ -232,6 +256,8 @@ export interface ListPaymentsFilter {
   orderId?: number
   page?: number
   pageSize?: number
+  startDate?: string
+  endDate?: string
 }
 
 export async function listTourPayments(db: DbLike, f: ListPaymentsFilter) {
@@ -243,6 +269,8 @@ export async function listTourPayments(db: DbLike, f: ListPaymentsFilter) {
   if (f.method) conds.push(eq(tourPayments.method, f.method))
   if (f.invoiceId) conds.push(eq(tourPayments.invoiceId, f.invoiceId))
   if (f.orderId) conds.push(eq(tourPayments.orderId, f.orderId))
+  if (f.startDate) conds.push(gte(tourPayments.paymentDate, f.startDate as any))
+  if (f.endDate) conds.push(lte(tourPayments.paymentDate, f.endDate as any))
   if (f.search) {
     const s = `%${f.search}%`
     conds.push(or(ilike(tourPayments.paymentCode, s), ilike(tourPayments.referenceNumber, s)))
@@ -264,6 +292,8 @@ export async function listTourPaymentsEnriched(db: DbLike, f: ListPaymentsFilter
   if (f.method) conds.push(eq(tourPayments.method, f.method))
   if (f.invoiceId) conds.push(eq(tourPayments.invoiceId, f.invoiceId))
   if (f.orderId) conds.push(eq(tourPayments.orderId, f.orderId))
+  if (f.startDate) conds.push(gte(tourPayments.paymentDate, f.startDate as any))
+  if (f.endDate) conds.push(lte(tourPayments.paymentDate, f.endDate as any))
   if (f.search) {
     const s = `%${f.search}%`
     conds.push(or(ilike(tourPayments.paymentCode, s), ilike(tourPayments.referenceNumber, s)))
@@ -322,53 +352,123 @@ export async function createTourPayment(db: DbLike, workspaceId: number, input: 
   const invoiceRows = await db.select().from(tourInvoices).where(and(eq(tourInvoices.id, invoiceId), eq(tourInvoices.workspaceId, workspaceId), notDeleted(tourInvoices))).limit(1)
   if (!invoiceRows[0]) badRequest('Invoice tidak ditemukan')
   if (invoiceRows[0].state === 'CANCELLED') badRequest('Invoice CANCELLED tidak bisa menerima pembayaran')
-  // Ensure orderId matches invoice orderId
   const orderId = (input as any).orderId ? Number((input as any).orderId) : invoiceRows[0].orderId
   if (orderId !== invoiceRows[0].orderId) badRequest('OrderId pembayaran harus sama dengan Order Invoice')
-  // Check overpayment for VERIFIED
+
   const status = (input as any).status || 'DRAFT'
+  if (status === 'VOID') badRequest('Payment tidak bisa dibuat langsung sebagai VOID')
+
+  // DRAFT invoice cannot receive VERIFIED payment
+  if (status === 'VERIFIED' && invoiceRows[0].state !== 'ISSUED') {
+    badRequest('Hanya Invoice ISSUED yang bisa menerima pembayaran VERIFIED. Invoice masih DRAFT')
+  }
+
   if (status === 'VERIFIED') {
     const existingPaid = await db.select({ total: sql<number>`coalesce(sum(CASE WHEN ${tourPayments.status} = 'VERIFIED' THEN ${tourPayments.amountIdr} ELSE 0 END),0)` }).from(tourPayments).where(and(eq(tourPayments.workspaceId, workspaceId), eq(tourPayments.invoiceId, invoiceId), notDeleted(tourPayments)))
     const totalPaid = Number(existingPaid[0]?.total ?? 0)
     const invoiceAmount = Number(invoiceRows[0].amountIdr ?? 0)
     const newAmount = Number((input as any).amountIdr ?? 0)
     if (totalPaid + newAmount > invoiceAmount) {
-      badRequest(`Pembayaran melebihi sisa tagihan. Sudah dibayar Rp${totalPaid.toLocaleString('id-ID')}, tagihan Rp${invoiceAmount.toLocaleString('id-ID')}, sisa Rp${(invoiceAmount - totalPaid).toLocaleString('id-ID')}`)
+      badRequest(`Nominal pembayaran melebihi sisa tagihan. Sudah dibayar Rp${totalPaid.toLocaleString('id-ID')}, tagihan Rp${invoiceAmount.toLocaleString('id-ID')}, sisa Rp${(invoiceAmount - totalPaid).toLocaleString('id-ID')}`)
     }
   }
 
-  const rows = await db.insert(tourPayments).values({ ...input, orderId, workspaceId, createdBy } as never).returning()
+  const now = new Date()
+  const extra: any = {}
+  if (status === 'VERIFIED') {
+    extra.verifiedBy = createdBy || null
+    extra.verifiedAt = now
+  }
+
+  const rows = await db.insert(tourPayments).values({ ...input, orderId, workspaceId, createdBy, ...extra } as never).returning()
   return rows[0]
 }
 
 export async function updateTourPayment(db: DbLike, id: number, workspaceId: number, patch: Record<string, unknown>, updatedBy?: number) {
   const existing = await getTourPayment(db, id, workspaceId)
   if (!existing) return null
-  if (existing.status === 'VERIFIED' && (patch as any).status !== 'VOID' && (patch as any).status !== 'VERIFIED') {
-    // Prevent casual downgrade from VERIFIED to DRAFT
-    if ((patch as any).status === 'DRAFT') badRequest('Pembayaran VERIFIED tidak bisa kembali ke DRAFT, gunakan VOID untuk koreksi')
+
+  // VOID is read-only historical, cannot edit financial fields
+  if (existing.status === 'VOID') {
+    const financialFields = ['invoiceId','orderId','paymentDate','amountIdr','method','accountOrChannel','referenceNumber','proofUrl']
+    for (const f of financialFields) {
+      if ((patch as any)[f] !== undefined && String((patch as any)[f]) !== String((existing as any)[f])) {
+        badRequest(`Payment VOID tidak bisa diubah field ${f}, buat payment baru untuk koreksi`)
+      }
+    }
+    // allow only notes maybe? For V1, block all except notes? Let's allow notes but lock financial
+    if ((patch as any).status && (patch as any).status !== 'VOID') {
+      badRequest('Payment VOID tidak bisa diubah statusnya')
+    }
   }
+
+  // VERIFIED immutability – lock financially meaningful fields
+  if (existing.status === 'VERIFIED') {
+    const newStatus = (patch as any).status
+    if (newStatus && newStatus !== 'VOID' && newStatus !== 'VERIFIED') {
+      if (newStatus === 'DRAFT') badRequest('Pembayaran VERIFIED tidak bisa kembali ke DRAFT, gunakan VOID untuk koreksi')
+      badRequest(`Pembayaran VERIFIED hanya bisa di-VOID, tidak bisa diubah ke ${newStatus}`)
+    }
+    if (!newStatus || newStatus === 'VERIFIED') {
+      // trying to edit financial fields while staying VERIFIED – block
+      const locked = ['invoiceId','orderId','paymentDate','amountIdr','method','accountOrChannel','referenceNumber','proofUrl']
+      for (const field of locked) {
+        if ((patch as any)[field] !== undefined) {
+          const oldVal = (existing as any)[field]
+          const newVal = (patch as any)[field]
+          // compare as string for date etc
+          if (String(oldVal) !== String(newVal)) {
+            badRequest(`Field ${field} tidak bisa diubah setelah VERIFIED, VOID dulu lalu buat baru`)
+          }
+        }
+      }
+    }
+    // if transitioning VERIFIED -> VOID, allow
+    if (newStatus === 'VOID') {
+      // preserve verification history, allow void
+    }
+  }
+
+  // If patch tries to change invoiceId, validate new invoice
   if ((patch as any).invoiceId) {
     const invoiceRows = await db.select().from(tourInvoices).where(and(eq(tourInvoices.id, Number((patch as any).invoiceId)), eq(tourInvoices.workspaceId, workspaceId), notDeleted(tourInvoices))).limit(1)
     if (!invoiceRows[0]) badRequest('Invoice tidak ditemukan')
     if (invoiceRows[0].state === 'CANCELLED') badRequest('Invoice CANCELLED tidak bisa menerima pembayaran')
+    // If trying to verify against non-ISSUED invoice, block
+    const newStatus = (patch as any).status || existing.status
+    if (newStatus === 'VERIFIED' && invoiceRows[0].state !== 'ISSUED') {
+      badRequest('Hanya Invoice ISSUED yang bisa memiliki payment VERIFIED')
+    }
   }
+
   // Overpayment check if status VERIFIED or patch makes VERIFIED
   const newStatus = (patch as any).status || existing.status
   const newAmount = (patch as any).amountIdr !== undefined ? Number((patch as any).amountIdr) : Number(existing.amountIdr)
   const invoiceId = (patch as any).invoiceId ? Number((patch as any).invoiceId) : existing.invoiceId
+
   if (newStatus === 'VERIFIED') {
+    // Ensure invoice is ISSUED
     const invoiceRows = await db.select().from(tourInvoices).where(and(eq(tourInvoices.id, invoiceId), eq(tourInvoices.workspaceId, workspaceId), notDeleted(tourInvoices))).limit(1)
     if (!invoiceRows[0]) badRequest('Invoice tidak ditemukan')
+    if (invoiceRows[0].state !== 'ISSUED') badRequest('Hanya Invoice ISSUED yang bisa di-VERIFIED')
+
     const existingPaidRows = await db.select({ total: sql<number>`coalesce(sum(CASE WHEN ${tourPayments.status} = 'VERIFIED' AND ${tourPayments.id} != ${id} THEN ${tourPayments.amountIdr} ELSE 0 END),0)` }).from(tourPayments).where(and(eq(tourPayments.workspaceId, workspaceId), eq(tourPayments.invoiceId, invoiceId), notDeleted(tourPayments)))
     const totalPaidExcludingThis = Number(existingPaidRows[0]?.total ?? 0)
     const invoiceAmount = Number(invoiceRows[0].amountIdr ?? 0)
     if (totalPaidExcludingThis + newAmount > invoiceAmount) {
-      badRequest(`Pembayaran melebihi sisa tagihan. Sudah dibayar Rp${totalPaidExcludingThis.toLocaleString('id-ID')} (di luar record ini), tagihan Rp${invoiceAmount.toLocaleString('id-ID')}`)
+      badRequest(`Nominal pembayaran melebihi sisa tagihan. Sudah dibayar Rp${totalPaidExcludingThis.toLocaleString('id-ID')} (di luar record ini), tagihan Rp${invoiceAmount.toLocaleString('id-ID')}, sisa Rp${(invoiceAmount - totalPaidExcludingThis).toLocaleString('id-ID')}`)
     }
   }
 
-  const rows = await db.update(tourPayments).set({ ...patch, updatedBy, updatedAt: new Date() } as never).where(and(eq(tourPayments.id, id), eq(tourPayments.workspaceId, workspaceId))).returning()
+  const extra: any = {}
+  // When transitioning DRAFT -> VERIFIED, set verifiedBy/At server-side
+  if (existing.status === 'DRAFT' && newStatus === 'VERIFIED') {
+    extra.verifiedBy = updatedBy || null
+    extra.verifiedAt = new Date()
+  }
+  // When VOID, preserve verification history – do not clear verifiedBy/At
+
+  const rows = await db.update(tourPayments).set({ ...patch, ...extra, updatedBy, updatedAt: new Date() } as never).where(and(eq(tourPayments.id, id), eq(tourPayments.workspaceId, workspaceId))).returning()
   return rows[0] ?? null
 }
 
@@ -376,6 +476,7 @@ export async function softDeleteTourPayment(db: DbLike, id: number, workspaceId:
   const existing = await getTourPayment(db, id, workspaceId)
   if (!existing) return null
   if (existing.status === 'VERIFIED') badRequest('Pembayaran VERIFIED tidak boleh dihapus, gunakan VOID')
+  if (existing.status === 'VOID') badRequest('Pembayaran VOID tidak boleh dihapus, simpan sebagai historis')
   const rows = await db.update(tourPayments).set({ deletedAt: new Date(), updatedAt: new Date() } as never).where(and(eq(tourPayments.id, id), eq(tourPayments.workspaceId, workspaceId))).returning({ id: tourPayments.id })
   return rows[0] ?? null
 }
@@ -392,6 +493,8 @@ export interface ListExpensesFilter {
   bookingId?: number
   page?: number
   pageSize?: number
+  startDate?: string
+  endDate?: string
 }
 
 export async function listTourExpenses(db: DbLike, f: ListExpensesFilter) {
@@ -405,6 +508,8 @@ export async function listTourExpenses(db: DbLike, f: ListExpensesFilter) {
   if (f.tripId) conds.push(eq(tourExpenses.tripId, f.tripId))
   if (f.vendorId) conds.push(eq(tourExpenses.vendorId, f.vendorId))
   if (f.bookingId) conds.push(eq(tourExpenses.bookingId, f.bookingId))
+  if (f.startDate) conds.push(gte(tourExpenses.expenseDate, f.startDate as any))
+  if (f.endDate) conds.push(lte(tourExpenses.expenseDate, f.endDate as any))
   if (f.search) {
     const s = `%${f.search}%`
     conds.push(or(ilike(tourExpenses.expenseCode, s), ilike(tourExpenses.description, s), ilike(tourExpenses.referenceNumber, s)))
@@ -428,6 +533,8 @@ export async function listTourExpensesEnriched(db: DbLike, f: ListExpensesFilter
   if (f.tripId) conds.push(eq(tourExpenses.tripId, f.tripId))
   if (f.vendorId) conds.push(eq(tourExpenses.vendorId, f.vendorId))
   if (f.bookingId) conds.push(eq(tourExpenses.bookingId, f.bookingId))
+  if (f.startDate) conds.push(gte(tourExpenses.expenseDate, f.startDate as any))
+  if (f.endDate) conds.push(lte(tourExpenses.expenseDate, f.endDate as any))
   if (f.search) {
     const s = `%${f.search}%`
     conds.push(or(ilike(tourExpenses.expenseCode, s), ilike(tourExpenses.description, s), ilike(tourExpenses.referenceNumber, s)))
@@ -499,8 +606,24 @@ function computeExpenseAmountIdr(currency: string, amount: number, snapshot: num
   return Number(amount) * Number(snapshot)
 }
 
+async function validateBookingLinkedExpense(db: DbLike, workspaceId: number, bookingId: number, input: { orderId?: number | null, tripId?: number | null, vendorId?: number | null }) {
+  const bRows = await db.select().from(tourBookings).where(and(eq(tourBookings.id, bookingId), eq(tourBookings.workspaceId, workspaceId), notDeleted(tourBookings))).limit(1)
+  if (!bRows[0]) badRequest('Booking tidak ditemukan')
+  const booking = bRows[0]
+  // If input provides conflicting relationships, reject
+  if (input.orderId && booking.orderId && Number(input.orderId) !== booking.orderId) {
+    badRequest(`OrderId Expense (${input.orderId}) tidak cocok dengan OrderId Booking (${booking.orderId})`)
+  }
+  if (input.tripId && booking.tripId && Number(input.tripId) !== booking.tripId) {
+    badRequest(`TripId Expense (${input.tripId}) tidak cocok dengan TripId Booking (${booking.tripId})`)
+  }
+  if (input.vendorId && booking.vendorId && Number(input.vendorId) !== booking.vendorId) {
+    badRequest(`VendorId Expense (${input.vendorId}) tidak cocok dengan VendorId Booking (${booking.vendorId}) – tidak boleh Booking Vendor A + Expense Vendor B`)
+  }
+  return booking
+}
+
 export async function createTourExpense(db: DbLike, workspaceId: number, input: Record<string, unknown>, createdBy?: number) {
-  // Validate relations belong to same workspace
   const orderId = (input as any).orderId ? Number((input as any).orderId) : null
   if (orderId) {
     const o = await db.select({ id: tourOrders.id }).from(tourOrders).where(and(eq(tourOrders.id, orderId), eq(tourOrders.workspaceId, workspaceId), notDeleted(tourOrders))).limit(1)
@@ -513,8 +636,7 @@ export async function createTourExpense(db: DbLike, workspaceId: number, input: 
   }
   const bookingId = (input as any).bookingId ? Number((input as any).bookingId) : null
   if (bookingId) {
-    const b = await db.select({ id: tourBookings.id }).from(tourBookings).where(and(eq(tourBookings.id, bookingId), eq(tourBookings.workspaceId, workspaceId), notDeleted(tourBookings))).limit(1)
-    if (!b[0]) badRequest('Booking tidak ditemukan')
+    await validateBookingLinkedExpense(db, workspaceId, bookingId, { orderId, tripId, vendorId: (input as any).vendorId ? Number((input as any).vendorId) : null })
   }
   const vendorId = (input as any).vendorId ? Number((input as any).vendorId) : null
   if (vendorId) {
@@ -522,21 +644,67 @@ export async function createTourExpense(db: DbLike, workspaceId: number, input: 
     if (!v[0]) badRequest('Vendor tidak ditemukan')
   }
 
+  const status = (input as any).status || 'DRAFT'
+  if (status === 'VOID') badRequest('Expense tidak bisa dibuat langsung sebagai VOID')
+
   const currency = (input as any).currency || 'IDR'
   const amount = Number((input as any).amount)
-  const snapshot = (input as any).exchangeRateSnapshot ? Number((input as any).exchangeRateSnapshot) : null
+  let snapshot: number | null = (input as any).exchangeRateSnapshot ? Number((input as any).exchangeRateSnapshot) : null
+
+  // FX invariant
+  if (currency === 'IDR') {
+    snapshot = null
+  } else {
+    if (!snapshot || snapshot <= 0) badRequest('Kurs snapshot wajib >0 untuk SAR/USD')
+  }
+
   const amountIdr = computeExpenseAmountIdr(currency, amount, snapshot)
 
-  const rows = await db.insert(tourExpenses).values({ ...input, amountIdr, workspaceId, createdBy } as never).returning()
+  const now = new Date()
+  const extra: any = {}
+  if (status === 'VERIFIED') {
+    extra.verifiedBy = createdBy || null
+    extra.verifiedAt = now
+  }
+
+  const rows = await db.insert(tourExpenses).values({ ...input, exchangeRateSnapshot: snapshot, amountIdr, workspaceId, createdBy, ...extra } as never).returning()
   return rows[0]
 }
 
 export async function updateTourExpense(db: DbLike, id: number, workspaceId: number, patch: Record<string, unknown>, updatedBy?: number) {
   const existing = await getTourExpense(db, id, workspaceId)
   if (!existing) return null
-  if (existing.status === 'VERIFIED' && (patch as any).status === 'DRAFT') {
-    badRequest('Expense VERIFIED tidak bisa kembali ke DRAFT, gunakan VOID')
+
+  // VOID is read-only
+  if (existing.status === 'VOID') {
+    const locked = ['expenseDate','orderId','tripId','bookingId','vendorId','category','currency','amount','exchangeRateSnapshot','amountIdr','paymentMethod','referenceNumber']
+    for (const f of locked) {
+      if ((patch as any)[f] !== undefined && String((patch as any)[f]) !== String((existing as any)[f])) {
+        badRequest(`Expense VOID tidak bisa diubah field ${f}`)
+      }
+    }
+    if ((patch as any).status && (patch as any).status !== 'VOID') badRequest('Expense VOID tidak bisa diubah statusnya')
   }
+
+  // VERIFIED immutability
+  if (existing.status === 'VERIFIED') {
+    const newStatus = (patch as any).status
+    if (newStatus && newStatus !== 'VOID' && newStatus !== 'VERIFIED') {
+      if (newStatus === 'DRAFT') badRequest('Expense VERIFIED tidak bisa kembali ke DRAFT, gunakan VOID')
+      badRequest(`Expense VERIFIED hanya bisa di-VOID, tidak bisa diubah ke ${newStatus}`)
+    }
+    if (!newStatus || newStatus === 'VERIFIED') {
+      const locked = ['expenseDate','orderId','tripId','bookingId','vendorId','category','currency','amount','exchangeRateSnapshot','amountIdr','paymentMethod','referenceNumber']
+      for (const field of locked) {
+        if ((patch as any)[field] !== undefined) {
+          if (String((patch as any)[field]) !== String((existing as any)[field])) {
+            badRequest(`Field ${field} tidak bisa diubah setelah VERIFIED, VOID dulu lalu buat baru`)
+          }
+        }
+      }
+    }
+  }
+
   if ((patch as any).orderId) {
     const o = await db.select({ id: tourOrders.id }).from(tourOrders).where(and(eq(tourOrders.id, Number((patch as any).orderId)), eq(tourOrders.workspaceId, workspaceId), notDeleted(tourOrders))).limit(1)
     if (!o[0]) badRequest('Order tidak ditemukan')
@@ -545,6 +713,7 @@ export async function updateTourExpense(db: DbLike, id: number, workspaceId: num
     const t = await db.select({ id: tourTrips.id }).from(tourTrips).where(and(eq(tourTrips.id, Number((patch as any).tripId)), eq(tourTrips.workspaceId, workspaceId), notDeleted(tourTrips))).limit(1)
     if (!t[0]) badRequest('Trip tidak ditemukan')
   }
+  const newBookingId = (patch as any).bookingId !== undefined ? ((patch as any).bookingId ? Number((patch as any).bookingId) : null) : (existing.bookingId ? Number(existing.bookingId) : null)
   if ((patch as any).bookingId) {
     const b = await db.select({ id: tourBookings.id }).from(tourBookings).where(and(eq(tourBookings.id, Number((patch as any).bookingId)), eq(tourBookings.workspaceId, workspaceId), notDeleted(tourBookings))).limit(1)
     if (!b[0]) badRequest('Booking tidak ditemukan')
@@ -554,13 +723,73 @@ export async function updateTourExpense(db: DbLike, id: number, workspaceId: num
     if (!v[0]) badRequest('Vendor tidak ditemukan')
   }
 
-  // Recompute amountIdr if currency/amount/snapshot changed
-  const currency = (patch as any).currency || existing.currency
-  const amount = (patch as any).amount !== undefined ? Number((patch as any).amount) : Number(existing.amount)
-  const snapshot = (patch as any).exchangeRateSnapshot !== undefined ? ((patch as any).exchangeRateSnapshot ? Number((patch as any).exchangeRateSnapshot) : null) : (existing.exchangeRateSnapshot ? Number(existing.exchangeRateSnapshot) : null)
-  const amountIdr = computeExpenseAmountIdr(currency, amount, snapshot)
+  // Validate booking-linked consistency for final merged state
+  const finalOrderId = (patch as any).orderId !== undefined ? ((patch as any).orderId ? Number((patch as any).orderId) : null) : (existing.orderId ? Number(existing.orderId) : null)
+  const finalTripId = (patch as any).tripId !== undefined ? ((patch as any).tripId ? Number((patch as any).tripId) : null) : (existing.tripId ? Number(existing.tripId) : null)
+  const finalVendorId = (patch as any).vendorId !== undefined ? ((patch as any).vendorId ? Number((patch as any).vendorId) : null) : (existing.vendorId ? Number(existing.vendorId) : null)
+  const finalBookingId = (patch as any).bookingId !== undefined ? ((patch as any).bookingId ? Number((patch as any).bookingId) : null) : (existing.bookingId ? Number(existing.bookingId) : null)
 
-  const rows = await db.update(tourExpenses).set({ ...patch, amountIdr, updatedBy, updatedAt: new Date() } as never).where(and(eq(tourExpenses.id, id), eq(tourExpenses.workspaceId, workspaceId))).returning()
+  if (finalBookingId) {
+    await validateBookingLinkedExpense(db, workspaceId, finalBookingId, { orderId: finalOrderId, tripId: finalTripId, vendorId: finalVendorId })
+  }
+
+  // FX hardening for PATCH
+  let finalCurrency = (patch as any).currency || existing.currency
+  let finalAmount: number
+  if ((patch as any).amount !== undefined) finalAmount = Number((patch as any).amount)
+  else finalAmount = Number(existing.amount)
+
+  let finalSnapshot: number | null | undefined
+  const currencyChanged = (patch as any).currency && (patch as any).currency !== existing.currency
+
+  if (currencyChanged) {
+    // Currency changed – do NOT reuse old rate from another currency
+    if (finalCurrency === 'IDR') {
+      finalSnapshot = null
+    } else {
+      // new currency SAR/USD requires explicit new rate
+      if ((patch as any).exchangeRateSnapshot === undefined || (patch as any).exchangeRateSnapshot === null || (patch as any).exchangeRateSnapshot === '') {
+        badRequest(`Kurs baru wajib diisi saat ganti mata uang ke ${finalCurrency}, jangan pakai kurs lama`)
+      }
+      finalSnapshot = Number((patch as any).exchangeRateSnapshot)
+      if (!finalSnapshot || finalSnapshot <= 0) badRequest('Kurs snapshot wajib >0 untuk SAR/USD')
+    }
+  } else {
+    // Currency not changed
+    if ((patch as any).exchangeRateSnapshot !== undefined) {
+      // explicit snapshot change
+      if ((patch as any).exchangeRateSnapshot === null || (patch as any).exchangeRateSnapshot === '') {
+        if (finalCurrency !== 'IDR') badRequest('Kurs snapshot wajib >0 untuk SAR/USD, tidak boleh dikosongkan')
+        finalSnapshot = null
+      } else {
+        finalSnapshot = Number((patch as any).exchangeRateSnapshot)
+        if (finalCurrency !== 'IDR' && (!finalSnapshot || finalSnapshot <= 0)) badRequest('Kurs snapshot wajib >0 untuk SAR/USD')
+      }
+    } else {
+      // keep existing snapshot
+      finalSnapshot = existing.exchangeRateSnapshot ? Number(existing.exchangeRateSnapshot) : null
+      if (finalCurrency !== 'IDR' && (!finalSnapshot || finalSnapshot <= 0)) badRequest('Kurs snapshot wajib >0 untuk SAR/USD')
+      if (finalCurrency === 'IDR') finalSnapshot = null
+    }
+  }
+
+  const finalAmountIdr = computeExpenseAmountIdr(finalCurrency, finalAmount, finalSnapshot)
+
+  const extra: any = {}
+  const newStatus = (patch as any).status || existing.status
+  if (existing.status === 'DRAFT' && newStatus === 'VERIFIED') {
+    extra.verifiedBy = updatedBy || null
+    extra.verifiedAt = new Date()
+  }
+
+  // Build final patch with recomputed amountIdr and snapshot
+  const finalPatch: any = { ...patch }
+  finalPatch.currency = finalCurrency
+  finalPatch.amount = finalAmount
+  finalPatch.exchangeRateSnapshot = finalSnapshot
+  finalPatch.amountIdr = finalAmountIdr
+
+  const rows = await db.update(tourExpenses).set({ ...finalPatch, ...extra, updatedBy, updatedAt: new Date() } as never).where(and(eq(tourExpenses.id, id), eq(tourExpenses.workspaceId, workspaceId))).returning()
   return rows[0] ?? null
 }
 
@@ -568,6 +797,7 @@ export async function softDeleteTourExpense(db: DbLike, id: number, workspaceId:
   const existing = await getTourExpense(db, id, workspaceId)
   if (!existing) return null
   if (existing.status === 'VERIFIED') badRequest('Expense VERIFIED tidak boleh dihapus, gunakan VOID')
+  if (existing.status === 'VOID') badRequest('Expense VOID tidak boleh dihapus, simpan sebagai historis')
   const rows = await db.update(tourExpenses).set({ deletedAt: new Date(), updatedAt: new Date() } as never).where(and(eq(tourExpenses.id, id), eq(tourExpenses.workspaceId, workspaceId))).returning({ id: tourExpenses.id })
   return rows[0] ?? null
 }
@@ -588,29 +818,26 @@ export async function getFinanceOverview(db: DbLike, workspaceId: number) {
       .where(and(eq(tourBookings.workspaceId, workspaceId), notDeleted(tourBookings))),
   ])
 
-  // Cash Received = sum VERIFIED Payments
   const cashReceived = payments.filter(p => p.status === 'VERIFIED').reduce((s, p) => s + Number(p.amountIdr ?? 0), 0)
 
-  // Outstanding Receivables = sum active invoice outstanding
-  // Need per-invoice paid
   const paidByInvoice: Record<number, number> = {}
   for (const p of payments) {
     if (p.status !== 'VERIFIED') continue
     paidByInvoice[p.invoiceId] = (paidByInvoice[p.invoiceId] || 0) + Number(p.amountIdr ?? 0)
   }
+
   let outstandingReceivables = 0
-  let overdueInvoices: any[] = []
+  let overdueInvoicesAll: any[] = []
   for (const inv of invoices) {
-    if (inv.state === 'CANCELLED') continue
+    if (inv.state !== 'ISSUED') continue
     const paid = paidByInvoice[inv.id] || 0
     const outstanding = Math.max(Number(inv.amountIdr ?? 0) - paid, 0)
     if (outstanding > 0) {
       outstandingReceivables += outstanding
-      // check overdue
       if (inv.dueDate) {
         const dueStr = toIsoDateString(inv.dueDate)
         if (dueStr && dueStr < today) {
-          overdueInvoices.push({ ...inv, totalPaid: paid, outstanding, daysOverdue: Math.floor((new Date(today).getTime() - new Date(dueStr).getTime()) / (1000 * 60 * 60 * 24)) })
+          overdueInvoicesAll.push({ ...inv, totalPaid: paid, outstanding, daysOverdue: Math.floor((new Date(today).getTime() - new Date(dueStr).getTime()) / (1000 * 60 * 60 * 24)) })
         }
       }
     }
@@ -619,24 +846,21 @@ export async function getFinanceOverview(db: DbLike, workspaceId: number) {
   const verifiedExpenses = expenses.filter(e => e.status === 'VERIFIED').reduce((s, e) => s + Number(e.amountIdr ?? 0), 0)
   const currentCashPosition = cashReceived - verifiedExpenses
 
-  // Recent payments (verified, last 5)
   const recentPayments = payments.filter(p => p.status === 'VERIFIED').sort((a, b) => {
     const da = new Date(a.paymentDate as any).getTime()
     const db = new Date(b.paymentDate as any).getTime()
     return db - da
   }).slice(0, 5)
 
-  // Recent expenses (verified, last 5)
   const recentExpenses = expenses.filter(e => e.status === 'VERIFIED').sort((a, b) => {
     const da = new Date(a.expenseDate as any).getTime()
     const db = new Date(b.expenseDate as any).getTime()
     return db - da
   }).slice(0, 5)
 
-  // Overdue invoices sorted by days overdue desc
-  overdueInvoices = overdueInvoices.sort((a, b) => b.daysOverdue - a.daysOverdue).slice(0, 10)
+  const overdueCount = overdueInvoicesAll.length
+  const overdueInvoices = overdueInvoicesAll.sort((a, b) => b.daysOverdue - a.daysOverdue).slice(0, 10)
 
-  // Upcoming Booking Due: bookings with dueDate >= today, status DRAFT/CONFIRMED/PAID, sorted asc, limit 5
   const upcomingBookings = bookings
     .map(r => r.booking)
     .filter((b: any) => {
@@ -668,7 +892,7 @@ export async function getFinanceOverview(db: DbLike, workspaceId: number) {
     outstandingReceivables,
     verifiedExpenses,
     currentCashPosition,
-    overdueInvoicesCount: overdueInvoices.length,
+    overdueInvoicesCount: overdueCount,
     overdueInvoices,
     recentPayments,
     recentExpenses,
@@ -682,7 +906,6 @@ export async function getOrderProfitability(db: DbLike, workspaceId: number, fil
   const pageSize = Math.min(100, Math.max(1, filter.pageSize ?? 20))
   const offset = (page - 1) * pageSize
 
-  // Base orders
   const conds: any[] = [eq(tourOrders.workspaceId, workspaceId), notDeleted(tourOrders)]
   if (filter.orderId) conds.push(eq(tourOrders.id, filter.orderId))
   if (filter.search) {
@@ -703,7 +926,6 @@ export async function getOrderProfitability(db: DbLike, workspaceId: number, fil
 
   const orderIds = orders.map(r => r.order.id)
 
-  // Bookings linked to orders
   let bookingsByOrder: Record<number, any[]> = {}
   if (orderIds.length) {
     const bookings = await db.select().from(tourBookings).where(and(eq(tourBookings.workspaceId, workspaceId), inArray(tourBookings.orderId, orderIds), notDeleted(tourBookings)))
@@ -713,11 +935,10 @@ export async function getOrderProfitability(db: DbLike, workspaceId: number, fil
     }
   }
 
-  // Invoices and verified payments per order
   let invoicesByOrder: Record<number, any[]> = {}
   let paymentsByOrder: Record<number, number> = {}
   if (orderIds.length) {
-    const invoices = await db.select().from(tourInvoices).where(and(eq(tourInvoices.workspaceId, workspaceId), inArray(tourInvoices.orderId, orderIds), notDeleted(tourInvoices)))
+    const invoices = await db.select().from(tourInvoices).where(and(eq(tourInvoices.workspaceId, workspaceId), inArray(tourInvoices.orderId, orderIds), notDeleted(tourInvoices), eq(tourInvoices.state, 'ISSUED')))
     for (const inv of invoices) {
       if (!invoicesByOrder[inv.orderId]) invoicesByOrder[inv.orderId] = []
       invoicesByOrder[inv.orderId].push(inv)
@@ -731,27 +952,22 @@ export async function getOrderProfitability(db: DbLike, workspaceId: number, fil
     }
   }
 
-  // Verified expenses per order and per booking linked to order
   let expensesByOrder: Record<number, any[]> = {}
   let expenseTotalByOrder: Record<number, number> = {}
   if (orderIds.length) {
-    // Direct order expenses
     const directExpenses = await db.select().from(tourExpenses).where(and(eq(tourExpenses.workspaceId, workspaceId), inArray(tourExpenses.orderId, orderIds), eq(tourExpenses.status, 'VERIFIED'), notDeleted(tourExpenses)))
     for (const e of directExpenses) {
       if (!expensesByOrder[e.orderId!]) expensesByOrder[e.orderId!] = []
       expensesByOrder[e.orderId!].push(e)
       expenseTotalByOrder[e.orderId!] = (expenseTotalByOrder[e.orderId!] || 0) + Number(e.amountIdr ?? 0)
     }
-    // Booking-linked expenses
     const bookingIds = Object.values(bookingsByOrder).flat().map(b => b.id)
     if (bookingIds.length) {
       const bookingExpenses = await db.select().from(tourExpenses).where(and(eq(tourExpenses.workspaceId, workspaceId), inArray(tourExpenses.bookingId, bookingIds), eq(tourExpenses.status, 'VERIFIED'), notDeleted(tourExpenses)))
       for (const e of bookingExpenses) {
-        // Find which order(s) this booking belongs to
         const booking = Object.values(bookingsByOrder).flat().find(b => b.id === e.bookingId)
         if (booking && booking.orderId) {
           if (!expensesByOrder[booking.orderId]) expensesByOrder[booking.orderId] = []
-          // Avoid double counting same expense if it already has orderId = same order
           const already = expensesByOrder[booking.orderId].some(ex => ex.id === e.id)
           if (!already) {
             expensesByOrder[booking.orderId].push(e)
@@ -762,7 +978,6 @@ export async function getOrderProfitability(db: DbLike, workspaceId: number, fil
     }
   }
 
-  // TripOrders for multi-trip flag
   let tripCountByOrder: Record<number, number> = {}
   if (orderIds.length) {
     const tripOrders = await db.select().from(tourTripOrders).where(and(eq(tourTripOrders.workspaceId, workspaceId), inArray(tourTripOrders.orderId, orderIds)))
@@ -779,7 +994,7 @@ export async function getOrderProfitability(db: DbLike, workspaceId: number, fil
     const cashReceived = paymentsByOrder[r.order.id] || 0
     const actualDirectExpenses = expenseTotalByOrder[r.order.id] || 0
     const currentCashMargin = cashReceived - actualDirectExpenses
-    const totalInvoiced = (invoicesByOrder[r.order.id] || []).filter(i => i.state !== 'CANCELLED').reduce((s, i) => s + Number(i.amountIdr ?? 0), 0)
+    const totalInvoiced = (invoicesByOrder[r.order.id] || []).reduce((s, i) => s + Number(i.amountIdr ?? 0), 0)
 
     return {
       order: r.order,
@@ -839,7 +1054,18 @@ export async function getTripProfitability(db: DbLike, workspaceId: number, filt
     for (const o of orders) ordersMap[o.id] = o
   }
 
-  // Bookings per trip and per order
+  // GLOBAL trip count per order – across full workspace, not just current page
+  let globalTripCountByOrder: Record<number, number> = {}
+  if (orderIds.length) {
+    const globalCounts = await db.select({
+      orderId: tourTripOrders.orderId,
+      cnt: sql<number>`count(*)`,
+    }).from(tourTripOrders).where(and(eq(tourTripOrders.workspaceId, workspaceId), inArray(tourTripOrders.orderId, orderIds))).groupBy(tourTripOrders.orderId)
+    for (const gc of globalCounts) {
+      globalTripCountByOrder[gc.orderId] = Number(gc.cnt)
+    }
+  }
+
   let bookingsByTrip: Record<number, any[]> = {}
   let bookingsByOrder: Record<number, any[]> = {}
   if (tripIds.length) {
@@ -857,21 +1083,18 @@ export async function getTripProfitability(db: DbLike, workspaceId: number, filt
     }
   }
 
-  // Verified expenses per trip
   let expensesByTrip: Record<number, number> = {}
   if (tripIds.length) {
     const expTrip = await db.select().from(tourExpenses).where(and(eq(tourExpenses.workspaceId, workspaceId), inArray(tourExpenses.tripId, tripIds), eq(tourExpenses.status, 'VERIFIED'), notDeleted(tourExpenses)))
     for (const e of expTrip) {
       expensesByTrip[e.tripId!] = (expensesByTrip[e.tripId!] || 0) + Number(e.amountIdr ?? 0)
     }
-    // Also expenses via booking linked to trip
     const bookingIds = Object.values(bookingsByTrip).flat().map(b => b.id)
     if (bookingIds.length) {
       const expBooking = await db.select().from(tourExpenses).where(and(eq(tourExpenses.workspaceId, workspaceId), inArray(tourExpenses.bookingId, bookingIds), eq(tourExpenses.status, 'VERIFIED'), notDeleted(tourExpenses)))
       for (const e of expBooking) {
         const booking = Object.values(bookingsByTrip).flat().find(b => b.id === e.bookingId)
         if (booking && booking.tripId) {
-          // Avoid double count if expense already counted via tripId
           if (e.tripId !== booking.tripId) {
             expensesByTrip[booking.tripId] = (expensesByTrip[booking.tripId] || 0) + Number(e.amountIdr ?? 0)
           }
@@ -880,29 +1103,9 @@ export async function getTripProfitability(db: DbLike, workspaceId: number, filt
     }
   }
 
-  // For each trip, calculate linked order value, but flag multi-trip orders
   const data = trips.map(trip => {
     const linkedTripOrders = tripOrdersMap[trip.id] || []
     const linkedOrders = linkedTripOrders.map(to => ordersMap[to.orderId]).filter(Boolean)
-
-    // Count multi-trip orders
-    let multiTripOrders = 0
-    for (const o of linkedOrders) {
-      // Need to know how many trips this order is linked to – we have tripOrders for all trips in page, but order may be linked to trips outside page
-      // For simplicity, we count if order appears in more than one trip in our map, or we fetch count per order
-      // We'll approximate: if linkedTripOrders length for order >1 within fetched data, flag. For accurate, we'd need extra query, but for V1 we show warning.
-    }
-
-    // To get accurate multi-trip flag per order, we need to count trips per order globally
-    // We'll do a separate query for those orders if needed – simplified: check if order linked to >1 trip in total (we have partial data)
-    // For V1, we will flag orders that are linked to multiple trips based on tripOrdersMap size across all trips in result
-    // Better: we already have tripCount per order from earlier? Let's compute from tripOrdersMap across all trips fetched
-    const tripCountPerOrderInResult: Record<number, number> = {}
-    for (const tid of Object.keys(tripOrdersMap)) {
-      for (const to of tripOrdersMap[Number(tid)]) {
-        tripCountPerOrderInResult[to.orderId] = (tripCountPerOrderInResult[to.orderId] || 0) + 1
-      }
-    }
 
     const linkedOrderValue = linkedOrders.reduce((s, o) => s + Number(o.sellingPriceIdr ?? 0), 0)
     const committedBookingCostTrip = (bookingsByTrip[trip.id] || []).reduce((s, b) => s + Number(b.amountIdr ?? 0), 0)
@@ -913,11 +1116,8 @@ export async function getTripProfitability(db: DbLike, workspaceId: number, filt
 
     const verifiedExpenses = expensesByTrip[trip.id] || 0
 
-    // Cash received from linked orders (via invoices/payments)
-    // Simplified: we don't have payments per trip here, so we leave cashReceived as 0 and note limitation
-    // For better, we could compute cash received per order, but that requires extra queries – for V1 we provide cost analysis
-
-    const sharedOrders = linkedOrders.filter(o => (tripCountPerOrderInResult[o.id] || 0) > 1)
+    // Use GLOBAL count for shared detection
+    const sharedOrders = linkedOrders.filter(o => (globalTripCountByOrder[o.id] || 0) > 1)
 
     return {
       trip,
@@ -929,8 +1129,8 @@ export async function getTripProfitability(db: DbLike, workspaceId: number, filt
       sharedOrdersCount: sharedOrders.length,
       sharedOrders: sharedOrders.map(o => ({ id: o.id, orderCode: o.orderCode })),
       hasSharedOrders: sharedOrders.length > 0,
-      // Note: revenue allocation ambiguous when shared
       note: sharedOrders.length > 0 ? 'Beberapa Order terhubung ke lebih dari satu Trip, nilai Order tidak dialokasikan unik per Trip' : null,
+      globalTripCountByOrder,
     }
   })
 

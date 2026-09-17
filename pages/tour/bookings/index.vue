@@ -30,6 +30,7 @@ const { data: ordersData } = await useAdminFetch<{ data: any[]; meta: any }>("/a
 const orders = computed(() => ordersData.value?.data ?? []);
 
 const STATUSES = ["DRAFT","CONFIRMED","PAID","COMPLETED","CANCELLED"];
+const STATUSES_NEW = ["DRAFT","CONFIRMED","COMPLETED","CANCELLED"];
 const TYPES = ["HOTEL","TRANSPORT","VISA","FLIGHT","SISKOPATUH","MUTHAWWIF","HANDLING","OTHER"];
 const VENDOR_TYPES = ["HOTEL","TRANSPORT","VISA","FLIGHT","SISKOPATUH","MUTHAWWIF","HANDLING","OTHER"];
 
@@ -241,7 +242,8 @@ async function submitVendorQuick() {
           <div class="mt-3 grid gap-3 sm:grid-cols-2">
             <label class="text-sm font-medium">Tanggal Booking<input v-model="form.bookingDate" type="date" class="mt-1 min-h-[44px] w-full rounded-xl border border-neutral-line px-4 text-sm" /></label>
             <label class="text-sm font-medium">Jatuh Tempo<input v-model="form.dueDate" type="date" class="mt-1 min-h-[44px] w-full rounded-xl border border-neutral-line px-4 text-sm" /></label>
-            <label class="text-sm font-medium">Status<select v-model="form.status" class="mt-1 min-h-[44px] w-full rounded-xl border border-neutral-line px-3 text-sm"><option v-for="s in STATUSES" :key="s" :value="s">{{ bookingStatusLabel(s) }}</option></select></label>
+            <label class="text-sm font-medium">Status<select v-model="form.status" class="mt-1 min-h-[44px] w-full rounded-xl border border-neutral-line px-3 text-sm"><option v-for="s in STATUSES_NEW" :key="s" :value="s">{{ bookingStatusLabel(s) }}</option><option v-if="form.status==='PAID'" value="PAID">{{ bookingStatusLabel("PAID") }} (legacy)</option></select></label>
+            <p class="mt-1 text-[11px] text-neutral-charcoal/50">PAID tidak lagi jadi sumber kebenaran pembayaran, progress biaya dari Expense. Legacy PAID tetap tampil.</p>
             <label class="text-sm font-medium">Catatan<textarea v-model="form.notes" rows="2" class="mt-1 w-full rounded-xl border border-neutral-line px-4 py-2 text-sm" /></label>
           </div>
         </div>

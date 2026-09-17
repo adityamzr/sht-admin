@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Pencil, Trash2 } from 'lucide-vue-next'
+import { Pencil, Trash2, Eye, BadgeCheck, Ban, CircleSlash } from 'lucide-vue-next'
 definePageMeta({ layout: "admin", middleware: "admin-auth" });
 
 const search = ref("");
@@ -29,7 +29,8 @@ const trips = computed(() => tripsData.value?.data ?? []);
 const { data: bookingsData } = await useAdminFetch<{ data: any[]; meta: any }>("/api/admin/tour/bookings", { query: { pageSize: 100 } });
 const bookings = computed(() => bookingsData.value?.data ?? []);
 
-const STATUSES = ["DRAFT","VERIFIED","VOID"];
+const STATUSES_FILTER = ["DRAFT","VERIFIED","VOID"];
+const STATUSES_CREATE = ["DRAFT","VERIFIED"]; // no VOID on create
 const CATEGORIES = ["HOTEL","TRANSPORT","VISA","FLIGHT","SISKOPATUH","MUTHAWWIF","HANDLING","OTHER"];
 const CURRENCIES = ["IDR","SAR","USD"];
 
@@ -62,15 +63,17 @@ const amountIdrPreview = computed(() => {
   return null;
 });
 
+const selectedBooking = computed(() => bookings.value.find((b: any) => String(b.id) === String(form.bookingId)));
+
 function onBookingChange() {
   if (!form.bookingId) return;
   const b: any = bookings.value.find((x: any) => String(x.id) === String(form.bookingId));
   if (!b) return;
+  // Auto-prefill read-only guidance per spec
   if (!form.vendorId) form.vendorId = b.vendorId || "";
   if (!form.orderId) form.orderId = b.orderId || "";
   if (!form.tripId) form.tripId = b.tripId || "";
   if (form.category === 'OTHER') form.category = b.bookingType || 'OTHER';
-  if (form.currency === 'IDR' && b.currency) form.currency = b.currency;
   if (!form.description && b.description) form.description = b.description;
 }
 
@@ -119,6 +122,17 @@ function openEdit(e: any) {
 async function submit() {
   formPending.value = true; formError.value = null;
   try {
+    if (form.status === 'VOID') throw new Error('VOID hanya via aksi Void explicit, tidak dari form create');
+    // FX invariant validation client-side guidance
+    if (form.currency === 'IDR' && form.exchangeRateSnapshot) throw new Error('IDR harus snapshot null (otomatis). Kosongkan kurs.');
+    if (form.currency !== 'IDR' && !form.exchangeRateSnapshot) throw new Error('SAR/USD wajib isi kurs snapshot >0');
+    // Booking-linked consistency guidance
+    if (form.bookingId && selectedBooking.value) {
+      const b = selectedBooking.value;
+      if (form.orderId && b.orderId && String(form.orderId) !== String(b.orderId)) throw new Error(`Expense orderId tidak cocok dengan Booking orderId #${b.orderId}`);
+      if (form.tripId && b.tripId && String(form.tripId) !== String(b.tripId)) throw new Error(`Expense tripId tidak cocok dengan Booking tripId #${b.tripId}`);
+      if (form.vendorId && String(form.vendorId) !== String(b.vendorId)) throw new Error(`Tidak boleh Booking Vendor A (${b.vendor?.name || b.vendorId}) + Expense Vendor B. Vendor harus sama.`);
+    }
     const isIdr = form.currency === 'IDR';
     const body: any = {
       expenseDate: form.expenseDate,
@@ -141,19 +155,36 @@ async function submit() {
     else await adminPost("/api/admin/tour/expenses", body);
     showForm.value = false;
     await refresh();
-  } catch (e: any) { formError.value = e?.data?.statusMessage || "Gagal menyimpan"; } finally { formPending.value = false; }
+  } catch (e: any) { formError.value = e?.data?.statusMessage || e.message || "Gagal menyimpan"; } finally { formPending.value = false; }
 }
-async function remove(e: any) {
-  if (e.status === 'VERIFIED') {
-    if (!confirm(`Expense ${e.expenseCode} sudah VERIFIED. Yakin VOID?`)) return;
-    try { await adminPatch(`/api/admin/tour/expenses/${e.id}`, { status: 'VOID' }); await refresh(); } catch (err: any) { alert(err?.data?.statusMessage || 'Gagal void'); }
-    return;
-  }
-  if (!confirm(`Hapus expense ${e.expenseCode}?`)) return;
+
+// Verify / Void modals
+const showVerifyModal = ref(false);
+const verifyTarget = ref<any>(null);
+const verifyPending = ref(false);
+function openVerify(e: any) { verifyTarget.value = e; showVerifyModal.value = true; }
+async function confirmVerify() {
+  if (!verifyTarget.value) return;
+  verifyPending.value = true;
+  try { await adminPatch(`/api/admin/tour/expenses/${verifyTarget.value.id}`, { status: 'VERIFIED' }); showVerifyModal.value = false; await refresh(); }
+  catch (e: any) { alert(e?.data?.statusMessage || e.message || 'Gagal verify'); } finally { verifyPending.value = false; }
+}
+const showVoidModal = ref(false);
+const voidTarget = ref<any>(null);
+const voidPending = ref(false);
+function openVoid(e: any) { voidTarget.value = e; showVoidModal.value = true; }
+async function confirmVoid() {
+  if (!voidTarget.value) return;
+  voidPending.value = true;
+  try { await adminPatch(`/api/admin/tour/expenses/${voidTarget.value.id}`, { status: 'VOID' }); showVoidModal.value = false; await refresh(); }
+  catch (e: any) { alert(e?.data?.statusMessage || e.message || 'Gagal void'); } finally { voidPending.value = false; }
+}
+async function removeDraft(e: any) {
+  if (e.status !== 'DRAFT') { alert('Hanya DRAFT bisa dihapus. VERIFIED harus Void.'); return; }
+  if (!confirm(`Hapus DRAFT expense ${e.expenseCode}?`)) return;
   await adminDelete(`/api/admin/tour/expenses/${e.id}`).catch(()=>{}); await refresh();
 }
 
-// Expose for Booking Detail quick-create via event bus
 if (typeof window !== 'undefined') {
   (window as any).__openExpenseCreate = (prefill: any) => openCreate(prefill);
 }
@@ -161,29 +192,40 @@ if (typeof window !== 'undefined') {
 
 <template>
   <div>
-    <PageHead title="Expenses" subtitle="Pengeluaran aktual operasional. Bisa terkait Booking/Trip/Order/Vendor, multi-currency dengan kurs snapshot.">
+    <PageHead title="Expenses" subtitle="EXPENSE = uang keluar aktual. Hanya VERIFIED masuk Overview/Profitability/Reports. DRAFT editable not actual, VOID historical excluded. FX: IDR snapshot null, SAR/USD snapshot>0 server authoritative.">
       <template #actions><button type="button" class="min-h-[40px] rounded-xl bg-sht-olive px-4 py-2 text-sm font-semibold text-white" @click="openCreate()">+ Catat Expense</button></template>
     </PageHead>
 
     <div class="mt-6 flex flex-wrap gap-3">
       <input v-model="search" placeholder="Cari kode / deskripsi..." class="min-h-[44px] w-64 rounded-xl border border-neutral-line px-4 text-sm" @input="page=1" />
-      <select v-model="status" class="min-h-[44px] rounded-xl border border-neutral-line px-3 text-sm" @change="page=1"><option value="">Semua Status</option><option v-for="s in STATUSES" :key="s" :value="s">{{ s }}</option></select>
+      <select v-model="status" class="min-h-[44px] rounded-xl border border-neutral-line px-3 text-sm" @change="page=1"><option value="">Semua Status</option><option v-for="s in STATUSES_FILTER" :key="s" :value="s">{{ s }}</option></select>
       <select v-model="category" class="min-h-[44px] rounded-xl border border-neutral-line px-3 text-sm" @change="page=1"><option value="">Semua Kategori</option><option v-for="c in CATEGORIES" :key="c" :value="c">{{ c }}</option></select>
       <select v-model="vendorId" class="min-h-[44px] rounded-xl border border-neutral-line px-3 text-sm" @change="page=1"><option value="">Semua Vendor</option><option v-for="v in vendors" :key="v.id" :value="v.id">{{ v.vendorCode }} · {{ v.name }}</option></select>
     </div>
 
-    <TourModal :open="showForm" :title="form.id ? 'Edit Expense' : 'Catat Expense'" subtitle="Expense = uang aktual keluar, bukan komitmen Booking" max-width="max-w-3xl" @close="showForm=false">
+    <div class="mt-3 rounded-xl bg-amber-50 border border-amber-200 px-4 py-2.5 text-xs text-amber-800">
+      <p><strong>Dependency:</strong> Expense bisa standalone, tapi jika bookingId ada maka Booking authoritative: orderId/tripId/vendorId harus cocok. Tidak boleh Booking Vendor A + Expense Vendor B. Vendor sebelum Booking, Booking sebelum Booking-related Expense.</p>
+      <p class="mt-1"><strong>FX:</strong> IDR → snapshot null amountIdr=amount. SAR/USD → snapshot>0 amountIdr=amount*snapshot. PATCH ganti mata uang wajib kurs baru, jangan pakai kurs lama. Server authoritative recalc amountIdr.</p>
+      <p class="mt-1"><strong>Workflow:</strong> DRAFT editable not actual → VERIFIED actual immutable lock expenseDate/orderId/tripId/bookingId/vendorId/category/currency/amount/snapshot/amountIdr/paymentMethod/reference → VOID historical excluded. Correction VERIFIED→VOID→new.</p>
+    </div>
+
+    <TourModal :open="showForm" :title="form.id ? 'Edit Expense' : 'Catat Expense'" subtitle="EXPENSE = uang keluar aktual. Booking-linked inherits context, validasi Vendor/Order/Trip cocok." max-width="max-w-3xl" @close="showForm=false">
       <div class="space-y-6">
         <div>
-          <h4 class="text-xs font-semibold uppercase tracking-wide text-neutral-charcoal/50">Konteks</h4>
+          <h4 class="text-xs font-semibold uppercase tracking-wide text-neutral-charcoal/50">Konteks (auto-prefill dari Booking, read-only guidance)</h4>
+          <div v-if="selectedBooking" class="mt-2 rounded-xl bg-emerald-50 border border-emerald-200 px-4 py-2 text-xs text-emerald-800">
+            <p>Booking: <span class="font-semibold">{{ selectedBooking.bookingCode }}</span> · {{ selectedBooking.bookingType }} · Vendor {{ selectedBooking.vendor?.name || selectedBooking.vendorId }} · Order {{ selectedBooking.order?.orderCode || selectedBooking.orderId || '—' }} · Trip {{ selectedBooking.trip?.tripCode || selectedBooking.tripId || '—' }}</p>
+            <p class="mt-1 text-[11px]">Expense Vendor/Order/Trip harus cocok dengan Booking. Tidak boleh Vendor A + Expense Vendor B.</p>
+          </div>
           <div class="mt-3 grid gap-3 sm:grid-cols-2">
-            <label class="text-sm font-medium">Booking (opsional, untuk prefill)
+            <label class="text-sm font-medium">Booking (opsional, untuk prefill authoritative)
               <select v-model="form.bookingId" class="mt-1 min-h-[44px] w-full rounded-xl border border-neutral-line px-3 text-sm" @change="onBookingChange">
-                <option value="">Tanpa Booking</option>
+                <option value="">Tanpa Booking (standalone)</option>
                 <option v-for="b in bookings" :key="b.id" :value="b.id">{{ b.bookingCode }} · {{ b.bookingType }} · {{ b.vendor?.name || `Vendor #${b.vendorId}` }} · {{ b.currency }} {{ Number(b.amount).toLocaleString('id-ID') }}</option>
               </select>
+              <span class="mt-1 block text-[11px] text-neutral-charcoal/50">Jika pilih Booking, Vendor/Order/Trip auto-prefill dan harus cocok. Booking harus ada dulu.</span>
             </label>
-            <label class="text-sm font-medium">Order (opsional)
+            <label class="text-sm font-medium">Order (opsional, wajib cocok jika Booking ada)
               <select v-model="form.orderId" class="mt-1 min-h-[44px] w-full rounded-xl border border-neutral-line px-3 text-sm">
                 <option value="">Tanpa Order</option>
                 <option v-for="o in orders" :key="o.id" :value="o.id">{{ o.orderCode }} · {{ o.customer?.name || '' }} · {{ o.paxCount }} pax</option>
@@ -195,11 +237,12 @@ if (typeof window !== 'undefined') {
                 <option v-for="t in trips" :key="t.id" :value="t.id">{{ t.tripCode }} · {{ t.name }}</option>
               </select>
             </label>
-            <label class="text-sm font-medium">Vendor (opsional)
+            <label class="text-sm font-medium">Vendor (opsional, wajib cocok jika Booking ada)
               <select v-model="form.vendorId" class="mt-1 min-h-[44px] w-full rounded-xl border border-neutral-line px-3 text-sm">
                 <option value="">Tanpa Vendor</option>
                 <option v-for="v in vendors" :key="v.id" :value="v.id">{{ v.vendorCode }} · {{ v.name }}</option>
               </select>
+              <span v-if="!vendors.length" class="mt-1 block text-[11px] text-red-600">Belum ada Vendor. <NuxtLink to="/tour/vendors" class="underline">Buat Vendor dulu</NuxtLink> — Vendor sebelum Booking.</span>
             </label>
           </div>
         </div>
@@ -212,18 +255,21 @@ if (typeof window !== 'undefined') {
           </div>
         </div>
         <div>
-          <h4 class="text-xs font-semibold uppercase tracking-wide text-neutral-charcoal/50">Biaya</h4>
+          <h4 class="text-xs font-semibold uppercase tracking-wide text-neutral-charcoal/50">Biaya FX</h4>
           <div class="mt-3 grid gap-3 sm:grid-cols-2">
-            <label class="text-sm font-medium">Mata Uang<select v-model="form.currency" class="mt-1 min-h-[44px] w-full rounded-xl border border-neutral-line px-3 text-sm"><option v-for="c in CURRENCIES" :key="c" :value="c">{{ c }}</option></select></label>
+            <label class="text-sm font-medium">Mata Uang<select v-model="form.currency" class="mt-1 min-h-[44px] w-full rounded-xl border border-neutral-line px-3 text-sm"><option v-for="c in CURRENCIES" :key="c" :value="c">{{ c }}</option></select><span class="mt-1 block text-[11px] text-neutral-charcoal/50">IDR snapshot null, SAR/USD snapshot>0 server authoritative</span></label>
             <label class="text-sm font-medium">Jumlah<TourMoneyInput v-model="form.amount" :currency="form.currency" :allow-decimal="form.currency!=='IDR'" /></label>
-            <label class="text-sm font-medium">Kurs ke IDR<TourMoneyInput v-model="form.exchangeRateSnapshot" currency="" :allow-decimal="true" :disabled="form.currency==='IDR'" /></label>
-            <div class="text-sm"><p class="font-medium">Setara IDR</p><div class="mt-1 min-h-[44px] rounded-xl border bg-neutral-warm/50 px-4 py-2.5 font-semibold"><span v-if="amountIdrPreview!==null">Rp {{ Number(amountIdrPreview).toLocaleString('id-ID') }}</span><span v-else class="text-neutral-charcoal/40">—</span></div></div>
+            <label class="text-sm font-medium">Kurs ke IDR (SAR/USD wajib)
+              <TourMoneyInput v-model="form.exchangeRateSnapshot" currency="" :allow-decimal="true" :disabled="form.currency==='IDR'" />
+              <span class="mt-1 block text-[11px] text-neutral-charcoal/50">IDR→SAR wajib kurs SAR baru, SAR→USD wajib kurs USD baru, USD→SAR wajib kurs SAR baru, SAR→IDR clear kurs. Jangan pakai kurs lama.</span>
+            </label>
+            <div class="text-sm"><p class="font-medium">Setara IDR (server authoritative)</p><div class="mt-1 min-h-[44px] rounded-xl border bg-neutral-warm/50 px-4 py-2.5 font-semibold"><span v-if="amountIdrPreview!==null">Rp {{ Number(amountIdrPreview).toLocaleString('id-ID') }}</span><span v-else class="text-neutral-charcoal/40">—</span></div></div>
           </div>
         </div>
         <div>
           <h4 class="text-xs font-semibold uppercase tracking-wide text-neutral-charcoal/50">Administrasi</h4>
           <div class="mt-3 grid gap-3 sm:grid-cols-2">
-            <label class="text-sm font-medium">Status<select v-model="form.status" class="mt-1 min-h-[44px] w-full rounded-xl border border-neutral-line px-3 text-sm"><option v-for="s in STATUSES" :key="s" :value="s">{{ s }}</option></select></label>
+            <label class="text-sm font-medium">Status (Create)<select v-model="form.status" class="mt-1 min-h-[44px] w-full rounded-xl border border-neutral-line px-3 text-sm"><option v-for="s in STATUSES_CREATE" :key="s" :value="s">{{ s }}</option><option v-if="form.id && form.status==='VOID'" value="VOID">VOID (read-only)</option></select><span class="mt-1 block text-[11px] text-neutral-charcoal/50">Create hanya DRAFT/VERIFIED. VOID via aksi explicit.</span></label>
             <label class="text-sm font-medium">Payment Method<input v-model="form.paymentMethod" class="mt-1 min-h-[44px] w-full rounded-xl border border-neutral-line px-4 text-sm" placeholder="Transfer, Cash..." /></label>
             <label class="text-sm font-medium">Reference<input v-model="form.referenceNumber" class="mt-1 min-h-[44px] w-full rounded-xl border border-neutral-line px-4 text-sm" /></label>
             <label class="text-sm font-medium">Proof URL<input v-model="form.proofUrl" class="mt-1 min-h-[44px] w-full rounded-xl border border-neutral-line px-4 text-sm" placeholder="https://..." /></label>
@@ -240,8 +286,34 @@ if (typeof window !== 'undefined') {
       </template>
     </TourModal>
 
+    <TourModal :open="showVerifyModal" title="Verify Expense" subtitle="VERIFIED actual masuk finance, immutable lock" max-width="max-w-md" @close="showVerifyModal=false">
+      <div class="space-y-3 text-sm">
+        <p>Verify Expense <span class="font-mono font-semibold">{{ verifyTarget?.expenseCode }}</span> Rp {{ Number(verifyTarget?.amountIdr).toLocaleString('id-ID') }}?</p>
+        <p class="text-xs text-neutral-charcoal/60">VERIFIED immutability lock: expenseDate/orderId/tripId/bookingId/vendorId/category/currency/amount/snapshot/amountIdr/paymentMethod/reference. Koreksi VERIFIED→VOID→new. verifiedBy/At server.</p>
+      </div>
+      <template #footer>
+        <div class="flex justify-end gap-2">
+          <button class="min-h-[40px] rounded-xl border px-4 py-2 text-sm" @click="showVerifyModal=false">Batal</button>
+          <button class="min-h-[40px] rounded-xl bg-emerald-600 px-5 py-2 text-sm font-semibold text-white" :disabled="verifyPending" @click="confirmVerify">Ya, Verify</button>
+        </div>
+      </template>
+    </TourModal>
+
+    <TourModal :open="showVoidModal" title="Void Expense" subtitle="VOID historical excluded" max-width="max-w-md" @close="showVoidModal=false">
+      <div class="space-y-3 text-sm">
+        <p>Void Expense <span class="font-mono font-semibold">{{ voidTarget?.expenseCode }}</span>?</p>
+        <p class="text-xs text-neutral-charcoal/60">VOID retained excluded dari Verified Expenses, Profitability, Reports.</p>
+      </div>
+      <template #footer>
+        <div class="flex justify-end gap-2">
+          <button class="min-h-[40px] rounded-xl border px-4 py-2 text-sm" @click="showVoidModal=false">Batal</button>
+          <button class="min-h-[40px] rounded-xl bg-red-600 px-5 py-2 text-sm font-semibold text-white" :disabled="voidPending" @click="confirmVoid">Ya, Void</button>
+        </div>
+      </template>
+    </TourModal>
+
     <div class="mt-6 overflow-x-auto rounded-2xl border border-neutral-line bg-white">
-      <table class="w-full min-w-[1300px] text-left text-sm">
+      <table class="w-full min-w-[1350px] text-left text-sm">
         <thead class="border-b bg-neutral-warm text-xs uppercase text-neutral-charcoal/60"><tr><th class="px-5 py-3">Expense</th><th class="px-5 py-3">Date / Category</th><th class="px-5 py-3">Trip / Order</th><th class="px-5 py-3">Vendor / Booking</th><th class="px-5 py-3">Amount</th><th class="px-5 py-3">Setara IDR</th><th class="px-5 py-3">Status</th><th class="px-5 py-3 text-right">Aksi</th></tr></thead>
         <tbody class="divide-y">
           <tr v-for="e in rows" :key="e.id">
@@ -252,7 +324,16 @@ if (typeof window !== 'undefined') {
             <td class="px-5 py-3 text-xs font-medium">{{ e.currency }} {{ Number(e.amount).toLocaleString('id-ID') }} <span v-if="e.exchangeRateSnapshot" class="text-neutral-charcoal/40">kurs {{ Number(e.exchangeRateSnapshot).toLocaleString('id-ID') }}</span></td>
             <td class="px-5 py-3 text-xs font-semibold">Rp {{ Number(e.amountIdr).toLocaleString('id-ID') }}</td>
             <td class="px-5 py-3"><TourStatusBadge :status="e.status" type="expense" /></td>
-            <td class="px-5 py-3 text-right"><div class="flex justify-end gap-1"><button class="rounded-xl p-2 text-neutral-charcoal/60 hover:bg-neutral-warm" title="Edit" @click="openEdit(e)"><Pencil class="h-4 w-4" /></button><button class="rounded-xl p-2 text-neutral-charcoal/40 hover:bg-red-50 hover:text-red-600" title="Hapus/Void" @click="remove(e)"><Trash2 class="h-4 w-4" /></button></div></td>
+            <td class="px-5 py-3 text-right">
+              <div class="flex justify-end gap-1">
+                <NuxtLink :to="`/tour/bookings/${e.bookingId}`" v-if="e.bookingId" class="rounded-xl p-2 text-neutral-charcoal/50 hover:bg-neutral-warm" title="Lihat Booking" aria-label="View booking"><Eye class="h-4 w-4" /></NuxtLink>
+                <button v-if="e.status==='DRAFT'" class="rounded-xl p-2 text-neutral-charcoal/60 hover:bg-neutral-warm" title="Edit DRAFT" aria-label="Edit" @click="openEdit(e)"><Pencil class="h-4 w-4" /></button>
+                <button v-if="e.status==='DRAFT'" class="rounded-xl p-2 text-emerald-600 hover:bg-emerald-50" title="Verify → VERIFIED" aria-label="Verify" @click="openVerify(e)"><BadgeCheck class="h-4 w-4" /></button>
+                <button v-if="e.status==='DRAFT'" class="rounded-xl p-2 text-neutral-charcoal/40 hover:bg-red-50 hover:text-red-600" title="Delete DRAFT" aria-label="Delete draft" @click="removeDraft(e)"><Trash2 class="h-4 w-4" /></button>
+                <button v-if="e.status==='VERIFIED'" class="rounded-xl p-2 text-red-600 hover:bg-red-50" title="Void → VOID" aria-label="Void" @click="openVoid(e)"><Ban class="h-4 w-4" /></button>
+                <span v-if="e.status==='VOID'" class="rounded-xl p-2 text-neutral-charcoal/30" title="Void historical" aria-label="Void"><CircleSlash class="h-4 w-4" /></span>
+              </div>
+            </td>
           </tr>
           <tr v-if="rows.length===0"><td colspan="8" class="px-5 py-10 text-center text-neutral-charcoal/50">Belum ada expense.</td></tr>
         </tbody>

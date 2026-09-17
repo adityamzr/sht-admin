@@ -13,6 +13,9 @@ const verifiedExpenses = computed(() => expenses.value.filter((e: any) => e.stat
 const verifiedExpensesTotal = computed(() => verifiedExpenses.value.reduce((s: number, e: any) => s + Number(e.amountIdr ?? 0), 0));
 const committedCost = computed(() => booking.value ? Number(booking.value.amountIdr ?? 0) : 0);
 const remainingCommitment = computed(() => committedCost.value - verifiedExpensesTotal.value);
+const isOverBudget = computed(() => verifiedExpensesTotal.value > committedCost.value && committedCost.value > 0);
+const overBudgetAmount = computed(() => verifiedExpensesTotal.value - committedCost.value);
+// Booking expense progress: Committed=booking.amountIdr, Verified Actual=SUM VERIFIED linked, Remaining=committed-verified
 
 // Expense modal prefilled from Booking
 const showExpenseForm = ref(false);
@@ -197,21 +200,27 @@ async function submitExpense() {
           </div>
           <div class="mt-4 grid gap-3 sm:grid-cols-3">
             <div class="rounded-xl bg-neutral-warm/50 px-4 py-3">
-              <p class="text-[11px] uppercase tracking-wide text-neutral-charcoal/50">Booking Cost</p>
+              <p class="text-[11px] uppercase tracking-wide text-neutral-charcoal/50">BOOKING — Commitment (kontrak)</p>
               <p class="mt-1 text-sm font-semibold">{{ booking.currency }} {{ Number(booking.amount).toLocaleString('id-ID') }}</p>
               <p class="text-xs text-neutral-charcoal/60">Rp {{ Number(booking.amountIdr).toLocaleString('id-ID') }}</p>
+              <p class="mt-1 text-[10px] text-neutral-charcoal/40">BOOKING = komitmen biaya, bukan uang keluar</p>
             </div>
             <div class="rounded-xl bg-emerald-50 px-4 py-3">
-              <p class="text-[11px] uppercase tracking-wide text-emerald-700/60">Actual Expenses</p>
+              <p class="text-[11px] uppercase tracking-wide text-emerald-700/60">EXPENSE — Verified Actual (uang keluar)</p>
               <p class="mt-1 text-sm font-semibold text-emerald-700">Rp {{ Number(verifiedExpensesTotal).toLocaleString('id-ID') }}</p>
               <p class="text-xs text-emerald-700/60">{{ verifiedExpenses.length }} verified</p>
+              <p class="mt-1 text-[10px] text-emerald-700/50">EXPENSE VERIFIED = uang keluar aktual</p>
             </div>
             <div class="rounded-xl" :class="remainingCommitment < 0 ? 'bg-red-50' : 'bg-amber-50'">
               <div class="px-4 py-3">
-                <p class="text-[11px] uppercase tracking-wide" :class="remainingCommitment < 0 ? 'text-red-700/60' : 'text-amber-700/60'">Remaining Commitment</p>
+                <p class="text-[11px] uppercase tracking-wide" :class="remainingCommitment < 0 ? 'text-red-700/60' : 'text-amber-700/60'">Remaining = Committed - Verified</p>
                 <p class="mt-1 text-sm font-semibold" :class="remainingCommitment < 0 ? 'text-red-700' : 'text-amber-700'">Rp {{ Number(remainingCommitment).toLocaleString('id-ID') }}</p>
               </div>
             </div>
+          </div>
+          <div v-if="isOverBudget" class="mt-3 rounded-xl bg-red-50 border border-red-200 px-4 py-3 text-xs text-red-700">
+            <p class="font-semibold">⚠️ Over Budget: Verified melebihi komitmen Rp {{ Number(overBudgetAmount).toLocaleString('id-ID') }}</p>
+            <p class="mt-1 text-[11px]">EXPENSE VERIFIED {{ verifiedExpensesTotal }} > BOOKING Commitment {{ committedCost }}. Tidak otomatis mengubah Booking amount. Revisi manual jika diperlukan.</p>
           </div>
           <div v-if="expenses.length" class="mt-4 overflow-x-auto">
             <table class="w-full text-left text-xs">
@@ -262,7 +271,7 @@ async function submitExpense() {
         <div>
           <h4 class="text-xs font-semibold uppercase tracking-wide text-neutral-charcoal/50">Administrasi</h4>
           <div class="mt-3 grid gap-3 sm:grid-cols-2">
-            <label class="text-sm font-medium">Status<select v-model="expenseForm.status" class="mt-1 min-h-[44px] w-full rounded-xl border border-neutral-line px-3 text-sm"><option>DRAFT</option><option>VERIFIED</option><option>VOID</option></select></label>
+            <label class="text-sm font-medium">Status<select v-model="expenseForm.status" class="mt-1 min-h-[44px] w-full rounded-xl border border-neutral-line px-3 text-sm"><option>DRAFT</option><option>VERIFIED</option></select><span class="mt-1 block text-[11px] text-neutral-charcoal/50">VOID hanya via aksi explicit di list Expense.</span></label>
             <label class="text-sm font-medium">Payment Method<input v-model="expenseForm.paymentMethod" class="mt-1 min-h-[44px] w-full rounded-xl border border-neutral-line px-4 text-sm" /></label>
             <label class="text-sm font-medium">Reference<input v-model="expenseForm.referenceNumber" class="mt-1 min-h-[44px] w-full rounded-xl border border-neutral-line px-4 text-sm" /></label>
             <label class="sm:col-span-2 text-sm font-medium">Notes<textarea v-model="expenseForm.notes" rows="2" class="mt-1 w-full rounded-xl border border-neutral-line px-4 py-2 text-sm" /></label>

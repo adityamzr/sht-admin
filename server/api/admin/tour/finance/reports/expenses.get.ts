@@ -1,39 +1,45 @@
 import { useDb } from '~/server/db'
 import { listTourExpensesEnriched, getTourWorkspaceIdFinance } from '~/server/services/tour-finance'
-
-function toIso(d: any): string | null {
-  if (!d) return null
-  if (typeof d === 'string') return d.slice(0,10)
-  if (d instanceof Date) return d.toISOString().slice(0,10)
-  return String(d).slice(0,10)
-}
+import { tourExpenses } from '~/server/db/schema'
+import { and, eq, gte, lte, isNull, sql, count } from 'drizzle-orm'
 
 export default defineEventHandler(async (event) => {
   const q = getQuery(event)
   const db = useDb()
   const workspaceId = await getTourWorkspaceIdFinance(db)
+
+  const startDate = q.startDate ? String(q.startDate).slice(0,10) : undefined
+  const endDate = q.endDate ? String(q.endDate).slice(0,10) : undefined
+
   const result = await listTourExpensesEnriched(db, {
     workspaceId,
-    status: typeof q.status === 'string' ? q.status : undefined,
+    status: typeof q.status === 'string' ? q.status : 'VERIFIED',
     category: typeof q.category === 'string' ? q.category : undefined,
     orderId: q.orderId ? Number(q.orderId) : undefined,
     tripId: q.tripId ? Number(q.tripId) : undefined,
     vendorId: q.vendorId ? Number(q.vendorId) : undefined,
+    bookingId: q.bookingId ? Number(q.bookingId) : undefined,
+    startDate,
+    endDate,
     page: Number(q.page) || 1,
     pageSize: Number(q.pageSize) || 50,
   })
-  let data = result.data
-  if (q.startDate || q.endDate) {
-    const start = q.startDate ? String(q.startDate).slice(0, 10) : null
-    const end = q.endDate ? String(q.endDate).slice(0, 10) : null
-    data = data.filter((e: any) => {
-      const d = toIso(e.expenseDate)
-      if (!d) return false
-      if (start && d < start) return false
-      if (end && d > end) return false
-      return true
-    })
-  }
-  const totalAmount = data.filter((e: any) => e.status === 'VERIFIED').reduce((s: number, e: any) => s + Number(e.amountIdr ?? 0), 0)
-  return { data, meta: { ...result, totalAmount } }
+
+  const conds: any[] = [eq(tourExpenses.workspaceId, workspaceId), isNull(tourExpenses.deletedAt)]
+  if (q.status) conds.push(eq(tourExpenses.status, String(q.status)))
+  else conds.push(eq(tourExpenses.status, 'VERIFIED'))
+  if (q.category) conds.push(eq(tourExpenses.category, String(q.category)))
+  if (q.orderId) conds.push(eq(tourExpenses.orderId, Number(q.orderId)))
+  if (q.tripId) conds.push(eq(tourExpenses.tripId, Number(q.tripId)))
+  if (q.vendorId) conds.push(eq(tourExpenses.vendorId, Number(q.vendorId)))
+  if (q.bookingId) conds.push(eq(tourExpenses.bookingId, Number(q.bookingId)))
+  if (startDate) conds.push(gte(tourExpenses.expenseDate, startDate as any))
+  if (endDate) conds.push(lte(tourExpenses.expenseDate, endDate as any))
+
+  const agg = await db.select({
+    totalAmount: sql<number>`coalesce(sum(CASE WHEN ${tourExpenses.status} = 'VERIFIED' THEN ${tourExpenses.amountIdr} ELSE 0 END),0)`,
+    totalCount: count(),
+  }).from(tourExpenses).where(and(...conds))
+
+  return { data: result.data, meta: { ...result, totalAmount: Number(agg[0]?.totalAmount ?? 0), totalCountFull: Number(agg[0]?.totalCount ?? 0) } }
 })

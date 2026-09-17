@@ -42,8 +42,17 @@ function fmt(n: number) { return `Rp ${Number(n || 0).toLocaleString('id-ID')}`;
     </PageHead>
 
     <div class="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-800">
-      <p><strong>Formulas transparan:</strong> Order Value = sellingPriceIdr · Committed Cost = sum Booking.amountIdr terkait Order · Expected Margin = Value - Committed · Cash Received = sum VERIFIED Payments · Actual Expenses = sum VERIFIED Expenses terkait Order/Booking · Current Cash Margin = Received - Actual Expenses.</p>
-      <p class="mt-1">Trip profitability: Jika Order terhubung ke banyak Trip, revenue tidak dialokasikan unik — ditandai sebagai shared untuk menghindari double-count.</p>
+      <p><strong>Formulas transparan (remove ambiguity):</strong></p>
+      <ul class="mt-1 list-disc pl-5 space-y-0.5">
+        <li><strong>ORDER VALUE</strong> = selling price (order.sellingPriceIdr)</li>
+        <li><strong>BOOKING</strong> = commitment (kontrak biaya) — sum Booking.amountIdr</li>
+        <li><strong>INVOICE</strong> = billing/tagihan — ISSUED only untuk receivable</li>
+        <li><strong>PAYMENT</strong> = money received — SUM VERIFIED Payments via Order Invoices</li>
+        <li><strong>EXPENSE</strong> = money spent — SUM unique VERIFIED Expenses related Order/Bookings (avoid duplicate if expense links both orderId and bookingId same Order count once)</li>
+        <li><strong>EXPECTED MARGIN</strong> = Value - Committed (Value-committed)</li>
+        <li><strong>CURRENT CASH MARGIN</strong> = Received - Actual (received-actual) — bukan Net Profit, exclude DRAFT/VOID/CANCELLED</li>
+      </ul>
+      <p class="mt-2"><strong>Trip profitability multi-trip:</strong> Untuk setiap Order tentukan GLOBAL count Trips dari tour_trip_orders across workspace bukan page. tripCount=1 boleh kontribusi full revenue ke Trip itu, >1 SHARED/MULTI-TRIP JANGAN alokasi full value ke setiap Trip, V1 prefer exclude shared revenue label "Shared Order — revenue not allocated" OR cost only, no proportional allocation. Aggregates must not double count Order value/Payments/Expenses. GlobalTripCountByOrder query across workspace.</p>
     </div>
 
     <!-- Orders Profitability -->
@@ -54,7 +63,7 @@ function fmt(n: number) { return `Rp ${Number(n || 0).toLocaleString('id-ID')}`;
 
       <div class="mt-6 overflow-x-auto rounded-2xl border border-neutral-line bg-white">
         <table class="w-full min-w-[1400px] text-left text-sm">
-          <thead class="border-b bg-neutral-warm text-xs uppercase text-neutral-charcoal/60"><tr><th class="px-5 py-3">Order / Customer</th><th class="px-5 py-3">Order Value</th><th class="px-5 py-3">Committed Cost</th><th class="px-5 py-3">Expected Margin</th><th class="px-5 py-3">Invoiced</th><th class="px-5 py-3">Received</th><th class="px-5 py-3">Actual Expenses</th><th class="px-5 py-3">Current Cash Margin</th><th class="px-5 py-3">Trips</th></tr></thead>
+          <thead class="border-b bg-neutral-warm text-xs uppercase text-neutral-charcoal/60"><tr><th class="px-5 py-3">Order / Customer</th><th class="px-5 py-3">ORDER VALUE</th><th class="px-5 py-3">BOOKING Committed</th><th class="px-5 py-3">EXPECTED MARGIN Value-Committed</th><th class="px-5 py-3">INVOICE ISSUED</th><th class="px-5 py-3">PAYMENT Received VERIFIED</th><th class="px-5 py-3">EXPENSE Actual VERIFIED</th><th class="px-5 py-3">CURRENT CASH MARGIN Received-Actual</th><th class="px-5 py-3">Trips Global</th></tr></thead>
           <tbody class="divide-y">
             <tr v-for="row in orderRows" :key="row.order.id">
               <td class="px-5 py-3">

@@ -116,7 +116,7 @@ function exportReceivablesCsv() {
 
 <template>
   <div>
-    <PageHead title="Finance Reports" subtitle="Laporan operasional: Payments, Expenses, Receivables, Vendor Costs">
+    <PageHead title="Finance Reports" subtitle="Laporan operasional DB-filtered: Payments VERIFIED, Expenses VERIFIED, Receivables ISSUED, Vendor Costs VERIFIED. Totals full filtered set via DB aggregates, bukan first 100 rows. CSV sama filter dengan screen.">
       <template #actions><button class="min-h-[40px] rounded-xl border px-4 py-2 text-sm" @click="refreshAll()">Refresh</button></template>
     </PageHead>
 
@@ -125,6 +125,10 @@ function exportReceivablesCsv() {
       <button class="min-h-[36px] rounded-xl px-4 py-2 text-xs font-semibold border transition-all" :class="activeReport==='expenses' ? 'bg-sht-olive-dark text-white border-sht-olive-dark shadow-sm' : 'bg-white text-neutral-charcoal/70 border-neutral-charcoal/20 hover:border-neutral-charcoal/30 hover:bg-neutral-warm/60 hover:text-neutral-charcoal shadow-sm'" @click="activeReport='expenses'">Expenses</button>
       <button class="min-h-[36px] rounded-xl px-4 py-2 text-xs font-semibold border transition-all" :class="activeReport==='receivables' ? 'bg-sht-olive-dark text-white border-sht-olive-dark shadow-sm' : 'bg-white text-neutral-charcoal/70 border-neutral-charcoal/20 hover:border-neutral-charcoal/30 hover:bg-neutral-warm/60 hover:text-neutral-charcoal shadow-sm'" @click="activeReport='receivables'">Outstanding Receivables</button>
       <button class="min-h-[36px] rounded-xl px-4 py-2 text-xs font-semibold border transition-all" :class="activeReport==='vendor' ? 'bg-sht-olive-dark text-white border-sht-olive-dark shadow-sm' : 'bg-white text-neutral-charcoal/70 border-neutral-charcoal/20 hover:border-neutral-charcoal/30 hover:bg-neutral-warm/60 hover:text-neutral-charcoal shadow-sm'" @click="activeReport='vendor'">Vendor Cost</button>
+    </div>
+
+    <div class="mt-3 rounded-xl bg-blue-50 border border-blue-200 px-4 py-2.5 text-xs text-blue-800">
+      <p><strong>Reports hardening:</strong> date/business filtering at DB query BEFORE pagination/aggregation for Payments/Expenses/Receivables/Vendor Cost, do not totals from first 100 rows. Totals against FULL filtered set via DB aggregates, UI page 1 of 50 but total revenue all matching, CSV same filters as screen not only visible page. Draft/void excluded.</p>
     </div>
 
     <div class="mt-4 flex flex-wrap gap-3">
@@ -139,7 +143,7 @@ function exportReceivablesCsv() {
       <div class="flex items-center justify-between">
         <div>
           <h3 class="font-heading text-sm font-semibold">Payment / Revenue Report</h3>
-          <p class="mt-1 text-xs text-neutral-charcoal/60">Total VERIFIED: {{ fmt(paymentsData?.meta?.totalAmount || 0) }} · Hanya VERIFIED yang dihitung</p>
+          <p class="mt-1 text-xs text-neutral-charcoal/60">Total VERIFIED (full filtered set DB aggregate): {{ fmt(paymentsData?.meta?.totalAmount || 0) }} · Count {{ paymentsData?.meta?.totalCountFull || paymentsData?.meta?.total || 0 }} · DB filtering BEFORE pagination. Hanya VERIFIED dihitung, DRAFT/VOID excluded.</p>
         </div>
         <button class="min-h-[32px] rounded-xl border px-3 py-1 text-xs font-medium" @click="exportPaymentsCsv">Export CSV</button>
       </div>
@@ -164,7 +168,7 @@ function exportReceivablesCsv() {
       <div class="flex items-center justify-between">
         <div>
           <h3 class="font-heading text-sm font-semibold">Expense Report</h3>
-          <p class="mt-1 text-xs text-neutral-charcoal/60">Total VERIFIED: {{ fmt(expensesData?.meta?.totalAmount || 0) }}</p>
+          <p class="mt-1 text-xs text-neutral-charcoal/60">Total VERIFIED (full filtered set): {{ fmt(expensesData?.meta?.totalAmount || 0) }} · Count {{ expensesData?.meta?.totalCountFull || 0 }} · DB filtering BEFORE pagination, DRAFT/VOID excluded.</p>
         </div>
         <button class="min-h-[32px] rounded-xl border px-3 py-1 text-xs font-medium" @click="exportExpensesCsv">Export CSV</button>
       </div>
@@ -189,7 +193,7 @@ function exportReceivablesCsv() {
       <div class="flex items-center justify-between">
         <div>
           <h3 class="font-heading text-sm font-semibold">Outstanding Receivables</h3>
-          <p class="mt-1 text-xs text-neutral-charcoal/60">Total Outstanding: {{ fmt(receivablesData?.meta?.totalOutstanding || 0) }}</p>
+          <p class="mt-1 text-xs text-neutral-charcoal/60">Total Outstanding ISSUED only (full filtered): {{ fmt(receivablesData?.meta?.totalOutstanding || 0) }} · Count {{ receivablesData?.meta?.totalCountFull || 0 }} · DB filtering BEFORE pagination, DRAFT/CANCELLED excluded.</p>
         </div>
         <button class="min-h-[32px] rounded-xl border px-3 py-1 text-xs font-medium" @click="exportReceivablesCsv">Export CSV</button>
       </div>
@@ -213,7 +217,7 @@ function exportReceivablesCsv() {
 
     <div v-if="activeReport==='vendor'" class="mt-6 rounded-2xl border border-neutral-line bg-white p-6">
       <h3 class="font-heading text-sm font-semibold">Vendor Cost Report</h3>
-      <p class="mt-1 text-xs text-neutral-charcoal/60">Grouped by Vendor · Total: {{ fmt(vendorData?.meta?.totalAmount || 0) }}</p>
+      <p class="mt-1 text-xs text-neutral-charcoal/60">Grouped by Vendor VERIFIED only · Total full filtered: {{ fmt(vendorData?.meta?.totalAmount || 0) }} · Count {{ vendorData?.meta?.totalCountFull || 0 }} · DB filtering BEFORE pagination.</p>
       <div class="mt-4 space-y-4">
         <div v-for="g in vendorData?.data || []" :key="g.vendor?.id || 'no-vendor'" class="rounded-xl border border-neutral-line p-4">
           <div class="flex justify-between">

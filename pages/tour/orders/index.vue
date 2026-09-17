@@ -107,7 +107,7 @@ async function remove(o: any) {
 
 <template>
   <div>
-    <PageHead title="Orders" subtitle="Kelola pesanan umrah dan layanan. Pesanan bisa dibuat manual atau dari Lead dan Estimasi.">
+    <PageHead title="Orders" subtitle="ORDER VALUE = selling price. Customer→Order→Bookings/Vendors/Expenses & Invoices→Payments→Overview/Profitability/Reports. Order MUST ref existing Customer.">
       <template #actions><button type="button" class="min-h-[40px] rounded-xl bg-sht-olive px-4 py-2 text-sm font-semibold text-white" @click="openCreate">+ Buat Order</button></template>
     </PageHead>
 
@@ -122,7 +122,11 @@ async function remove(o: any) {
         <div>
           <h4 class="text-xs font-semibold uppercase tracking-wide text-neutral-charcoal/50">Informasi Pesanan</h4>
           <div class="mt-3 grid gap-3 sm:grid-cols-2">
-            <label class="text-sm font-medium">Customer *<select v-model="form.customerId" class="mt-1 min-h-[44px] w-full rounded-xl border border-neutral-line px-3 text-sm"><option value="">Pilih Customer...</option><option v-for="c in customers" :key="c.id" :value="c.id">{{ c.customerCode }} · {{ c.name }}</option></select></label>
+            <label class="text-sm font-medium">Customer * (required, dependency)
+              <select v-model="form.customerId" class="mt-1 min-h-[44px] w-full rounded-xl border border-neutral-line px-3 text-sm"><option value="">Pilih Customer...</option><option v-for="c in customers" :key="c.id" :value="c.id">{{ c.customerCode }} · {{ c.name }}</option></select>
+              <span class="mt-1 block text-[11px] text-neutral-charcoal/50">Order MUST ref existing Customer. Buat Customer dulu sebelum Order. No anonymous Order.</span>
+              <span v-if="!customers.length" class="mt-1 block text-[11px] text-red-600">Belum ada Customer. <NuxtLink to="/tour/customers" class="underline font-semibold">Create a Customer before creating an Order.</NuxtLink></span>
+            </label>
             <label class="text-sm font-medium">Tanggal Pesanan<input v-model="form.orderDate" type="date" class="mt-1 min-h-[44px] w-full rounded-xl border border-neutral-line px-4 text-sm" /></label>
             <label class="text-sm font-medium">Jenis Pesanan<select v-model="form.orderType" class="mt-1 min-h-[44px] w-full rounded-xl border border-neutral-line px-3 text-sm"><option v-for="t in ORDER_TYPES" :key="t" :value="t">{{ orderTypeLabel(t) }}</option></select></label>
             <label class="text-sm font-medium">Jumlah Pax<input v-model.number="form.paxCount" type="number" min="1" class="mt-1 min-h-[44px] w-full rounded-xl border border-neutral-line px-4 text-sm" /></label>

@@ -18,24 +18,24 @@ function fmtIdr(n: number) {
       <!-- KPI Cards -->
       <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <div class="rounded-2xl border border-neutral-line bg-white p-5">
-          <p class="text-xs uppercase tracking-wide text-neutral-charcoal/50">Cash Received</p>
+          <p class="text-xs uppercase tracking-wide text-neutral-charcoal/50">CASH RECEIVED — VERIFIED Payments</p>
           <p class="mt-2 text-lg font-semibold text-emerald-700">{{ fmtIdr(overview.cashReceived) }}</p>
-          <p class="mt-1 text-xs text-neutral-charcoal/60">Total VERIFIED Payments diterima dari customer</p>
+          <p class="mt-1 text-xs text-neutral-charcoal/60">SUM VERIFIED Payments only. DRAFT/VOID excluded.</p>
         </div>
         <div class="rounded-2xl border border-neutral-line bg-white p-5">
-          <p class="text-xs uppercase tracking-wide text-neutral-charcoal/50">Outstanding Receivables</p>
+          <p class="text-xs uppercase tracking-wide text-neutral-charcoal/50">OUTSTANDING RECEIVABLES — ISSUED only</p>
           <p class="mt-2 text-lg font-semibold text-amber-700">{{ fmtIdr(overview.outstandingReceivables) }}</p>
-          <p class="mt-1 text-xs text-neutral-charcoal/60">Tagihan aktif yang belum dibayar</p>
+          <p class="mt-1 text-xs text-neutral-charcoal/60">SUM outstanding ISSUED only. DRAFT excluded dari Outstanding, Overdue, customer outstanding, Profitability, Reports.</p>
         </div>
         <div class="rounded-2xl border border-neutral-line bg-white p-5">
-          <p class="text-xs uppercase tracking-wide text-neutral-charcoal/50">Verified Expenses</p>
+          <p class="text-xs uppercase tracking-wide text-neutral-charcoal/50">VERIFIED EXPENSES — Actual</p>
           <p class="mt-2 text-lg font-semibold text-neutral-charcoal">{{ fmtIdr(overview.verifiedExpenses) }}</p>
-          <p class="mt-1 text-xs text-neutral-charcoal/60">Pengeluaran operasional aktual</p>
+          <p class="mt-1 text-xs text-neutral-charcoal/60">SUM VERIFIED Expenses only. DRAFT/VOID excluded.</p>
         </div>
         <div class="rounded-2xl border border-neutral-line bg-white p-5" :class="overview.currentCashPosition < 0 ? 'border-red-200 bg-red-50/50' : 'border-emerald-200 bg-emerald-50/30'">
-          <p class="text-xs uppercase tracking-wide text-neutral-charcoal/50">Current Cash Position</p>
+          <p class="text-xs uppercase tracking-wide text-neutral-charcoal/50">CURRENT CASH — Received - Actual</p>
           <p class="mt-2 text-lg font-semibold" :class="overview.currentCashPosition < 0 ? 'text-red-700' : 'text-emerald-700'">{{ fmtIdr(overview.currentCashPosition) }}</p>
-          <p class="mt-1 text-xs text-neutral-charcoal/60">Payments - Expenses (operasional, bukan laba akuntansi formal)</p>
+          <p class="mt-1 text-xs text-neutral-charcoal/60">Payments VERIFIED - Expenses VERIFIED. CURRENT CASH MARGIN = received-actual, bukan Net Profit.</p>
         </div>
       </div>
 
@@ -43,10 +43,10 @@ function fmtIdr(n: number) {
         <!-- Overdue Invoices -->
         <div class="rounded-2xl border border-neutral-line bg-white p-6">
           <div class="flex items-center justify-between">
-            <h3 class="font-heading text-sm font-semibold">Overdue Invoices ({{ overview.overdueInvoices?.length || 0 }})</h3>
+            <h3 class="font-heading text-sm font-semibold">Overdue Invoices ({{ overview.overdueInvoicesCount ?? overview.overdueInvoices?.length ?? 0 }} total, showing {{ overview.overdueInvoices?.length || 0 }})</h3>
             <NuxtLink to="/tour/finance/invoices" class="text-xs font-semibold text-brand-teal hover:underline">Lihat semua →</NuxtLink>
           </div>
-          <p class="mt-1 text-xs text-neutral-charcoal/60">Tagihan lewat jatuh tempo yang perlu ditagih</p>
+          <p class="mt-1 text-xs text-neutral-charcoal/60">ISSUED && outstanding>0 && dueDate &lt; today. Exclude DRAFT/CANCELLED/DRAFT Payment/VOID Payment. Overdue count COUNT aggregate separate, list top10.</p>
           <div v-if="!overview.overdueInvoices?.length" class="mt-4 text-sm text-neutral-charcoal/50">Tidak ada overdue.</div>
           <div v-else class="mt-4 space-y-2">
             <div v-for="inv in overview.overdueInvoices" :key="inv.id" class="flex items-center justify-between rounded-xl border border-red-100 bg-red-50/50 px-4 py-2.5 text-sm">

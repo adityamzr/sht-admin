@@ -152,10 +152,6 @@ export const tourBookingInput = tourBookingBase.superRefine((v, ctx) => {
 })
 
 export const tourBookingPatch = tourBookingBase.partial().superRefine((v, ctx) => {
-  if (v.currency && v.currency !== 'IDR' && v.exchangeRateSnapshot === undefined) {
-    // if patching currency to non-IDR without snapshot, we can't know existing snapshot, so skip strict check here — API will recompute
-    // Only validate if snapshot provided and <=0
-  }
   if (v.exchangeRateSnapshot !== null && v.exchangeRateSnapshot !== undefined && v.exchangeRateSnapshot <= 0) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'exchangeRateSnapshot harus > 0', path: ['exchangeRateSnapshot'] })
   }
@@ -171,8 +167,13 @@ const tourInvoiceBase = z.object({
   state: z.enum(TOUR_INVOICE_STATES).default('DRAFT'),
   notes: z.string().max(2000).nullable().optional(),
 })
-export const tourInvoiceInput = tourInvoiceBase.refine((v: any) => !v.dueDate || v.dueDate.getTime() >= v.issueDate.getTime(), { message: 'dueDate tidak boleh sebelum issueDate', path: ['dueDate'] })
-export const tourInvoicePatch = tourInvoiceBase.partial().refine((v: any) => !v.issueDate || !v.dueDate || v.dueDate.getTime() >= v.issueDate.getTime(), { message: 'dueDate tidak boleh sebelum issueDate', path: ['dueDate'] })
+// Create: only DRAFT/ISSUED, no CANCELLED (CANCEL via explicit action). due>=issue validated at service merged level.
+export const tourInvoiceInput = tourInvoiceBase.extend({
+  state: z.enum(['DRAFT','ISSUED'] as const).default('DRAFT'),
+}).refine((v: any) => !v.dueDate || v.dueDate.getTime() >= v.issueDate.getTime(), { message: 'dueDate tidak boleh sebelum issueDate', path: ['dueDate'] })
+
+// PATCH: allow any state but service blocks CANCELLED reopen and validates merged dates. No Zod refine for merged dates – service does it.
+export const tourInvoicePatch = tourInvoiceBase.partial()
 
 // ─── Finance: Payments ──────────────────────────────────────────────────────
 const tourPaymentBase = z.object({
@@ -187,7 +188,10 @@ const tourPaymentBase = z.object({
   status: z.enum(TOUR_PAYMENT_STATUSES).default('DRAFT'),
   notes: z.string().max(2000).nullable().optional(),
 })
-export const tourPaymentInput = tourPaymentBase
+// Create: only DRAFT/VERIFIED, no VOID (VOID via explicit action)
+export const tourPaymentInput = tourPaymentBase.extend({
+  status: z.enum(['DRAFT','VERIFIED'] as const).default('DRAFT'),
+})
 export const tourPaymentPatch = tourPaymentBase.partial()
 
 // ─── Finance: Expenses ──────────────────────────────────────────────────────
@@ -209,7 +213,13 @@ const tourExpenseBase = z.object({
   proofUrl: z.string().max(1000).nullable().optional(),
   notes: z.string().max(2000).nullable().optional(),
 })
-export const tourExpenseInput = tourExpenseBase.superRefine((v: any, ctx: any) => {
+// Create: only DRAFT/VERIFIED, no VOID, FX invariant
+export const tourExpenseInput = tourExpenseBase.extend({
+  status: z.enum(['DRAFT','VERIFIED'] as const).default('DRAFT'),
+}).superRefine((v: any, ctx: any) => {
+  if (v.currency === 'IDR' && v.exchangeRateSnapshot !== null && v.exchangeRateSnapshot !== undefined) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'IDR harus snapshot null', path: ['exchangeRateSnapshot'] })
+  }
   if (v.currency !== 'IDR' && (v.exchangeRateSnapshot === null || v.exchangeRateSnapshot === undefined)) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'exchangeRateSnapshot wajib untuk non-IDR', path: ['exchangeRateSnapshot'] })
   }
@@ -217,8 +227,14 @@ export const tourExpenseInput = tourExpenseBase.superRefine((v: any, ctx: any) =
     ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'exchangeRateSnapshot harus > 0', path: ['exchangeRateSnapshot'] })
   }
 })
+// PATCH: FX hardening – currency change requires explicit new rate, IDR→SAR/USD requires rate, SAR/USD→IDR clears, no reuse old rate. Service enforces final merged state, Zod only validates snapshot >0 and disallows explicit null for non-IDR.
 export const tourExpensePatch = tourExpenseBase.partial().superRefine((v: any, ctx: any) => {
   if (v.exchangeRateSnapshot !== null && v.exchangeRateSnapshot !== undefined && v.exchangeRateSnapshot <= 0) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'exchangeRateSnapshot harus > 0', path: ['exchangeRateSnapshot'] })
   }
+  // If currency non-IDR and snapshot explicitly null, reject – need rate
+  if (v.currency && v.currency !== 'IDR' && v.exchangeRateSnapshot === null) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Kurs baru wajib diisi saat ganti mata uang ke SAR/USD, jangan pakai kurs lama', path: ['exchangeRateSnapshot'] })
+  }
+  // If currency IDR and snapshot provided >0, service will clear but warn – allow but Zod will pass, service handles clearing.
 })
