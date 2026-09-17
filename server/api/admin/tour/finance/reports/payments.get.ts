@@ -1,6 +1,13 @@
 import { useDb } from '~/server/db'
 import { listTourPaymentsEnriched, getTourWorkspaceIdFinance } from '~/server/services/tour-finance'
 
+function toIso(d: any): string | null {
+  if (!d) return null
+  if (typeof d === 'string') return d.slice(0,10)
+  if (d instanceof Date) return d.toISOString().slice(0,10)
+  return String(d).slice(0,10)
+}
+
 export default defineEventHandler(async (event) => {
   const q = getQuery(event)
   const db = useDb()
@@ -14,13 +21,12 @@ export default defineEventHandler(async (event) => {
     page: Number(q.page) || 1,
     pageSize: Number(q.pageSize) || 50,
   })
-  // date range filter in memory for V1 (since service doesn't have date range yet)
   let data = result.data
   if (q.startDate || q.endDate) {
     const start = q.startDate ? String(q.startDate).slice(0, 10) : null
     const end = q.endDate ? String(q.endDate).slice(0, 10) : null
     data = data.filter((p: any) => {
-      const d = p.paymentDate?.slice(0, 10)
+      const d = toIso(p.paymentDate)
       if (!d) return false
       if (start && d < start) return false
       if (end && d > end) return false

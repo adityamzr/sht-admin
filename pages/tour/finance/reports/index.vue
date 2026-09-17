@@ -1,5 +1,6 @@
 <script setup lang="ts">
 definePageMeta({ layout: "admin", middleware: "admin-auth" });
+import { toCsv, downloadCsv } from '~/shared/tour-csv'
 
 const activeReport = ref<"payments" | "expenses" | "receivables" | "vendor">("payments");
 
@@ -18,10 +19,10 @@ const query = computed(() => ({
   pageSize: 100,
 }));
 
-const { data: paymentsData, refresh: refreshPayments } = await useAdminFetch<{ data: any[]; meta: any }>("/api/admin/tour/finance/reports/payments", { query, watch: [activeReport] });
-const { data: expensesData, refresh: refreshExpenses } = await useAdminFetch<{ data: any[]; meta: any }>("/api/admin/tour/finance/reports/expenses", { query, watch: [activeReport] });
-const { data: receivablesData, refresh: refreshReceivables } = await useAdminFetch<{ data: any[]; meta: any }>("/api/admin/tour/finance/reports/receivables", { query, watch: [activeReport] });
-const { data: vendorData, refresh: refreshVendor } = await useAdminFetch<{ data: any; meta: any }>("/api/admin/tour/finance/reports/vendor-costs", { query, watch: [activeReport] });
+const { data: paymentsData, refresh: refreshPayments } = await useAdminFetch<{ data: any[]; meta: any }>("/api/admin/tour/finance/reports/payments", { query });
+const { data: expensesData, refresh: refreshExpenses } = await useAdminFetch<{ data: any[]; meta: any }>("/api/admin/tour/finance/reports/expenses", { query });
+const { data: receivablesData, refresh: refreshReceivables } = await useAdminFetch<{ data: any[]; meta: any }>("/api/admin/tour/finance/reports/receivables", { query });
+const { data: vendorData, refresh: refreshVendor } = await useAdminFetch<{ data: any; meta: any }>("/api/admin/tour/finance/reports/vendor-costs", { query });
 
 const { data: vendorsData } = await useAdminFetch<{ data: any[]; meta: any }>("/api/admin/tour/vendors", { query: { pageSize: 100 } });
 const vendors = computed(() => vendorsData.value?.data ?? []);
@@ -34,6 +35,82 @@ function fmt(n: number) { return `Rp ${Number(n || 0).toLocaleString('id-ID')}`;
 
 function refreshAll() {
   refreshPayments(); refreshExpenses(); refreshReceivables(); refreshVendor();
+}
+
+function exportPaymentsCsv() {
+  const rows = (paymentsData.value?.data || []).map((p: any) => ({
+    date: p.paymentDate,
+    paymentCode: p.paymentCode,
+    invoiceCode: p.invoice?.invoiceCode || '',
+    orderCode: p.order?.orderCode || '',
+    customer: p.customer?.name || '',
+    amountIdr: p.amountIdr,
+    method: p.method,
+    status: p.status,
+  }))
+  const csv = toCsv(rows, [
+    { key: 'date', label: 'Date' },
+    { key: 'paymentCode', label: 'Payment Code' },
+    { key: 'invoiceCode', label: 'Invoice' },
+    { key: 'orderCode', label: 'Order' },
+    { key: 'customer', label: 'Customer' },
+    { key: 'amountIdr', label: 'Amount IDR' },
+    { key: 'method', label: 'Method' },
+    { key: 'status', label: 'Status' },
+  ])
+  downloadCsv(`payments-${new Date().toISOString().slice(0,10)}.csv`, csv)
+}
+function exportExpensesCsv() {
+  const rows = (expensesData.value?.data || []).map((e: any) => ({
+    date: e.expenseDate,
+    expenseCode: e.expenseCode,
+    category: e.category,
+    vendor: e.vendor?.name || '',
+    booking: e.booking?.bookingCode || '',
+    order: e.order?.orderCode || '',
+    trip: e.trip?.tripCode || '',
+    currency: e.currency,
+    amount: e.amount,
+    amountIdr: e.amountIdr,
+    status: e.status,
+  }))
+  const csv = toCsv(rows, [
+    { key: 'date', label: 'Date' },
+    { key: 'expenseCode', label: 'Expense Code' },
+    { key: 'category', label: 'Category' },
+    { key: 'vendor', label: 'Vendor' },
+    { key: 'booking', label: 'Booking' },
+    { key: 'order', label: 'Order' },
+    { key: 'trip', label: 'Trip' },
+    { key: 'currency', label: 'Currency' },
+    { key: 'amount', label: 'Amount' },
+    { key: 'amountIdr', label: 'Amount IDR' },
+    { key: 'status', label: 'Status' },
+  ])
+  downloadCsv(`expenses-${new Date().toISOString().slice(0,10)}.csv`, csv)
+}
+function exportReceivablesCsv() {
+  const rows = (receivablesData.value?.data || []).map((inv: any) => ({
+    invoiceCode: inv.invoiceCode,
+    orderCode: inv.order?.orderCode || '',
+    customer: inv.customer?.name || '',
+    dueDate: inv.dueDate || '',
+    amountIdr: inv.amountIdr,
+    totalPaid: inv.totalPaid,
+    outstanding: inv.outstanding,
+    paymentStatus: inv.paymentStatus,
+  }))
+  const csv = toCsv(rows, [
+    { key: 'invoiceCode', label: 'Invoice' },
+    { key: 'orderCode', label: 'Order' },
+    { key: 'customer', label: 'Customer' },
+    { key: 'dueDate', label: 'Due Date' },
+    { key: 'amountIdr', label: 'Amount IDR' },
+    { key: 'totalPaid', label: 'Paid' },
+    { key: 'outstanding', label: 'Outstanding' },
+    { key: 'paymentStatus', label: 'Status' },
+  ])
+  downloadCsv(`receivables-${new Date().toISOString().slice(0,10)}.csv`, csv)
 }
 </script>
 
@@ -59,8 +136,13 @@ function refreshAll() {
     </div>
 
     <div v-if="activeReport==='payments'" class="mt-6 rounded-2xl border border-neutral-line bg-white p-6">
-      <h3 class="font-heading text-sm font-semibold">Payment / Revenue Report</h3>
-      <p class="mt-1 text-xs text-neutral-charcoal/60">Total VERIFIED: {{ fmt(paymentsData?.meta?.totalAmount || 0) }} · Hanya VERIFIED yang dihitung</p>
+      <div class="flex items-center justify-between">
+        <div>
+          <h3 class="font-heading text-sm font-semibold">Payment / Revenue Report</h3>
+          <p class="mt-1 text-xs text-neutral-charcoal/60">Total VERIFIED: {{ fmt(paymentsData?.meta?.totalAmount || 0) }} · Hanya VERIFIED yang dihitung</p>
+        </div>
+        <button class="min-h-[32px] rounded-xl border px-3 py-1 text-xs font-medium" @click="exportPaymentsCsv">Export CSV</button>
+      </div>
       <div class="mt-4 overflow-x-auto">
         <table class="w-full min-w-[800px] text-left text-sm">
           <thead class="border-b text-xs uppercase text-neutral-charcoal/50"><tr><th class="py-2">Date</th><th class="py-2">Payment / Invoice / Order</th><th class="py-2">Customer</th><th class="py-2">Amount</th><th class="py-2">Method</th><th class="py-2">Status</th></tr></thead>
@@ -79,8 +161,13 @@ function refreshAll() {
     </div>
 
     <div v-if="activeReport==='expenses'" class="mt-6 rounded-2xl border border-neutral-line bg-white p-6">
-      <h3 class="font-heading text-sm font-semibold">Expense Report</h3>
-      <p class="mt-1 text-xs text-neutral-charcoal/60">Total VERIFIED: {{ fmt(expensesData?.meta?.totalAmount || 0) }}</p>
+      <div class="flex items-center justify-between">
+        <div>
+          <h3 class="font-heading text-sm font-semibold">Expense Report</h3>
+          <p class="mt-1 text-xs text-neutral-charcoal/60">Total VERIFIED: {{ fmt(expensesData?.meta?.totalAmount || 0) }}</p>
+        </div>
+        <button class="min-h-[32px] rounded-xl border px-3 py-1 text-xs font-medium" @click="exportExpensesCsv">Export CSV</button>
+      </div>
       <div class="mt-4 overflow-x-auto">
         <table class="w-full min-w-[900px] text-left text-sm">
           <thead class="border-b text-xs uppercase text-neutral-charcoal/50"><tr><th class="py-2">Date</th><th class="py-2">Expense / Category</th><th class="py-2">Vendor / Booking</th><th class="py-2">Order / Trip</th><th class="py-2">Amount</th><th class="py-2">Status</th></tr></thead>
@@ -99,8 +186,13 @@ function refreshAll() {
     </div>
 
     <div v-if="activeReport==='receivables'" class="mt-6 rounded-2xl border border-neutral-line bg-white p-6">
-      <h3 class="font-heading text-sm font-semibold">Outstanding Receivables</h3>
-      <p class="mt-1 text-xs text-neutral-charcoal/60">Total Outstanding: {{ fmt(receivablesData?.meta?.totalOutstanding || 0) }}</p>
+      <div class="flex items-center justify-between">
+        <div>
+          <h3 class="font-heading text-sm font-semibold">Outstanding Receivables</h3>
+          <p class="mt-1 text-xs text-neutral-charcoal/60">Total Outstanding: {{ fmt(receivablesData?.meta?.totalOutstanding || 0) }}</p>
+        </div>
+        <button class="min-h-[32px] rounded-xl border px-3 py-1 text-xs font-medium" @click="exportReceivablesCsv">Export CSV</button>
+      </div>
       <div class="mt-4 overflow-x-auto">
         <table class="w-full min-w-[800px] text-left text-sm">
           <thead class="border-b text-xs uppercase text-neutral-charcoal/50"><tr><th class="py-2">Invoice</th><th class="py-2">Order / Customer</th><th class="py-2">Due</th><th class="py-2">Amount</th><th class="py-2">Paid</th><th class="py-2">Outstanding</th><th class="py-2">Status</th></tr></thead>

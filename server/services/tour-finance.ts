@@ -576,10 +576,16 @@ export async function softDeleteTourExpense(db: DbLike, id: number, workspaceId:
 export async function getFinanceOverview(db: DbLike, workspaceId: number) {
   const today = new Date().toISOString().slice(0, 10)
 
-  const [invoices, payments, expenses] = await Promise.all([
+  const [invoices, payments, expenses, bookings] = await Promise.all([
     db.select().from(tourInvoices).where(and(eq(tourInvoices.workspaceId, workspaceId), notDeleted(tourInvoices))),
     db.select().from(tourPayments).where(and(eq(tourPayments.workspaceId, workspaceId), notDeleted(tourPayments))),
     db.select().from(tourExpenses).where(and(eq(tourExpenses.workspaceId, workspaceId), notDeleted(tourExpenses))),
+    db.select({
+      booking: tourBookings,
+      vendor: tourVendors,
+    }).from(tourBookings)
+      .leftJoin(tourVendors, and(eq(tourBookings.vendorId, tourVendors.id), eq(tourVendors.workspaceId, workspaceId)))
+      .where(and(eq(tourBookings.workspaceId, workspaceId), notDeleted(tourBookings))),
   ])
 
   // Cash Received = sum VERIFIED Payments
@@ -630,6 +636,33 @@ export async function getFinanceOverview(db: DbLike, workspaceId: number) {
   // Overdue invoices sorted by days overdue desc
   overdueInvoices = overdueInvoices.sort((a, b) => b.daysOverdue - a.daysOverdue).slice(0, 10)
 
+  // Upcoming Booking Due: bookings with dueDate >= today, status DRAFT/CONFIRMED/PAID, sorted asc, limit 5
+  const upcomingBookings = bookings
+    .map(r => r.booking)
+    .filter((b: any) => {
+      if (!b.dueDate) return false
+      const due = toIsoDateString(b.dueDate)
+      if (!due) return false
+      if (due < today) return false
+      if (['CANCELLED', 'COMPLETED'].includes(b.status)) return false
+      return true
+    })
+    .sort((a: any, b: any) => {
+      const da = toIsoDateString(a.dueDate) || ''
+      const db = toIsoDateString(b.dueDate) || ''
+      return da.localeCompare(db)
+    })
+    .slice(0, 5)
+    .map((b: any) => {
+      const vendorRow = bookings.find((r: any) => r.booking.id === b.id)?.vendor
+      return {
+        ...b,
+        dueDate: toIsoDateString(b.dueDate),
+        bookingDate: toIsoDateString(b.bookingDate),
+        vendor: vendorRow ? { id: vendorRow.id, vendorCode: vendorRow.vendorCode, name: vendorRow.name } : null,
+      }
+    })
+
   return {
     cashReceived,
     outstandingReceivables,
@@ -639,6 +672,7 @@ export async function getFinanceOverview(db: DbLike, workspaceId: number) {
     overdueInvoices,
     recentPayments,
     recentExpenses,
+    upcomingBookings,
   }
 }
 

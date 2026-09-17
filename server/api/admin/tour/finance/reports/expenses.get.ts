@@ -1,6 +1,13 @@
 import { useDb } from '~/server/db'
 import { listTourExpensesEnriched, getTourWorkspaceIdFinance } from '~/server/services/tour-finance'
 
+function toIso(d: any): string | null {
+  if (!d) return null
+  if (typeof d === 'string') return d.slice(0,10)
+  if (d instanceof Date) return d.toISOString().slice(0,10)
+  return String(d).slice(0,10)
+}
+
 export default defineEventHandler(async (event) => {
   const q = getQuery(event)
   const db = useDb()
@@ -20,7 +27,7 @@ export default defineEventHandler(async (event) => {
     const start = q.startDate ? String(q.startDate).slice(0, 10) : null
     const end = q.endDate ? String(q.endDate).slice(0, 10) : null
     data = data.filter((e: any) => {
-      const d = e.expenseDate?.slice(0, 10)
+      const d = toIso(e.expenseDate)
       if (!d) return false
       if (start && d < start) return false
       if (end && d > end) return false
