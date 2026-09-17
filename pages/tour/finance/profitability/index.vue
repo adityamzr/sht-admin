@@ -35,8 +35,8 @@ function fmt(n: number) { return `Rp ${Number(n || 0).toLocaleString('id-ID')}`;
     <PageHead title="Profitability" subtitle="Analisis operasional: Expected vs Actual Cash. Bukan laba akuntansi formal.">
       <template #actions>
         <div class="flex gap-2">
-          <button type="button" class="min-h-[40px] rounded-xl px-4 py-2 text-sm font-medium" :class="activeTab==='orders' ? 'bg-sht-olive text-white' : 'border border-neutral-line'" @click="activeTab='orders'">Order</button>
-          <button type="button" class="min-h-[40px] rounded-xl px-4 py-2 text-sm font-medium" :class="activeTab==='trips' ? 'bg-sht-olive text-white' : 'border border-neutral-line'" @click="activeTab='trips'">Trip</button>
+          <button type="button" class="min-h-[40px] rounded-xl px-4 py-2 text-sm font-medium border transition-all" :class="activeTab==='orders' ? 'bg-sht-olive-dark text-white border-sht-olive-dark shadow-sm' : 'bg-white text-neutral-charcoal/70 border-neutral-charcoal/20 hover:border-neutral-charcoal/30 hover:bg-neutral-warm/60 shadow-sm'" @click="activeTab='orders'">Order</button>
+          <button type="button" class="min-h-[40px] rounded-xl px-4 py-2 text-sm font-medium border transition-all" :class="activeTab==='trips' ? 'bg-sht-olive-dark text-white border-sht-olive-dark shadow-sm' : 'bg-white text-neutral-charcoal/70 border-neutral-charcoal/20 hover:border-neutral-charcoal/30 hover:bg-neutral-warm/60 shadow-sm'" @click="activeTab='trips'">Trip</button>
         </div>
       </template>
     </PageHead>

@@ -121,10 +121,10 @@ function exportReceivablesCsv() {
     </PageHead>
 
     <div class="mt-6 flex flex-wrap gap-2">
-      <button class="min-h-[36px] rounded-xl px-4 py-2 text-xs font-semibold" :class="activeReport==='payments' ? 'bg-sht-olive text-white' : 'border border-neutral-line'" @click="activeReport='payments'">Payments / Revenue</button>
-      <button class="min-h-[36px] rounded-xl px-4 py-2 text-xs font-semibold" :class="activeReport==='expenses' ? 'bg-sht-olive text-white' : 'border border-neutral-line'" @click="activeReport='expenses'">Expenses</button>
-      <button class="min-h-[36px] rounded-xl px-4 py-2 text-xs font-semibold" :class="activeReport==='receivables' ? 'bg-sht-olive text-white' : 'border border-neutral-line'" @click="activeReport='receivables'">Outstanding Receivables</button>
-      <button class="min-h-[36px] rounded-xl px-4 py-2 text-xs font-semibold" :class="activeReport==='vendor' ? 'bg-sht-olive text-white' : 'border border-neutral-line'" @click="activeReport='vendor'">Vendor Cost</button>
+      <button class="min-h-[36px] rounded-xl px-4 py-2 text-xs font-semibold border transition-all" :class="activeReport==='payments' ? 'bg-sht-olive-dark text-white border-sht-olive-dark shadow-sm' : 'bg-white text-neutral-charcoal/70 border-neutral-charcoal/20 hover:border-neutral-charcoal/30 hover:bg-neutral-warm/60 hover:text-neutral-charcoal shadow-sm'" @click="activeReport='payments'">Payments / Revenue</button>
+      <button class="min-h-[36px] rounded-xl px-4 py-2 text-xs font-semibold border transition-all" :class="activeReport==='expenses' ? 'bg-sht-olive-dark text-white border-sht-olive-dark shadow-sm' : 'bg-white text-neutral-charcoal/70 border-neutral-charcoal/20 hover:border-neutral-charcoal/30 hover:bg-neutral-warm/60 hover:text-neutral-charcoal shadow-sm'" @click="activeReport='expenses'">Expenses</button>
+      <button class="min-h-[36px] rounded-xl px-4 py-2 text-xs font-semibold border transition-all" :class="activeReport==='receivables' ? 'bg-sht-olive-dark text-white border-sht-olive-dark shadow-sm' : 'bg-white text-neutral-charcoal/70 border-neutral-charcoal/20 hover:border-neutral-charcoal/30 hover:bg-neutral-warm/60 hover:text-neutral-charcoal shadow-sm'" @click="activeReport='receivables'">Outstanding Receivables</button>
+      <button class="min-h-[36px] rounded-xl px-4 py-2 text-xs font-semibold border transition-all" :class="activeReport==='vendor' ? 'bg-sht-olive-dark text-white border-sht-olive-dark shadow-sm' : 'bg-white text-neutral-charcoal/70 border-neutral-charcoal/20 hover:border-neutral-charcoal/30 hover:bg-neutral-warm/60 hover:text-neutral-charcoal shadow-sm'" @click="activeReport='vendor'">Vendor Cost</button>
     </div>
 
     <div class="mt-4 flex flex-wrap gap-3">

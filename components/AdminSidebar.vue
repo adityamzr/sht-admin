@@ -269,8 +269,8 @@ const menu = computed(() => currentWorkspaceKey.value === "media" ? mediaMenu : 
                             v-for="item in group.items"
                             :key="item.to"
                             :to="item.to"
-                            class="flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-medium transition-colors"
-                            :class="activeTo === item.to || (item.to !== '/tour' && $route.path.startsWith(item.to + '/')) || $route.path === item.to ? 'bg-sht-olive-dark text-white' : 'text-neutral-charcoal/70 hover:bg-sht-olive/5 hover:text-sht-olive'"
+                            class="flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-medium transition-colors border border-transparent"
+                            :class="activeTo === item.to ? 'bg-sht-olive-dark text-white border-sht-olive-dark shadow-sm' : 'text-neutral-charcoal/70 hover:bg-sht-olive/5 hover:text-sht-olive hover:border-neutral-line'"
                         >
                             <component :is="item.icon" class="h-[18px] w-[18px] shrink-0" />
                             <span class="min-w-0 flex-1">{{ item.label }}</span>
