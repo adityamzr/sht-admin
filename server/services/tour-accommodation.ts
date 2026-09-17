@@ -136,17 +136,45 @@ export async function listAccommodationStaysEnriched(db: DbLike, f: ListStaysFil
     }
   }
 
+  // Occupants enrichment for rooms – previously only counted, now include jamaah details so UI can show unassign
+  const jamaahIds = [...new Set(occupants.map(o=>o.jamaahId))]
+  let jamaahMap: Record<number, any> = {}
+  let orderMapForOccupants: Record<number, any> = { ...orderMap }
+  if (jamaahIds.length) {
+    const jamaahOcc = await db.select().from(tourJamaah).where(and(eq(tourJamaah.workspaceId, f.workspaceId), inArray(tourJamaah.id, jamaahIds)))
+    for (const j of jamaahOcc) jamaahMap[j.id]=j
+    const orderIdsFromJamaah = [...new Set(jamaahOcc.map(j=>j.orderId).filter((id:any)=>!orderMapForOccupants[id]))]
+    if (orderIdsFromJamaah.length) {
+      const ordersOcc = await db.select().from(tourOrders).where(and(eq(tourOrders.workspaceId, f.workspaceId), inArray(tourOrders.id, orderIdsFromJamaah)))
+      for (const o of ordersOcc) orderMapForOccupants[o.id]=o
+    }
+  }
+
   const occupantsByStay: Record<number, number> = {}
-  const occupantsByRoom: Record<number, number> = {}
+  const occupantsByRoomCount: Record<number, number> = {}
+  const occupantsByRoomDetailed: Record<number, any[]> = {}
   for (const oc of occupants) {
     occupantsByStay[oc.stayId] = (occupantsByStay[oc.stayId]||0)+1
-    occupantsByRoom[oc.roomId] = (occupantsByRoom[oc.roomId]||0)+1
+    occupantsByRoomCount[oc.roomId] = (occupantsByRoomCount[oc.roomId]||0)+1
+    if (!occupantsByRoomDetailed[oc.roomId]) occupantsByRoomDetailed[oc.roomId]=[]
+    const j = jamaahMap[oc.jamaahId]
+    occupantsByRoomDetailed[oc.roomId].push({
+      ...oc,
+      jamaah: j ? { ...j, order: orderMapForOccupants[j.orderId] || null } : null,
+    })
   }
 
   const roomsByStay: Record<number, any[]> = {}
   for (const r of rooms) {
     if (!roomsByStay[r.stayId]) roomsByStay[r.stayId]=[]
-    roomsByStay[r.stayId].push({ ...r, occupied: occupantsByRoom[r.id]||0 })
+    const occDetailed = occupantsByRoomDetailed[r.id] || []
+    roomsByStay[r.stayId].push({
+      ...r,
+      occupied: occupantsByRoomCount[r.id]||0,
+      occupants: occDetailed,
+      remaining: r.capacity - (occupantsByRoomCount[r.id]||0),
+      isFull: (occupantsByRoomCount[r.id]||0) >= r.capacity,
+    })
   }
 
   const data = base.data.map(stay => {

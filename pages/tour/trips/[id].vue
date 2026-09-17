@@ -63,8 +63,8 @@ function openEditStay(s: any) {
     bookingId: s.bookingId,
     hotelName: s.hotelName,
     city: s.city,
-    checkInDate: s.checkInDate,
-    checkOutDate: s.checkOutDate,
+    checkInDate: formatDate(s.checkInDate),
+    checkOutDate: formatDate(s.checkOutDate),
     notes: s.notes || "",
     orderIds: (s.orders || []).map((o: any) => o.id),
   });
@@ -268,6 +268,45 @@ function isJamaahAlreadyAssigned(jamaahId: number, stayDetail: any) {
   if (!stayDetail) return false;
   return (stayDetail.occupants || []).some((oc: any) => oc.jamaahId === jamaahId);
 }
+
+function formatDate(d: any): string {
+  if (!d) return '—'
+  if (d instanceof Date) return d.toISOString().slice(0,10)
+  return String(d).slice(0,10)
+}
+
+async function clearRoom(room: any, stayId: number) {
+  if (!room.occupants?.length) return
+  if (!confirm(`Kosongkan ${room.roomLabel}? Keluarkan ${room.occupants.length} Jamaah dari kamar ini?`)) return
+  for (const occ of room.occupants) {
+    await adminDelete(`/api/admin/tour/room-occupants/${occ.id}`).catch(()=>{})
+  }
+  await refreshAccommodation()
+  await loadStayDetail(stayId)
+}
+
+async function unassignJamaahFromRoom(jamaahId: number, stayId: number) {
+  if (!confirm('Keluarkan Jamaah dari kamar ini?')) return
+  // Find occupant id from stays (now enriched with occupants) or currentStayDetail
+  let occId: number | null = null
+  const stay = stays.value.find((s:any)=>s.id===stayId)
+  if (stay) {
+    const occ = stay.rooms?.flatMap((r:any)=>r.occupants||[]).find((o:any)=>o.jamaahId===jamaahId)
+    if (occ) occId = occ.id
+  }
+  if (!occId && currentStayDetail.value?.id===stayId) {
+    const occ = (currentStayDetail.value.occupants||[]).find((o:any)=>o.jamaahId===jamaahId)
+    if (occ) occId = occ.id
+  }
+  if (occId) {
+    await adminDelete(`/api/admin/tour/room-occupants/${occId}`).catch(()=>{})
+  } else {
+    // fallback direct delete by stay+jamaah via service helper (if API supports)
+    await $fetch(`/api/admin/tour/room-occupants/by-jamaah`, { method: 'DELETE', body: { stayId, jamaahId } } as any).catch(()=>{})
+  }
+  await refreshAccommodation()
+  await loadStayDetail(stayId)
+}
 </script>
 
 <template>
@@ -345,7 +384,7 @@ function isJamaahAlreadyAssigned(jamaahId: number, stayDetail: any) {
             <div>
               <p class="font-mono text-xs font-semibold">{{ stay.stayCode }} · {{ stay.booking?.bookingCode || `BKG-${stay.bookingId}` }}</p>
               <h3 class="mt-1 font-heading text-base font-semibold flex items-center gap-2"><Building2 class="h-4 w-4" /> {{ stay.hotelName }} · {{ stay.city }}</h3>
-              <p class="mt-1 text-xs text-neutral-charcoal/60">{{ stay.checkInDate }} → {{ stay.checkOutDate }} · Vendor {{ stay.booking?.vendorId ? `#${stay.booking.vendorId}` : '' }} (snapshot hotel, Vendor mungkin provider/wholesaler)</p>
+              <p class="mt-1 text-xs text-neutral-charcoal/60">{{ formatDate(stay.checkInDate) }} → {{ formatDate(stay.checkOutDate) }} · {{ stay.hotelName }} · Vendor {{ stay.booking?.vendorId ? `#${stay.booking.vendorId}` : '' }} (snapshot hotel, Vendor mungkin provider/wholesaler)</p>
               <p v-if="stay.notes" class="mt-1 text-xs text-neutral-charcoal/70">{{ stay.notes }}</p>
             </div>
             <div class="flex gap-1">
@@ -395,29 +434,31 @@ function isJamaahAlreadyAssigned(jamaahId: number, stayDetail: any) {
                     <button class="rounded-lg p-1.5 text-red-500 hover:bg-red-50" title="Hapus Room" @click="removeRoom(room)"><Trash2 class="h-3.5 w-3.5" /></button>
                   </div>
                 </div>
-                <div class="mt-2 flex items-center gap-2 text-xs">
+                <div class="mt-2 flex flex-wrap items-center gap-2 text-xs">
                   <span class="rounded bg-neutral-warm px-2 py-0.5 font-medium">{{ room.occupied }} / {{ room.capacity }}</span>
                   <span v-if="room.occupied >= room.capacity" class="rounded bg-emerald-100 px-2 py-0.5 text-emerald-700">Full</span>
                   <span v-else class="rounded bg-amber-100 px-2 py-0.5 text-amber-700">{{ room.capacity - room.occupied }} slot left</span>
+                  <button v-if="room.occupied>0" class="ml-auto rounded-lg border border-red-200 bg-white px-2 py-0.5 text-[11px] font-medium text-red-600 hover:bg-red-50" title="Keluarkan semua dari room ini" @click="clearRoom(room, stay.id)">Kosongkan</button>
                 </div>
                 <div class="mt-3">
                   <div class="flex items-center justify-between">
-                    <p class="text-[11px] uppercase text-neutral-charcoal/50">Occupants</p>
-                    <button class="min-h-[28px] rounded-lg border px-2 py-1 text-[11px] font-medium hover:bg-neutral-warm flex items-center gap-1" @click="openAssign(room, stay)"><Users class="h-3 w-3" /> Assign</button>
+                    <p class="text-[11px] uppercase text-neutral-charcoal/50">Occupants ({{ room.occupants?.length || 0 }})</p>
+                    <button class="min-h-[28px] rounded-lg border px-2 py-1 text-[11px] font-medium hover:bg-neutral-warm flex items-center gap-1" :class="room.occupied >= room.capacity ? 'opacity-50 cursor-not-allowed' : ''" :disabled="room.occupied >= room.capacity" :title="room.occupied >= room.capacity ? 'Room penuh, keluarkan dulu untuk tambah' : 'Tambah Jamaah'" @click="openAssign(room, stay)"><Users class="h-3 w-3" /> {{ room.occupied >= room.capacity ? 'Full' : 'Assign' }}</button>
                   </div>
-                  <div class="mt-2 space-y-1">
-                    <div v-if="!room.occupants || room.occupants.length===0" class="text-xs text-neutral-charcoal/40">Kosong</div>
-                    <div v-for="occ in (room.occupants || [])" :key="occ.id" class="flex items-center justify-between rounded-lg bg-white border px-2 py-1.5 text-xs">
-                      <span>
-                        <span class="font-mono font-semibold">{{ occ.jamaah?.jamaahCode || `JMH-${occ.jamaahId}` }}</span> · {{ occ.jamaah?.fullName || '' }}
+                  <div class="mt-2 space-y-1.5">
+                    <div v-if="!room.occupants || room.occupants.length===0" class="rounded-lg border border-dashed border-neutral-line bg-neutral-warm/30 px-3 py-3 text-center text-xs text-neutral-charcoal/40">Kosong — belum ada Jamaah. Klik Assign untuk tambah.</div>
+                    <div v-for="occ in (room.occupants || [])" :key="occ.id" class="flex items-center justify-between rounded-lg bg-white border px-2.5 py-2 text-xs shadow-sm">
+                      <span class="flex-1 truncate">
+                        <span class="font-mono font-semibold">{{ occ.jamaah?.jamaahCode || `JMH-${occ.jamaahId}` }}</span> · <span class="font-medium">{{ occ.jamaah?.fullName || '' }}</span>
                         <span v-if="room.roomingMode==='SHARED_GROUP'" class="text-[11px] text-neutral-charcoal/50"> · {{ occ.jamaah?.order?.orderCode || `ORD-${occ.jamaah?.orderId}` }}</span>
                       </span>
-                      <span class="flex gap-1">
-                        <button class="rounded p-1 text-neutral-charcoal/50 hover:bg-neutral-warm" title="Pindah" @click="openMove(occ.jamaahId, stay.id)"><MoveRight class="h-3 w-3" /></button>
-                        <button class="rounded p-1 text-red-500 hover:bg-red-50" title="Keluarkan" @click="removeOccupantById(occ.id, stay.id)"><UserMinus class="h-3 w-3" /></button>
+                      <span class="ml-2 flex shrink-0 items-center gap-1">
+                        <button class="rounded-md border border-neutral-line bg-white p-1.5 text-neutral-charcoal/70 hover:bg-neutral-warm hover:text-neutral-charcoal" title="Pindah kamar" @click="openMove(occ.jamaahId, stay.id)"><MoveRight class="h-3.5 w-3.5" /></button>
+                        <button class="rounded-md border border-red-200 bg-red-50 p-1.5 text-red-600 hover:bg-red-100" title="Keluarkan dari kamar (unassign)" @click="removeOccupantById(occ.id, stay.id)"><UserMinus class="h-3.5 w-3.5" /></button>
                       </span>
                     </div>
                   </div>
+                  <p class="mt-2 text-[11px] text-neutral-charcoal/50">Salah input? Klik <span class="inline-flex items-center gap-0.5 rounded bg-red-50 px-1 py-0.5 text-red-600"><UserMinus class="h-3 w-3" /> Keluarkan</span> untuk unassign, atau <MoveRight class="h-3 w-3" /> untuk pindah kamar. Room Full tetap bisa dikosongkan.</p>
                 </div>
               </div>
             </div>
