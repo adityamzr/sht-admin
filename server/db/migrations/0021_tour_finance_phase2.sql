@@ -1,8 +1,7 @@
 -- Tour Finance Phase 2: Invoices, Payments, Expenses
-CREATE SEQUENCE tour_invoices_seq START WITH 1;
-CREATE SEQUENCE tour_payments_seq START WITH 1;
-CREATE SEQUENCE tour_expenses_seq START WITH 1;
-
+CREATE SEQUENCE IF NOT EXISTS tour_invoices_seq START WITH 1;--> statement-breakpoint
+CREATE SEQUENCE IF NOT EXISTS tour_payments_seq START WITH 1;--> statement-breakpoint
+CREATE SEQUENCE IF NOT EXISTS tour_expenses_seq START WITH 1;--> statement-breakpoint
 CREATE TABLE tour_invoices (
   id SERIAL PRIMARY KEY,
   workspace_id INTEGER NOT NULL REFERENCES workspaces(id),
@@ -19,15 +18,14 @@ CREATE TABLE tour_invoices (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   deleted_at TIMESTAMPTZ
-);
-CREATE UNIQUE INDEX tour_invoices_workspace_code_unique ON tour_invoices(workspace_id, invoice_code);
-CREATE INDEX tour_invoices_workspace_idx ON tour_invoices(workspace_id);
-CREATE INDEX tour_invoices_order_idx ON tour_invoices(order_id);
-CREATE INDEX tour_invoices_state_idx ON tour_invoices(state);
-CREATE INDEX tour_invoices_issue_date_idx ON tour_invoices(issue_date);
-CREATE INDEX tour_invoices_due_date_idx ON tour_invoices(due_date);
-CREATE INDEX tour_invoices_deleted_idx ON tour_invoices(deleted_at);
-
+);--> statement-breakpoint
+CREATE UNIQUE INDEX tour_invoices_workspace_code_unique ON tour_invoices(workspace_id, invoice_code);--> statement-breakpoint
+CREATE INDEX tour_invoices_workspace_idx ON tour_invoices(workspace_id);--> statement-breakpoint
+CREATE INDEX tour_invoices_order_idx ON tour_invoices(order_id);--> statement-breakpoint
+CREATE INDEX tour_invoices_state_idx ON tour_invoices(state);--> statement-breakpoint
+CREATE INDEX tour_invoices_issue_date_idx ON tour_invoices(issue_date);--> statement-breakpoint
+CREATE INDEX tour_invoices_due_date_idx ON tour_invoices(due_date);--> statement-breakpoint
+CREATE INDEX tour_invoices_deleted_idx ON tour_invoices(deleted_at);--> statement-breakpoint
 CREATE TABLE tour_payments (
   id SERIAL PRIMARY KEY,
   workspace_id INTEGER NOT NULL REFERENCES workspaces(id),
@@ -49,15 +47,14 @@ CREATE TABLE tour_payments (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   deleted_at TIMESTAMPTZ
-);
-CREATE UNIQUE INDEX tour_payments_workspace_code_unique ON tour_payments(workspace_id, payment_code);
-CREATE INDEX tour_payments_workspace_idx ON tour_payments(workspace_id);
-CREATE INDEX tour_payments_invoice_idx ON tour_payments(invoice_id);
-CREATE INDEX tour_payments_order_idx ON tour_payments(order_id);
-CREATE INDEX tour_payments_status_idx ON tour_payments(status);
-CREATE INDEX tour_payments_date_idx ON tour_payments(payment_date);
-CREATE INDEX tour_payments_deleted_idx ON tour_payments(deleted_at);
-
+);--> statement-breakpoint
+CREATE UNIQUE INDEX tour_payments_workspace_code_unique ON tour_payments(workspace_id, payment_code);--> statement-breakpoint
+CREATE INDEX tour_payments_workspace_idx ON tour_payments(workspace_id);--> statement-breakpoint
+CREATE INDEX tour_payments_invoice_idx ON tour_payments(invoice_id);--> statement-breakpoint
+CREATE INDEX tour_payments_order_idx ON tour_payments(order_id);--> statement-breakpoint
+CREATE INDEX tour_payments_status_idx ON tour_payments(status);--> statement-breakpoint
+CREATE INDEX tour_payments_date_idx ON tour_payments(payment_date);--> statement-breakpoint
+CREATE INDEX tour_payments_deleted_idx ON tour_payments(deleted_at);--> statement-breakpoint
 CREATE TABLE tour_expenses (
   id SERIAL PRIMARY KEY,
   workspace_id INTEGER NOT NULL REFERENCES workspaces(id),
@@ -85,14 +82,14 @@ CREATE TABLE tour_expenses (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   deleted_at TIMESTAMPTZ
-);
-CREATE UNIQUE INDEX tour_expenses_workspace_code_unique ON tour_expenses(workspace_id, expense_code);
-CREATE INDEX tour_expenses_workspace_idx ON tour_expenses(workspace_id);
-CREATE INDEX tour_expenses_order_idx ON tour_expenses(order_id);
-CREATE INDEX tour_expenses_trip_idx ON tour_expenses(trip_id);
-CREATE INDEX tour_expenses_booking_idx ON tour_expenses(booking_id);
-CREATE INDEX tour_expenses_vendor_idx ON tour_expenses(vendor_id);
-CREATE INDEX tour_expenses_category_idx ON tour_expenses(category);
-CREATE INDEX tour_expenses_status_idx ON tour_expenses(status);
-CREATE INDEX tour_expenses_date_idx ON tour_expenses(expense_date);
+);--> statement-breakpoint
+CREATE UNIQUE INDEX tour_expenses_workspace_code_unique ON tour_expenses(workspace_id, expense_code);--> statement-breakpoint
+CREATE INDEX tour_expenses_workspace_idx ON tour_expenses(workspace_id);--> statement-breakpoint
+CREATE INDEX tour_expenses_order_idx ON tour_expenses(order_id);--> statement-breakpoint
+CREATE INDEX tour_expenses_trip_idx ON tour_expenses(trip_id);--> statement-breakpoint
+CREATE INDEX tour_expenses_booking_idx ON tour_expenses(booking_id);--> statement-breakpoint
+CREATE INDEX tour_expenses_vendor_idx ON tour_expenses(vendor_id);--> statement-breakpoint
+CREATE INDEX tour_expenses_category_idx ON tour_expenses(category);--> statement-breakpoint
+CREATE INDEX tour_expenses_status_idx ON tour_expenses(status);--> statement-breakpoint
+CREATE INDEX tour_expenses_date_idx ON tour_expenses(expense_date);--> statement-breakpoint
 CREATE INDEX tour_expenses_deleted_idx ON tour_expenses(deleted_at);
