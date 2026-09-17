@@ -9,13 +9,18 @@ export default defineEventHandler(async (event) => {
 
   const db = useDb()
   const workspaceId = await getTourWorkspaceIdAccommodation(db)
+  function toIsoDate(d: unknown): string {
+    if (!d) return ''
+    if (d instanceof Date) return d.toISOString().slice(0,10)
+    return String(d).slice(0,10)
+  }
   const row = await createAccommodationStay(db, workspaceId, {
     tripId: parsed.data.tripId,
     bookingId: parsed.data.bookingId,
     hotelName: parsed.data.hotelName,
     city: parsed.data.city,
-    checkInDate: (parsed.data.checkInDate as Date).toISOString().slice(0,10),
-    checkOutDate: (parsed.data.checkOutDate as Date).toISOString().slice(0,10),
+    checkInDate: toIsoDate(parsed.data.checkInDate),
+    checkOutDate: toIsoDate(parsed.data.checkOutDate),
     notes: parsed.data.notes || null,
     orderIds: parsed.data.orderIds,
   })

@@ -294,15 +294,15 @@ export async function createAccommodationStay(db: DbLike, workspaceId: number, i
     await ensureOrderBelongsTrip(db, Number(oid), tripId, workspaceId)
   }
 
-  // Insert stay
+  // Insert stay – Drizzle date mode:'date' expects Date object, not string
   const stayRows = await db.insert(tourAccommodationStays).values({
     workspaceId,
     tripId,
     bookingId,
     hotelName: String(input.hotelName).trim(),
     city: input.city || 'Makkah',
-    checkInDate: checkIn as any,
-    checkOutDate: checkOut as any,
+    checkInDate: new Date(checkIn) as any,
+    checkOutDate: new Date(checkOut) as any,
     notes: input.notes || null,
   } as any).returning()
   const stay = stayRows[0]
@@ -348,8 +348,8 @@ export async function updateAccommodationStay(db: DbLike, id: number, workspaceI
     updatePayload.hotelName = String(patch.hotelName).trim()
   }
   if (patch.city !== undefined) updatePayload.city = patch.city
-  if (patch.checkInDate) updatePayload.checkInDate = finalCheckIn as any
-  if (patch.checkOutDate) updatePayload.checkOutDate = finalCheckOut as any
+  if (patch.checkInDate) updatePayload.checkInDate = finalCheckIn ? new Date(finalCheckIn) as any : undefined
+  if (patch.checkOutDate) updatePayload.checkOutDate = finalCheckOut ? new Date(finalCheckOut) as any : undefined
   if (patch.notes !== undefined) updatePayload.notes = patch.notes
   if (Object.keys(updatePayload).length) {
     updatePayload.updatedAt = new Date()
