@@ -238,3 +238,76 @@ export const tourExpensePatch = tourExpenseBase.partial().superRefine((v: any, c
   }
   // If currency IDR and snapshot provided >0, service will clear but warn – allow but Zod will pass, service handles clearing.
 })
+
+// ─── Accommodation & Rooming V1 ─────────────────────────────────────────────
+const accommodationStayBase = z.object({
+  tripId: int(1, 999999999),
+  bookingId: int(1, 999999999),
+  hotelName: z.string().min(2).max(200),
+  city: z.string().max(100).default('Makkah'),
+  checkInDate: isoDate,
+  checkOutDate: isoDate,
+  notes: z.string().max(2000).nullable().optional(),
+  orderIds: z.array(int(1, 999999999)).min(1).max(100),
+})
+
+export const tourAccommodationStayInput = accommodationStayBase.refine((v: any) => v.checkOutDate.getTime() >= v.checkInDate.getTime(), { message: 'checkOutDate harus >= checkInDate', path: ['checkOutDate'] })
+export const tourAccommodationStayPatch = z.object({
+  bookingId: int(1, 999999999).optional(),
+  hotelName: z.string().min(2).max(200).optional(),
+  city: z.string().max(100).optional(),
+  checkInDate: isoDate.optional(),
+  checkOutDate: isoDate.optional(),
+  notes: z.string().max(2000).nullable().optional(),
+  orderIds: z.array(int(1, 999999999)).min(1).max(100).optional(),
+}).refine((v: any) => !v.checkInDate || !v.checkOutDate || v.checkOutDate.getTime() >= v.checkInDate.getTime(), { message: 'checkOutDate harus >= checkInDate', path: ['checkOutDate'] })
+
+const roomBase = z.object({
+  stayId: int(1, 999999999),
+  roomLabel: z.string().min(1).max(100),
+  roomNumber: z.string().max(50).nullable().optional(),
+  roomType: z.enum(['SINGLE','DOUBLE','TRIPLE','QUAD','QUINT','OTHER'] as const),
+  capacity: int(1, 10).optional(),
+  roomingMode: z.enum(['SAME_ORDER','SHARED_GROUP'] as const),
+  orderId: int(1, 999999999).nullable().optional(),
+  notes: z.string().max(2000).nullable().optional(),
+})
+
+export const tourAccommodationRoomInput = roomBase.superRefine((v: any, ctx: any) => {
+  if (v.roomingMode === 'SAME_ORDER' && !v.orderId) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'SAME_ORDER wajib orderId', path: ['orderId'] })
+  }
+  if (v.roomingMode === 'SHARED_GROUP' && v.orderId) {
+    // Allow but service will clear – warn
+    // ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'SHARED_GROUP harus orderId null', path: ['orderId'] })
+  }
+  if (v.capacity !== undefined && v.capacity !== null && v.capacity <=0) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'capacity harus >0', path: ['capacity'] })
+  }
+})
+
+export const tourAccommodationRoomPatch = z.object({
+  roomLabel: z.string().min(1).max(100).optional(),
+  roomNumber: z.string().max(50).nullable().optional(),
+  roomType: z.enum(['SINGLE','DOUBLE','TRIPLE','QUAD','QUINT','OTHER'] as const).optional(),
+  capacity: int(1, 10).optional(),
+  roomingMode: z.enum(['SAME_ORDER','SHARED_GROUP'] as const).optional(),
+  orderId: int(1, 999999999).nullable().optional(),
+  notes: z.string().max(2000).nullable().optional(),
+}).superRefine((v: any, ctx: any) => {
+  if (v.roomingMode === 'SAME_ORDER' && v.orderId === null) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'SAME_ORDER wajib orderId', path: ['orderId'] })
+  }
+})
+
+export const tourRoomOccupantInput = z.object({
+  stayId: int(1, 999999999),
+  roomId: int(1, 999999999),
+  jamaahId: int(1, 999999999),
+})
+
+export const tourRoomMoveInput = z.object({
+  stayId: int(1, 999999999),
+  jamaahId: int(1, 999999999),
+  toRoomId: int(1, 999999999),
+})

@@ -18,6 +18,8 @@ import {
   TOUR_PAYMENT_STATUS_DERIVED_LABELS,
   TOUR_EXPENSE_STATUS_LABELS,
   TOUR_EXPENSE_CATEGORY_LABELS,
+  TOUR_ACCOMMODATION_ROOM_TYPE_LABELS,
+  TOUR_ROOMING_MODE_LABELS,
   labelOrRaw,
 } from '~/shared/tour-labels'
 
@@ -43,5 +45,7 @@ export function useTourLabels() {
     paymentStatusDerivedLabel: (k: string) => labelOrRaw(TOUR_PAYMENT_STATUS_DERIVED_LABELS, k),
     expenseStatusLabel: (k: string) => labelOrRaw(TOUR_EXPENSE_STATUS_LABELS, k),
     expenseCategoryLabel: (k: string) => labelOrRaw(TOUR_EXPENSE_CATEGORY_LABELS, k),
+    accommodationRoomTypeLabel: (k: string) => labelOrRaw(TOUR_ACCOMMODATION_ROOM_TYPE_LABELS, k),
+    roomingModeLabel: (k: string) => labelOrRaw(TOUR_ROOMING_MODE_LABELS, k),
   }
 }

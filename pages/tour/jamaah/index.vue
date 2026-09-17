@@ -111,7 +111,7 @@ async function remove(j: any) { if (!confirm(`Hapus jamaah ${j.fullName}?`)) ret
           <div class="mt-3 grid gap-3 sm:grid-cols-3">
             <label class="text-sm font-medium">Visa<select v-model="form.visaStatus" class="mt-1 min-h-[44px] w-full rounded-xl border px-3 text-sm"><option v-for="v in VISA" :key="v" :value="v">{{ visaStatusLabel(v) }}</option></select></label>
             <label class="text-sm font-medium">Siskopatuh<select v-model="form.siskopatuhStatus" class="mt-1 min-h-[44px] w-full rounded-xl border px-3 text-sm"><option v-for="s in SISKO" :key="s" :value="s">{{ siskopatuhStatusLabel(s) }}</option></select></label>
-            <label class="text-sm font-medium">Kamar<select v-model="form.roomType" class="mt-1 min-h-[44px] w-full rounded-xl border px-3 text-sm"><option v-for="r in ROOM" :key="r" :value="r">{{ roomTypeLabel(r) }}</option></select></label>
+            <label class="text-sm font-medium">Preferensi Kamar<select v-model="form.roomType" class="mt-1 min-h-[44px] w-full rounded-xl border px-3 text-sm"><option v-for="r in ROOM" :key="r" :value="r">{{ roomTypeLabel(r) }}</option></select><span class="mt-1 block text-[11px] text-neutral-charcoal/50">Preferensi ini bukan alokasi kamar aktual. Rooming dikelola dari Trip.</span></label>
           </div>
         </div>
         <label class="block text-sm font-medium">Catatan<textarea v-model="form.notes" rows="2" class="mt-1 w-full rounded-xl border px-4 py-2 text-sm" /></label>
@@ -127,7 +127,7 @@ async function remove(j: any) { if (!confirm(`Hapus jamaah ${j.fullName}?`)) ret
 
     <div class="mt-6 overflow-x-auto rounded-2xl border border-neutral-line bg-white">
       <table class="w-full min-w-[1100px] text-left text-sm">
-        <thead class="border-b bg-neutral-warm text-xs uppercase text-neutral-charcoal/60"><tr><th class="px-5 py-3">Kode / Nama</th><th class="px-5 py-3">Order</th><th class="px-5 py-3">Gender</th><th class="px-5 py-3">Visa</th><th class="px-5 py-3">Sisko</th><th class="px-5 py-3">Kamar</th><th class="px-5 py-3 text-right">Aksi</th></tr></thead>
+        <thead class="border-b bg-neutral-warm text-xs uppercase text-neutral-charcoal/60"><tr><th class="px-5 py-3">Kode / Nama</th><th class="px-5 py-3">Order</th><th class="px-5 py-3">Gender</th><th class="px-5 py-3">Visa</th><th class="px-5 py-3">Sisko</th><th class="px-5 py-3">Preferensi Kamar</th><th class="px-5 py-3 text-right">Aksi</th></tr></thead>
         <tbody class="divide-y">
           <tr v-for="j in rows" :key="j.id">
             <td class="px-5 py-3"><p class="font-mono text-xs font-semibold">{{ j.jamaahCode }}</p><p class="font-medium">{{ j.fullName }}</p></td>

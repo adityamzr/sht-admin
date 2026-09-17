@@ -142,6 +142,20 @@ export const TOUR_EXPENSE_CATEGORY_LABELS: Record<string, string> = {
   OTHER: 'Lainnya',
 }
 
+export const TOUR_ACCOMMODATION_ROOM_TYPE_LABELS: Record<string, string> = {
+  SINGLE: 'Single (1)',
+  DOUBLE: 'Double (2)',
+  TRIPLE: 'Triple (3)',
+  QUAD: 'Quad (4)',
+  QUINT: 'Quint (5)',
+  OTHER: 'Lainnya',
+}
+
+export const TOUR_ROOMING_MODE_LABELS: Record<string, string> = {
+  SAME_ORDER: 'Same Order',
+  SHARED_GROUP: 'Shared Group',
+}
+
 export function labelOrRaw(map: Record<string, string>, key: string | null | undefined): string {
   if (!key) return '—'
   return map[key] ?? key

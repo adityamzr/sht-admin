@@ -133,6 +133,12 @@ async function submitExpense() {
                 {{ booking.trip.tripCode }} · {{ booking.trip.name }}
               </NuxtLink>
               <span v-else class="text-neutral-charcoal/50">Tanpa Trip</span>
+              <div v-if="booking.bookingType==='HOTEL' && booking.tripId" class="mt-2">
+                <NuxtLink :to="`/tour/trips/${booking.tripId}#accommodation`" class="inline-flex items-center gap-1 rounded-lg bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700 hover:bg-blue-100">
+                  View Rooming in Trip →
+                </NuxtLink>
+                <p class="mt-1 text-[11px] text-neutral-charcoal/50">Booking HOTEL bisa jadi sumber Accommodation Stay. Rooming dikelola di Trip Detail.</p>
+              </div>
             </dd>
           </div>
           <div>

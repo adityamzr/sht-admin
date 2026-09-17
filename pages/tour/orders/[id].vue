@@ -381,7 +381,7 @@ async function submitInvoice() {
           <div class="mt-3 grid gap-3 sm:grid-cols-3">
             <label class="text-sm font-medium">Visa<select v-model="jamaahForm.visaStatus" class="mt-1 min-h-[44px] w-full rounded-xl border border-neutral-line px-3 text-sm"><option v-for="v in VISA" :key="v" :value="v">{{ visaStatusLabel(v) }}</option></select></label>
             <label class="text-sm font-medium">Siskopatuh<select v-model="jamaahForm.siskopatuhStatus" class="mt-1 min-h-[44px] w-full rounded-xl border border-neutral-line px-3 text-sm"><option v-for="s in SISKO" :key="s" :value="s">{{ siskopatuhStatusLabel(s) }}</option></select></label>
-            <label class="text-sm font-medium">Tipe Kamar<select v-model="jamaahForm.roomType" class="mt-1 min-h-[44px] w-full rounded-xl border border-neutral-line px-3 text-sm"><option v-for="r in ROOM" :key="r" :value="r">{{ roomTypeLabel(r) }}</option></select></label>
+            <label class="text-sm font-medium">Preferensi Kamar<select v-model="jamaahForm.roomType" class="mt-1 min-h-[44px] w-full rounded-xl border border-neutral-line px-3 text-sm"><option v-for="r in ROOM" :key="r" :value="r">{{ roomTypeLabel(r) }}</option></select><span class="mt-1 block text-[11px] text-neutral-charcoal/50">Preferensi ini bukan alokasi kamar aktual. Rooming dikelola dari Trip.</span></label>
           </div>
         </div>
         <div>

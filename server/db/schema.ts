@@ -73,6 +73,8 @@ export const TOUR_PAYMENT_STATUSES = ['DRAFT', 'VERIFIED', 'VOID'] as const
 export const TOUR_PAYMENT_METHODS = ['BANK_TRANSFER', 'CASH', 'QRIS', 'OTHER'] as const
 export const TOUR_EXPENSE_CATEGORIES = ['HOTEL', 'TRANSPORT', 'VISA', 'FLIGHT', 'SISKOPATUH', 'MUTHAWWIF', 'HANDLING', 'OTHER'] as const
 export const TOUR_EXPENSE_STATUSES = ['DRAFT', 'VERIFIED', 'VOID'] as const
+export const TOUR_ACCOMMODATION_ROOM_TYPES = ['SINGLE', 'DOUBLE', 'TRIPLE', 'QUAD', 'QUINT', 'OTHER'] as const
+export const TOUR_ROOMING_MODES = ['SAME_ORDER', 'SHARED_GROUP'] as const
 
 // ─── Admin User ─────────────────────────────────────────────────────────────
 export const adminUsers = pgTable('admin_users', {
@@ -560,6 +562,8 @@ export const tourBookingsSeq = pgSequence('tour_bookings_seq', { startWith: 1 })
 export const tourInvoicesSeq = pgSequence('tour_invoices_seq', { startWith: 1 })
 export const tourPaymentsSeq = pgSequence('tour_payments_seq', { startWith: 1 })
 export const tourExpensesSeq = pgSequence('tour_expenses_seq', { startWith: 1 })
+export const tourAccommodationStaysSeq = pgSequence('tour_accommodation_stays_seq', { startWith: 1 })
+export const tourAccommodationRoomsSeq = pgSequence('tour_accommodation_rooms_seq', { startWith: 1 })
 
 // ─── Tour Customers ─────────────────────────────────────────────────────────
 export const tourCustomers = pgTable('tour_customers', {
@@ -844,4 +848,82 @@ export const tourExpenses = pgTable('tour_expenses', {
   index('tour_expenses_status_idx').on(t.status),
   index('tour_expenses_date_idx').on(t.expenseDate),
   index('tour_expenses_deleted_idx').on(t.deletedAt),
+])
+
+// ─── Tour Accommodation & Rooming V1 ────────────────────────────────────────
+export const tourAccommodationStays = pgTable('tour_accommodation_stays', {
+  id: serial('id').primaryKey(),
+  workspaceId: integer('workspace_id').notNull().references(() => workspaces.id, { onDelete: 'restrict' }),
+  stayCode: text('stay_code').notNull().default(sql`'STAY-' || to_char(now(), 'YYYY') || '-' || lpad(nextval('tour_accommodation_stays_seq')::text, 4, '0')`),
+  tripId: integer('trip_id').notNull().references(() => tourTrips.id, { onDelete: 'cascade' }),
+  bookingId: integer('booking_id').notNull().references(() => tourBookings.id, { onDelete: 'restrict' }),
+  hotelName: text('hotel_name').notNull(),
+  city: text('city').notNull().default('Makkah'),
+  checkInDate: date('check_in_date', { mode: 'date' }).notNull(),
+  checkOutDate: date('check_out_date', { mode: 'date' }).notNull(),
+  notes: text('notes'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  deletedAt: timestamp('deleted_at', { withTimezone: true }),
+}, (t) => [
+  uniqueIndex('tour_accommodation_stays_workspace_code_unique').on(t.workspaceId, t.stayCode),
+  index('tour_accommodation_stays_workspace_idx').on(t.workspaceId),
+  index('tour_accommodation_stays_trip_idx').on(t.tripId),
+  index('tour_accommodation_stays_booking_idx').on(t.bookingId),
+  index('tour_accommodation_stays_checkin_idx').on(t.checkInDate),
+  index('tour_accommodation_stays_deleted_idx').on(t.deletedAt),
+])
+
+export const tourAccommodationStayOrders = pgTable('tour_accommodation_stay_orders', {
+  id: serial('id').primaryKey(),
+  workspaceId: integer('workspace_id').notNull().references(() => workspaces.id, { onDelete: 'restrict' }),
+  stayId: integer('stay_id').notNull().references(() => tourAccommodationStays.id, { onDelete: 'cascade' }),
+  orderId: integer('order_id').notNull().references(() => tourOrders.id, { onDelete: 'cascade' }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex('tour_accommodation_stay_orders_stay_order_unique').on(t.stayId, t.orderId),
+  index('tour_accommodation_stay_orders_workspace_idx').on(t.workspaceId),
+  index('tour_accommodation_stay_orders_stay_idx').on(t.stayId),
+  index('tour_accommodation_stay_orders_order_idx').on(t.orderId),
+])
+
+export const tourAccommodationRooms = pgTable('tour_accommodation_rooms', {
+  id: serial('id').primaryKey(),
+  workspaceId: integer('workspace_id').notNull().references(() => workspaces.id, { onDelete: 'restrict' }),
+  stayId: integer('stay_id').notNull().references(() => tourAccommodationStays.id, { onDelete: 'cascade' }),
+  roomCode: text('room_code').notNull().default(sql`'ROOM-' || to_char(now(), 'YYYY') || '-' || lpad(nextval('tour_accommodation_rooms_seq')::text, 4, '0')`),
+  roomLabel: text('room_label').notNull(),
+  roomNumber: text('room_number'),
+  roomType: text('room_type').notNull().default('DOUBLE'),
+  capacity: integer('capacity').notNull(),
+  roomingMode: text('rooming_mode').notNull().default('SAME_ORDER'),
+  orderId: integer('order_id').references(() => tourOrders.id, { onDelete: 'set null' }),
+  notes: text('notes'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  deletedAt: timestamp('deleted_at', { withTimezone: true }),
+}, (t) => [
+  uniqueIndex('tour_accommodation_rooms_workspace_code_unique').on(t.workspaceId, t.roomCode),
+  index('tour_accommodation_rooms_workspace_idx').on(t.workspaceId),
+  index('tour_accommodation_rooms_stay_idx').on(t.stayId),
+  index('tour_accommodation_rooms_order_idx').on(t.orderId),
+  index('tour_accommodation_rooms_type_idx').on(t.roomType),
+  index('tour_accommodation_rooms_mode_idx').on(t.roomingMode),
+  index('tour_accommodation_rooms_deleted_idx').on(t.deletedAt),
+])
+
+export const tourRoomOccupants = pgTable('tour_room_occupants', {
+  id: serial('id').primaryKey(),
+  workspaceId: integer('workspace_id').notNull().references(() => workspaces.id, { onDelete: 'restrict' }),
+  stayId: integer('stay_id').notNull().references(() => tourAccommodationStays.id, { onDelete: 'cascade' }),
+  roomId: integer('room_id').notNull().references(() => tourAccommodationRooms.id, { onDelete: 'cascade' }),
+  jamaahId: integer('jamaah_id').notNull().references(() => tourJamaah.id, { onDelete: 'cascade' }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex('tour_room_occupants_stay_jamaah_unique').on(t.stayId, t.jamaahId),
+  uniqueIndex('tour_room_occupants_room_jamaah_unique').on(t.roomId, t.jamaahId),
+  index('tour_room_occupants_workspace_idx').on(t.workspaceId),
+  index('tour_room_occupants_stay_idx').on(t.stayId),
+  index('tour_room_occupants_room_idx').on(t.roomId),
+  index('tour_room_occupants_jamaah_idx').on(t.jamaahId),
 ])

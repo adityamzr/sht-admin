@@ -27,7 +27,7 @@ const jamaah = computed(() => data.value?.data ?? null);
         <div><dt class="text-xs uppercase text-neutral-charcoal/50">Paspor</dt><dd class="mt-1">{{ jamaah.passportNumber || "—" }} • exp {{ jamaah.passportExpiry || "—" }}</dd></div>
         <div><dt class="text-xs uppercase text-neutral-charcoal/50">Visa</dt><dd class="mt-1">{{ visaStatusLabel(jamaah.visaStatus) }}</dd></div>
         <div><dt class="text-xs uppercase text-neutral-charcoal/50">Siskopatuh</dt><dd class="mt-1">{{ siskopatuhStatusLabel(jamaah.siskopatuhStatus) }}</dd></div>
-        <div><dt class="text-xs uppercase text-neutral-charcoal/50">Tipe Kamar</dt><dd class="mt-1">{{ roomTypeLabel(jamaah.roomType) }}</dd></div>
+        <div><dt class="text-xs uppercase text-neutral-charcoal/50">Preferensi Kamar</dt><dd class="mt-1">{{ roomTypeLabel(jamaah.roomType) }}<br/><span class="text-[11px] text-neutral-charcoal/50">Preferensi ini bukan alokasi kamar aktual. Rooming dikelola dari Trip.</span></dd></div>
         <div class="sm:col-span-2"><dt class="text-xs uppercase text-neutral-charcoal/50">Catatan</dt><dd class="mt-1 text-neutral-charcoal/70">{{ jamaah.notes || "—" }}</dd></div>
       </dl>
       <p class="mt-6 text-xs text-neutral-charcoal/50">Jamaah milik Order. Kelola lengkap di <NuxtLink :to="`/tour/orders/${jamaah.orderId}`" class="underline">Order Detail</NuxtLink>.</p>
