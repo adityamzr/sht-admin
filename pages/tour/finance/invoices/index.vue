@@ -202,9 +202,9 @@ async function removeDraft(inv: any) {
       </template>
     </TourModal>
 
-    <div class="mt-6 overflow-x-auto rounded-2xl border border-neutral-line bg-white">
-      <table class="w-full min-w-[1150px] text-left text-sm">
-        <thead class="border-b bg-neutral-warm text-xs uppercase text-neutral-charcoal/60"><tr><th class="px-5 py-3">Invoice</th><th class="px-5 py-3">Order / Customer</th><th class="px-5 py-3">Issue / Due</th><th class="px-5 py-3">Amount</th><th class="px-5 py-3">Paid VERIFIED</th><th class="px-5 py-3">Outstanding</th><th class="px-5 py-3">Payment Status</th><th class="px-5 py-3">State</th><th class="px-5 py-3 text-right">Aksi</th></tr></thead>
+    <div class="admin-table-scroll mt-6 rounded-2xl border border-neutral-line bg-white">
+      <table class="admin-data-table min-w-[1080px] text-left text-sm">
+        <thead class="border-b border-neutral-line"><tr><th class="px-5 py-3">Invoice</th><th class="px-5 py-3">Order / Customer</th><th class="px-5 py-3">Issue / Due</th><th class="px-5 py-3">Amount</th><th class="px-5 py-3">Paid VERIFIED</th><th class="px-5 py-3">Outstanding</th><th class="px-5 py-3">Payment Status</th><th class="px-5 py-3">State</th><th class="admin-table-actions px-5 py-3 text-right">Aksi</th></tr></thead>
         <tbody class="divide-y">
           <tr v-for="inv in rows" :key="inv.id">
             <td class="px-5 py-3"><p class="font-mono text-xs font-semibold">{{ inv.invoiceCode }}</p><p class="text-xs text-neutral-charcoal/50">{{ inv.description || '—' }}</p></td>
@@ -215,7 +215,7 @@ async function removeDraft(inv: any) {
             <td class="px-5 py-3 text-xs font-semibold" :class="(inv.outstanding || 0) > 0 ? 'text-amber-700' : 'text-emerald-700'">Rp {{ Number(inv.outstanding || 0).toLocaleString('id-ID') }}</td>
             <td class="px-5 py-3"><TourStatusBadge :status="inv.paymentStatus || 'UNPAID'" type="paymentStatus" /></td>
             <td class="px-5 py-3"><TourStatusBadge :status="inv.state" type="invoice" /></td>
-            <td class="px-5 py-3 text-right">
+          <td class="admin-table-actions px-5 py-3 text-right">
               <div class="flex justify-end gap-1">
                 <NuxtLink :to="`/tour/finance/payments?invoiceId=${inv.id}`" class="rounded-xl p-2 text-neutral-charcoal/50 hover:bg-neutral-warm hover:text-brand-green" title="Lihat Payments" aria-label="View payments"><Eye class="h-4 w-4" /></NuxtLink>
                 <button v-if="inv.state==='DRAFT'" class="rounded-xl p-2 text-neutral-charcoal/60 hover:bg-neutral-warm" title="Edit DRAFT" aria-label="Edit" @click="openEdit(inv)"><Pencil class="h-4 w-4" /></button>

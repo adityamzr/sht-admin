@@ -162,9 +162,9 @@ async function remove(o: any) {
       </template>
     </TourModal>
 
-    <div class="mt-6 overflow-x-auto rounded-2xl border border-neutral-line bg-white">
-      <table class="w-full min-w-[1100px] text-left text-sm">
-        <thead class="border-b bg-neutral-warm text-xs uppercase text-neutral-charcoal/60"><tr><th class="px-5 py-3">Kode / Paket</th><th class="px-5 py-3">Tanggal</th><th class="px-5 py-3">Customer</th><th class="px-5 py-3">Tipe</th><th class="px-5 py-3">Pax</th><th class="px-5 py-3">Harga</th><th class="px-5 py-3">Status</th><th class="px-5 py-3 text-right">Aksi</th></tr></thead>
+    <div class="admin-table-scroll mt-6 rounded-2xl border border-neutral-line bg-white">
+      <table class="admin-data-table min-w-[1024px] text-left text-sm">
+        <thead class="border-b border-neutral-line"><tr><th class="w-[22%] px-5 py-3">Kode / Paket</th><th class="w-28 px-5 py-3">Tanggal</th><th class="w-[18%] px-5 py-3">Customer</th><th class="w-28 px-5 py-3">Tipe</th><th class="w-20 px-5 py-3">Pax</th><th class="w-40 px-5 py-3">Harga</th><th class="w-32 px-5 py-3">Status</th><th class="admin-table-actions px-5 py-3 text-right">Aksi</th></tr></thead>
         <tbody class="divide-y">
           <tr v-for="o in rows" :key="o.id">
             <td class="px-5 py-3"><p class="font-mono text-xs font-semibold">{{ o.orderCode }}</p><p class="text-[11px] text-neutral-charcoal/60">{{ o.packageName || o.serviceSummary?.slice(0,40) || "—" }}</p></td>
@@ -174,7 +174,7 @@ async function remove(o: any) {
             <td class="px-5 py-3">{{ o.paxCount }} pax</td>
             <td class="px-5 py-3 font-medium">Rp {{ Number(o.sellingPriceIdr).toLocaleString('id-ID') }}</td>
             <td class="px-5 py-3"><TourStatusBadge :status="o.status" type="order" /></td>
-            <td class="px-5 py-3 text-right">
+            <td class="admin-table-actions px-5 py-3 text-right">
               <div class="flex justify-end gap-1">
                 <button class="rounded-xl p-2 text-neutral-charcoal/60 hover:bg-neutral-warm" title="Edit" @click="openEdit(o)"><Pencil class="h-4 w-4" /></button>
                 <NuxtLink :to="`/tour/orders/${o.id}`" class="rounded-xl p-2 text-neutral-charcoal/50 hover:bg-neutral-warm hover:text-brand-green" title="Detail"><Eye class="h-4 w-4" /></NuxtLink>

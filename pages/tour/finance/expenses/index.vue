@@ -359,9 +359,9 @@ if (typeof window !== 'undefined') {
 
     <div class="mt-6">
       <AdminTableSkeleton v-if="loadingRows" :rows="5" :cols="8" />
-      <div v-else class="overflow-x-auto rounded-2xl border border-neutral-line bg-white">
-        <table class="w-full min-w-[1350px] text-left text-sm">
-          <thead class="border-b bg-neutral-warm text-xs uppercase text-neutral-charcoal/60"><tr><th class="px-5 py-3">Expense</th><th class="px-5 py-3">Date / Category</th><th class="px-5 py-3">Trip / Order</th><th class="px-5 py-3">Vendor / Booking</th><th class="px-5 py-3">Amount</th><th class="px-5 py-3">Setara IDR</th><th class="px-5 py-3">Status</th><th class="px-5 py-3 text-right">Aksi</th></tr></thead>
+      <div v-else class="admin-table-scroll rounded-2xl border border-neutral-line bg-white">
+        <table class="admin-data-table min-w-[1120px] text-left text-sm">
+          <thead class="border-b border-neutral-line"><tr><th class="px-5 py-3">Expense</th><th class="px-5 py-3">Date / Category</th><th class="px-5 py-3">Trip / Order</th><th class="px-5 py-3">Vendor / Booking</th><th class="px-5 py-3">Amount</th><th class="px-5 py-3">Setara IDR</th><th class="px-5 py-3">Status</th><th class="admin-table-actions px-5 py-3 text-right">Aksi</th></tr></thead>
           <tbody class="divide-y">
             <tr v-for="e in rows" :key="e.id">
               <td class="px-5 py-3"><p class="font-mono text-xs font-semibold">{{ e.expenseCode }}</p><p class="text-xs text-neutral-charcoal/50 truncate max-w-[200px]">{{ e.description || '—' }}</p></td>
@@ -371,7 +371,7 @@ if (typeof window !== 'undefined') {
               <td class="px-5 py-3 text-xs font-medium">{{ e.currency }} {{ Number(e.amount).toLocaleString('id-ID') }} <span v-if="e.exchangeRateSnapshot" class="text-neutral-charcoal/40">kurs {{ Number(e.exchangeRateSnapshot).toLocaleString('id-ID') }}</span></td>
               <td class="px-5 py-3 text-xs font-semibold">Rp {{ Number(e.amountIdr).toLocaleString('id-ID') }}</td>
               <td class="px-5 py-3"><TourStatusBadge :status="e.status" type="expense" /></td>
-              <td class="px-5 py-3 text-right">
+              <td class="admin-table-actions px-5 py-3 text-right">
                 <div class="flex justify-end gap-1">
                   <NuxtLink :to="`/tour/bookings/${e.bookingId}`" v-if="e.bookingId" class="rounded-xl p-2 text-neutral-charcoal/50 hover:bg-neutral-warm" title="Lihat Booking" aria-label="View booking"><Eye class="h-4 w-4" /></NuxtLink>
                   <button v-if="e.status==='DRAFT'" class="rounded-xl p-2 text-neutral-charcoal/60 hover:bg-neutral-warm" title="Edit DRAFT" aria-label="Edit" @click="openEdit(e)"><Pencil class="h-4 w-4" /></button>

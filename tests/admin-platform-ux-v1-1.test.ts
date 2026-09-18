@@ -1,5 +1,6 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
+import { readFile } from 'node:fs/promises'
 import { ALLOWED_MIME_TYPES, ALLOWED_EXTENSIONS, MAX_FILE_SIZE, validateFile } from '../server/services/admin-attachments'
 import { WORKSPACE_HUB_META, WORKSPACE_ORDER } from '../shared/workspace-config'
 
@@ -8,6 +9,20 @@ function mockFile(name: string, type: string, size: number) {
 }
 
 describe('Admin Platform UX V1.1 — Workspace Hub', () => {
+  it('uses a neutral authenticated shell without workspace navigation', async () => {
+    const page = await readFile(new URL('../pages/workspaces/index.vue', import.meta.url), 'utf8')
+    const layout = await readFile(new URL('../layouts/platform.vue', import.meta.url), 'utf8')
+    assert.match(page, /layout:\s*['"]platform['"]/)
+    assert.match(layout, /AdminPlatformTopbar/)
+    assert.doesNotMatch(layout, /AdminSidebar/)
+    assert.doesNotMatch(layout, /lg:pl-64/)
+  })
+
+  it('keeps workspace sidebar restricted to the workspace shell', async () => {
+    const layout = await readFile(new URL('../layouts/admin.vue', import.meta.url), 'utf8')
+    assert.match(layout, /AdminSidebar/)
+    assert.match(layout, /AdminTopbar/)
+  })
   it('WORKSPACE_HUB_META contains media and tour with required fields', () => {
     assert.ok(WORKSPACE_HUB_META.media)
     assert.ok(WORKSPACE_HUB_META.tour)
@@ -235,5 +250,15 @@ describe('Admin Platform UX V1.1 — Motion & Reduced Motion', () => {
   it('Accordion animation 150-220ms ease-out', () => {
     const duration = 200
     assert.ok(duration >= 150 && duration <= 220)
+  })
+
+  it('table surface has controlled scroll and protected actions', async () => {
+    const css = await readFile(new URL('../assets/css/main.css', import.meta.url), 'utf8')
+    const orders = await readFile(new URL('../pages/tour/orders/index.vue', import.meta.url), 'utf8')
+    assert.match(css, /\.admin-table-scroll/)
+    assert.match(css, /\.admin-data-table \.admin-table-actions/)
+    assert.match(orders, /admin-table-scroll/)
+    assert.match(orders, /admin-table-actions/)
+    assert.doesNotMatch(css, /background-attachment:\s*local/)
   })
 })

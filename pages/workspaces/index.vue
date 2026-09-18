@@ -2,7 +2,7 @@
 import { LayoutGrid, ArrowRight, ShieldCheck } from 'lucide-vue-next'
 import { WORKSPACE_HUB_META, WORKSPACE_ORDER } from '~/shared/workspace-config'
 
-definePageMeta({ layout: 'admin', middleware: 'admin-auth' })
+definePageMeta({ layout: 'platform', middleware: 'admin-auth' })
 
 const { data: workspaceResponse, pending } = await useAdminFetch<{ data: Array<{ id: number; key: string; name: string; description: string | null; role: string }> }>('/api/admin/workspaces')
 const { data: userResponse } = await useAdminFetch<{ user: { id: number; name: string; email: string } }>('/api/admin/auth/me')
@@ -49,9 +49,9 @@ function enterWorkspace(key: string) {
 </script>
 
 <template>
-  <div class="min-h-[calc(100vh-8rem)]">
+  <div class="mx-auto min-h-[calc(100vh-8rem)] max-w-5xl">
     <!-- Header -->
-    <div class="mx-auto max-w-5xl">
+    <div>
       <div class="mb-8">
         <div class="flex items-center gap-3">
           <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-sht-olive text-white">
@@ -65,7 +65,7 @@ function enterWorkspace(key: string) {
         <div class="mt-6">
           <h2 class="text-2xl font-semibold tracking-tight">Welcome, {{ user?.name || 'Admin' }}</h2>
           <p class="mt-2 max-w-2xl text-sm leading-relaxed text-neutral-charcoal/70">
-            Choose a workspace to continue. You only see workspaces you are authorized to access.
+            Pilih workspace untuk melanjutkan. Hanya workspace yang dapat Anda akses yang ditampilkan.
           </p>
         </div>
       </div>
@@ -92,7 +92,7 @@ function enterWorkspace(key: string) {
         <div
           v-for="ws in orderedWorkspaces"
           :key="ws.key"
-          class="group relative flex flex-col rounded-2xl border border-neutral-line bg-white p-6 shadow-sm transition-all hover:shadow-md hover:border-sht-olive/20"
+          class="group relative flex flex-col rounded-2xl border border-neutral-line bg-white p-6 shadow-sm transition-[border-color,box-shadow,transform] duration-200 ease-out hover:-translate-y-0.5 hover:border-sht-olive/20 hover:shadow-md"
         >
           <div class="flex items-start justify-between gap-4">
             <div class="flex h-12 w-12 items-center justify-center rounded-xl" :class="getMeta(ws.key).accent">
@@ -103,23 +103,10 @@ function enterWorkspace(key: string) {
             </span>
           </div>
           <h3 class="mt-5 font-semibold leading-tight">{{ getMeta(ws.key).name }}</h3>
-          <p class="mt-1 text-xs uppercase tracking-wide text-neutral-charcoal/50">{{ getMeta(ws.key).shortName }}</p>
           <p class="mt-3 text-sm leading-relaxed text-neutral-charcoal/70">
             {{ getMeta(ws.key).description }}
           </p>
-          <p class="mt-2 text-xs leading-relaxed text-neutral-charcoal/50">
-            {{ getMeta(ws.key).longDescription }}
-          </p>
-          <div class="mt-4 flex flex-wrap gap-1.5">
-            <span
-              v-for="feat in getMeta(ws.key).features"
-              :key="feat"
-              class="rounded-full bg-neutral-warm px-2.5 py-1 text-[11px] font-medium text-neutral-charcoal/70"
-            >
-              {{ feat }}
-            </span>
-          </div>
-          <div class="mt-6">
+          <div class="mt-auto pt-6">
             <button
               type="button"
               class="inline-flex min-h-[44px] w-full items-center justify-center gap-2 rounded-xl bg-sht-olive px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#0b3230] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sht-olive"
@@ -132,10 +119,6 @@ function enterWorkspace(key: string) {
         </div>
       </div>
 
-      <!-- Help -->
-      <div class="mt-10 rounded-xl bg-neutral-warm/60 px-4 py-3 text-xs text-neutral-charcoal/60">
-        <p><strong class="font-semibold">Tips:</strong> Gunakan switcher di topbar untuk berpindah workspace kapan saja. Pilih "All Workspaces" untuk kembali ke halaman ini.</p>
-      </div>
     </div>
   </div>
 </template>

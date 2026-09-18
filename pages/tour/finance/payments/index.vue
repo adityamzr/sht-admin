@@ -309,9 +309,9 @@ async function removeDraft(p: any) {
 
     <div class="mt-6">
       <AdminTableSkeleton v-if="loadingRows" :rows="5" :cols="8" />
-      <div v-else class="overflow-x-auto rounded-2xl border border-neutral-line bg-white">
-        <table class="w-full min-w-[1150px] text-left text-sm">
-          <thead class="border-b bg-neutral-warm text-xs uppercase text-neutral-charcoal/60"><tr><th class="px-5 py-3">Payment</th><th class="px-5 py-3">Date</th><th class="px-5 py-3">Invoice / Order</th><th class="px-5 py-3">Customer</th><th class="px-5 py-3">Amount</th><th class="px-5 py-3">Method</th><th class="px-5 py-3">Status</th><th class="px-5 py-3 text-right">Aksi</th></tr></thead>
+      <div v-else class="admin-table-scroll rounded-2xl border border-neutral-line bg-white">
+        <table class="admin-data-table min-w-[1040px] text-left text-sm">
+          <thead class="border-b border-neutral-line"><tr><th class="px-5 py-3">Payment</th><th class="px-5 py-3">Date</th><th class="px-5 py-3">Invoice / Order</th><th class="px-5 py-3">Customer</th><th class="px-5 py-3">Amount</th><th class="px-5 py-3">Method</th><th class="px-5 py-3">Status</th><th class="admin-table-actions px-5 py-3 text-right">Aksi</th></tr></thead>
           <tbody class="divide-y">
             <tr v-for="p in rows" :key="p.id">
               <td class="px-5 py-3"><p class="font-mono text-xs font-semibold">{{ p.paymentCode }}</p><p class="text-xs text-neutral-charcoal/50">{{ p.referenceNumber || '' }}</p></td>
@@ -321,7 +321,7 @@ async function removeDraft(p: any) {
               <td class="px-5 py-3 text-xs font-semibold">Rp {{ Number(p.amountIdr).toLocaleString('id-ID') }}</td>
               <td class="px-5 py-3 text-xs">{{ p.method }}</td>
               <td class="px-5 py-3"><TourStatusBadge :status="p.status" type="payment" /></td>
-              <td class="px-5 py-3 text-right">
+              <td class="admin-table-actions px-5 py-3 text-right">
                 <div class="flex justify-end gap-1">
                   <NuxtLink :to="`/tour/finance/invoices?search=${p.invoice?.invoiceCode || ''}`" class="rounded-xl p-2 text-neutral-charcoal/50 hover:bg-neutral-warm" title="Lihat Invoice" aria-label="View invoice"><Eye class="h-4 w-4" /></NuxtLink>
                   <button v-if="p.status==='DRAFT'" class="rounded-xl p-2 text-neutral-charcoal/60 hover:bg-neutral-warm" title="Edit DRAFT" aria-label="Edit" @click="openEdit(p)"><Pencil class="h-4 w-4" /></button>

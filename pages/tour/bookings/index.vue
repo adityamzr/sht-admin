@@ -277,9 +277,9 @@ async function submitVendorQuick() {
       </template>
     </TourModal>
 
-    <div class="mt-6 overflow-x-auto rounded-2xl border border-neutral-line bg-white">
-      <table class="w-full min-w-[1200px] text-left text-sm">
-        <thead class="border-b bg-neutral-warm text-xs uppercase text-neutral-charcoal/60"><tr><th class="px-5 py-3">Kode / Vendor</th><th class="px-5 py-3">Tanggal</th><th class="px-5 py-3">Jenis</th><th class="px-5 py-3">Trip / Order</th><th class="px-5 py-3">Biaya</th><th class="px-5 py-3">Setara IDR</th><th class="px-5 py-3">Status</th><th class="px-5 py-3 text-right">Aksi</th></tr></thead>
+    <div class="admin-table-scroll mt-6 rounded-2xl border border-neutral-line bg-white">
+      <table class="admin-data-table min-w-[1080px] text-left text-sm">
+        <thead class="border-b border-neutral-line"><tr><th class="w-[20%] px-5 py-3">Kode / Vendor</th><th class="w-28 px-5 py-3">Tanggal</th><th class="w-28 px-5 py-3">Jenis</th><th class="w-[22%] px-5 py-3">Trip / Order</th><th class="w-40 px-5 py-3">Biaya</th><th class="w-36 px-5 py-3">Setara IDR</th><th class="w-32 px-5 py-3">Status</th><th class="admin-table-actions px-5 py-3 text-right">Aksi</th></tr></thead>
         <tbody class="divide-y">
           <tr v-for="b in rows" :key="b.id">
             <td class="px-5 py-3">
@@ -295,7 +295,7 @@ async function submitVendorQuick() {
             <td class="px-5 py-3 text-xs font-medium">{{ b.currency }} {{ Number(b.amount).toLocaleString('id-ID') }} <span v-if="b.exchangeRateSnapshot" class="text-neutral-charcoal/40">kurs {{ Number(b.exchangeRateSnapshot).toLocaleString('id-ID') }}</span></td>
             <td class="px-5 py-3 text-xs font-semibold">Rp {{ Number(b.amountIdr).toLocaleString('id-ID') }}</td>
             <td class="px-5 py-3"><TourStatusBadge :status="b.status" type="booking" /></td>
-            <td class="px-5 py-3 text-right">
+            <td class="admin-table-actions px-5 py-3 text-right">
               <div class="flex justify-end gap-1">
                 <button class="rounded-xl p-2 text-neutral-charcoal/60 hover:bg-neutral-warm" title="Edit" @click="openEdit(b)"><Pencil class="h-4 w-4" /></button>
                 <NuxtLink :to="`/tour/bookings/${b.id}`" class="rounded-xl p-2 text-neutral-charcoal/50 hover:bg-neutral-warm hover:text-brand-green" title="Detail"><Eye class="h-4 w-4" /></NuxtLink>

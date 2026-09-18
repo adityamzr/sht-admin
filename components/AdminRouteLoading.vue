@@ -1,25 +1,16 @@
 <script setup lang="ts">
 const nuxtApp = useNuxtApp()
 const loading = ref(false)
-let timeout: ReturnType<typeof setTimeout> | null = null
-
 function start() {
-  if (timeout) clearTimeout(timeout)
-  // Only show if loading takes >150ms to avoid flicker
-  timeout = setTimeout(() => { loading.value = true }, 150)
+  loading.value = true
 }
 function stop() {
-  if (timeout) clearTimeout(timeout)
-  timeout = null
   loading.value = false
 }
 
 onMounted(() => {
   nuxtApp.hook('page:start', start)
   nuxtApp.hook('page:finish', stop)
-})
-onBeforeUnmount(() => {
-  if (timeout) clearTimeout(timeout)
 })
 </script>
 

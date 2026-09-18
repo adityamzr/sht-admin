@@ -74,18 +74,15 @@
 .admin-shell .overflow-x-auto { max-width: 100%; overscroll-behavior-x: contain; -webkit-overflow-scrolling: touch; }
 .admin-shell table { max-width: 100%; }
 
-/* Table horizontal scroll affordance */
-.admin-shell .overflow-x-auto {
-  background:
-    linear-gradient(to right, white, white),
-    linear-gradient(to right, white, white),
-    linear-gradient(to right, rgba(0,0,0,0.08), rgba(0,0,0,0)),
-    linear-gradient(to left, rgba(0,0,0,0.08), rgba(0,0,0,0));
-  background-position: left center, right center, left center, right center;
-  background-repeat: no-repeat;
-  background-size: 20px 100%, 20px 100%, 12px 100%, 12px 100%;
-  background-attachment: local, local, scroll, scroll;
-}
+/* Data tables own their scroll surface. Avoid overlays that obscure edge actions. */
+.admin-table-scroll { max-width: 100%; overflow-x: auto; overscroll-behavior-x: contain; scrollbar-gutter: stable; -webkit-overflow-scrolling: touch; }
+.admin-data-table { width: 100%; color: var(--sht-charcoal); }
+.admin-data-table thead { background: #F8F6EF; color: rgb(45 53 31 / 68%); }
+.admin-data-table thead th { white-space: nowrap; font-size: .6875rem; font-weight: 650; letter-spacing: .045em; }
+.admin-data-table tbody { background: #FFFFFF; }
+.admin-data-table tbody tr { transition: background-color var(--motion-fast) ease-out; }
+.admin-data-table tbody tr:hover { background: rgb(246 244 237 / 55%); }
+.admin-data-table .admin-table-actions { box-sizing: border-box; width: 9rem; min-width: 9rem; padding-right: 1.25rem; }
 
 /* Forms 2-col collapse to 1-col */
 @media (max-width: 640px) {
