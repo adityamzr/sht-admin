@@ -23,7 +23,18 @@ import {
 
 const int = (min: number, max: number) => z.number().int().min(min).max(max)
 const numStr = z.coerce.number()
-const isoDate = z.coerce.date()
+const safeDateTransform = (d: unknown) => {
+  if (!d) return d
+  if (d instanceof Date) {
+    try { return d } catch { return d }
+  }
+  // If it's already a string that looks like date, let coerce handle, but keep safe
+  return d
+}
+const isoDate = z.coerce.date().transform((d) => {
+  // Keep as Date object for refine checks (getTime), not string yet
+  return d
+})
 const optionalDate = z.preprocess((v) => (v === '' || v === null ? null : v), z.coerce.date().nullable().optional())
 
 // ─── Customers ──────────────────────────────────────────────────────────────

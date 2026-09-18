@@ -39,8 +39,41 @@ function notDeleted(table: any) {
   return isNull(table.deletedAt)
 }
 
-function todayKey(now: Date) {
-  return now.toISOString().slice(0, 10)
+function safeToIsoDate(value: unknown): string | null {
+  if (!value) return null
+  if (value instanceof Date) {
+    try { return value.toISOString().slice(0, 10) } catch { return null }
+  }
+  if (typeof value === 'string') {
+    const s = value.slice(0, 10)
+    return /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : null
+  }
+  try {
+    const d = new Date(value as any)
+    if (!isNaN(d.getTime())) return d.toISOString().slice(0, 10)
+  } catch {}
+  return null
+}
+
+function todayKey(now: Date | string | unknown) {
+  const iso = safeToIsoDate(now)
+  if (iso) return iso
+  // Fallback to current date
+  try { return new Date().toISOString().slice(0, 10) } catch { return new Date().toISOString().slice(0, 10) }
+}
+
+function safeNowIso(now: Date | string | unknown): string {
+  if (now instanceof Date) {
+    try { return now.toISOString() } catch { return new Date().toISOString() }
+  }
+  if (typeof now === 'string') {
+    try {
+      const d = new Date(now)
+      if (!isNaN(d.getTime())) return d.toISOString()
+      return now // already iso string?
+    } catch { return new Date().toISOString() }
+  }
+  try { return new Date().toISOString() } catch { return new Date().toISOString() }
 }
 
 function numberValue(value: unknown) {
@@ -326,7 +359,7 @@ export async function getTourOperationalDashboard(db: DbLike, workspaceId: numbe
   // Leads are intentionally omitted: the legacy leads table has no workspaceId,
   // so including it would violate server-side workspace isolation.
   return {
-    generatedAt: now.toISOString(),
+    generatedAt: safeNowIso(now),
     kpis: {
       activeOrders: numberValue(activeOrderRows[0]?.count),
       activePax: numberValue(activeOrderRows[0]?.pax),

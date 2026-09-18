@@ -21,7 +21,16 @@ import {
 /** Validasi server untuk SEMUA write — client validation tidak dipercaya. */
 
 const currency = z.enum(CURRENCIES)
-const isoDate = z.coerce.date().transform((d) => d.toISOString().slice(0, 10))
+const isoDate = z.coerce.date().transform((d) => {
+  try {
+    if (d instanceof Date) return d.toISOString().slice(0, 10)
+    // Fallback if coerce returns string or something with toISOString
+    if (typeof (d as any)?.toISOString === 'function') return (d as any).toISOString().slice(0, 10)
+    return String(d).slice(0, 10)
+  } catch {
+    return String(d).slice(0, 10)
+  }
+})
 const int = (min: number, max: number) => z.number().int().min(min).max(max)
 const numStr = z.coerce.number()
 

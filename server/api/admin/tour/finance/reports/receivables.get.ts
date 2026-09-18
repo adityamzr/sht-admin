@@ -5,8 +5,20 @@ import { and, eq, gte, lte, isNull, sql, count } from 'drizzle-orm'
 
 function toIso(d: any): string | null {
   if (!d) return null
-  if (typeof d === 'string') return d.slice(0,10)
-  if (d instanceof Date) return d.toISOString().slice(0,10)
+  if (typeof d === 'string') {
+    const s = d.slice(0,10)
+    return /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : s
+  }
+  if (d instanceof Date) {
+    try { return d.toISOString().slice(0,10) } catch { return null }
+  }
+  if (typeof d === 'object' && d !== null && typeof (d as any).toISOString === 'function') {
+    try { return (d as any).toISOString().slice(0,10) } catch {}
+  }
+  try {
+    const date = new Date(d)
+    if (!isNaN(date.getTime())) return date.toISOString().slice(0,10)
+  } catch {}
   return String(d).slice(0,10)
 }
 
