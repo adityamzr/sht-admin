@@ -1,5 +1,6 @@
 <template>
   <div class="min-h-screen lg:pl-64">
+    <AdminRouteLoading />
     <AdminTopbar />
     <AdminSidebar />
     <AdminToast />
