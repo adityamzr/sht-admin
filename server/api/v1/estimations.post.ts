@@ -30,7 +30,7 @@ export default defineEventHandler(async (event) => {
   try {
     const result = await db.transaction(async (tx) => {
       // Kalkulasi otoritatif — bisa lempar TripValidationError / TripPricingError.
-      const calc = await calculateTrip(tx, trip)
+      const calc = await calculateTrip(tx, trip as any)
 
       const estimation = await createEstimation(tx, {
         pilgrims: trip.pilgrims,

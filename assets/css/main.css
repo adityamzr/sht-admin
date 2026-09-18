@@ -2,7 +2,35 @@
 @tailwind components;
 @tailwind utilities;
 
-:root { --sht-olive: #3A4428; --sht-olive-dark: #2D351F; --sht-gold: #D3C168; --sht-sage: #7F8968; --sht-off-white: #F6F4ED; --sht-stone: #E4E3DE; --sht-charcoal: #242822; }
+:root {
+  --sht-olive: #3A4428;
+  --sht-olive-dark: #2D351F;
+  --sht-gold: #D3C168;
+  --sht-sage: #7F8968;
+  --sht-off-white: #F6F4ED;
+  --sht-stone: #E4E3DE;
+  --sht-charcoal: #242822;
+  /* Motion tokens centralize --motion-fast/normal/ease, use opacity/transform */
+  --motion-fast: 150ms;
+  --motion-normal: 200ms;
+  --motion-slow: 300ms;
+  --motion-ease: cubic-bezier(0.16, 1, 0.3, 1);
+  --motion-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --motion-ease-in: cubic-bezier(0.4, 0, 1, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --motion-fast: 0ms;
+    --motion-normal: 0ms;
+    --motion-slow: 0ms;
+  }
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
 
 @layer base {
   body {
@@ -43,11 +71,40 @@
 
 /* Responsive admin guardrails: preserve page UX while preventing viewport overflow. */
 .admin-shell { min-width: 0; overflow-x: clip; }
-.admin-shell .overflow-x-auto { max-width: 100%; overscroll-behavior-x: contain; }
+.admin-shell .overflow-x-auto { max-width: 100%; overscroll-behavior-x: contain; -webkit-overflow-scrolling: touch; }
 .admin-shell table { max-width: 100%; }
+
+/* Data tables own their scroll surface. Avoid overlays that obscure edge actions. */
+.admin-table-scroll { max-width: 100%; overflow-x: auto; overscroll-behavior-x: contain; scrollbar-gutter: stable; -webkit-overflow-scrolling: touch; }
+.admin-data-table { width: 100%; color: var(--sht-charcoal); }
+.admin-data-table thead { background: #F8F6EF; color: rgb(45 53 31 / 68%); }
+.admin-data-table thead th { white-space: nowrap; font-size: .6875rem; font-weight: 650; letter-spacing: .045em; }
+.admin-data-table tbody { background: #FFFFFF; }
+.admin-data-table tbody tr { transition: background-color var(--motion-fast) ease-out; }
+.admin-data-table tbody tr:hover { background: rgb(246 244 237 / 55%); }
+.admin-data-table .admin-table-actions { box-sizing: border-box; width: 9rem; min-width: 9rem; padding-right: 1.25rem; }
+
+/* Forms 2-col collapse to 1-col */
+@media (max-width: 640px) {
+  .admin-shell .grid.sm\:grid-cols-2 {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* Detail pages stack */
+@media (max-width: 768px) {
+  .admin-shell .lg\:pl-64 { padding-left: 0; }
+}
+
 @media (max-width: 639px) {
   .admin-workspace-trigger { max-width: 9.5rem; }
   .admin-account-trigger { max-width: 3rem; }
   .admin-shell { padding-left: 1rem; padding-right: 1rem; }
   .admin-shell .fixed.inset-0 { padding-left: 1rem; padding-right: 1rem; }
 }
+
+/* Ensure modal near full width on mobile with safe margins */
+@media (max-width: 639px) {
+  .admin-shell .rounded-2xl { border-radius: 1rem; }
+}
+

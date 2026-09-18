@@ -1,5 +1,8 @@
-/** Route middleware admin: login + workspace access guard. */
+/** Route middleware admin: login + workspace access guard + redirect preservation. */
 export default defineNuxtRouteMiddleware(async (to) => {
+  // Allow public routes
+  if (to.path === '/login') return
+
   let response: { user?: unknown } | null = null
   try {
     response = await $fetch<{ user?: unknown }>('/api/admin/auth/me', {
@@ -8,10 +11,30 @@ export default defineNuxtRouteMiddleware(async (to) => {
   } catch {
     response = null
   }
-  if (!response?.user) return navigateTo('/login')
+  if (!response?.user) {
+    const redirect = encodeURIComponent(to.fullPath)
+    return navigateTo(`/login?redirect=${redirect}`)
+  }
 
-  const workspaceKey = to.path === '/profile' ? null : to.path === '/' ? ((await $fetch<{ data?: Array<{ key: string }> }>('/api/admin/workspaces').catch(() => ({ data: [] }))).data?.some((workspace) => workspace.key === 'media') ? 'media' : 'tour') : to.path === '/media' || to.path.startsWith('/media/') ? 'media' : 'tour'
-  if (!workspaceKey) return
+  // Neutral routes that only require auth, not specific workspace membership
+  if (
+    to.path === '/workspaces' ||
+    to.path.startsWith('/workspaces/') ||
+    to.path === '/profile' ||
+    to.path.startsWith('/profile') ||
+    to.path === '/notifications' ||
+    to.path.startsWith('/notifications')
+  ) {
+    return
+  }
+
+  // Root should go to workspace hub, not force media/tour
+  if (to.path === '/') {
+    return navigateTo('/workspaces', { replace: true })
+  }
+
+  const workspaceKey =
+    to.path === '/media' || to.path.startsWith('/media/') ? 'media' : 'tour'
 
   const workspaces = await $fetch<{ data?: Array<{ key: string }> }>('/api/admin/workspaces', {
     headers: import.meta.server ? useRequestHeaders(['cookie']) : undefined,

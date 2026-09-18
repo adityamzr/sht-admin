@@ -6,6 +6,7 @@ import {
     UserPen,
     UserRound,
     X,
+    LayoutGrid,
 } from "lucide-vue-next";
 type WorkspaceOption = {
     id: number;
@@ -145,6 +146,15 @@ watch(() => route.path, (path) => { if (path.startsWith("/media")) activeWorkspa
                             ></span
                         ></NuxtLink
                     >
+                    <div class="my-1 border-t border-neutral-line" />
+                    <NuxtLink
+                        to="/workspaces"
+                        class="flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium text-neutral-charcoal/80 hover:bg-neutral-soft"
+                        @click="closeMenus"
+                    >
+                        <LayoutGrid class="h-4 w-4" />
+                        <span>All Workspaces</span>
+                    </NuxtLink>
                 </div>
             </div>
             <div class="flex shrink-0 items-center gap-2">

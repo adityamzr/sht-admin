@@ -18,3 +18,5 @@ node_modules
 .vscode
 *.swp
 .vercel
+storage/private-attachments/*
+!storage/private-attachments/.gitkeep
