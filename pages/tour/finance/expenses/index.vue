@@ -302,7 +302,8 @@ if (typeof window !== 'undefined') {
     <TourModal :open="showVoidModal" title="Void Expense" subtitle="VOID historical excluded" max-width="max-w-md" @close="showVoidModal=false">
       <div class="space-y-3 text-sm">
         <p>Void Expense <span class="font-mono font-semibold">{{ voidTarget?.expenseCode }}</span>?</p>
-        <p class="text-xs text-neutral-charcoal/60">VOID retained excluded dari Verified Expenses, Profitability, Reports.</p>
+        <p class="text-xs text-neutral-charcoal/60">Expense akan tetap tersimpan sebagai riwayat, tetapi tidak lagi dihitung sebagai pengeluaran aktual. {{ voidTarget?.currency }} {{ Number(voidTarget?.amount||0).toLocaleString('id-ID') }} tetap tampil sebagai histori, Vendor tetap {{ voidTarget?.vendor?.name || `#${voidTarget?.vendorId}` }}, tidak di-zero atau dihapus.</p>
+        <p class="text-xs text-amber-700">Setelah VOID, Booking actual expense kembali berkurang. Finance Verified Expenses, Profitability, Reports tidak lagi menghitungnya. VOID adalah terminal, tidak bisa di-restore ke VERIFIED/DRAFT. Hanya status yang berubah, semua field transaksi tetap tidak berubah (status-only).</p>
       </div>
       <template #footer>
         <div class="flex justify-end gap-2">

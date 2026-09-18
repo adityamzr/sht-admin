@@ -422,6 +422,24 @@ export async function updateAccommodationStay(db: DbLike, id: number, workspaceI
 }
 
 export async function softDeleteAccommodationStay(db: DbLike, id: number, workspaceId: number) {
+  // Stay must NOT be deleted while any active Room exists under it – explicit cleanup sequence
+  const activeRooms = await db.select({ v: count() }).from(tourAccommodationRooms).where(and(eq(tourAccommodationRooms.workspaceId, workspaceId), eq(tourAccommodationRooms.stayId, id), notDeleted(tourAccommodationRooms)))
+  const roomsCount = Number(activeRooms[0]?.v ?? 0)
+  if (roomsCount > 0) {
+    // Also check occupants for more descriptive message
+    const activeOccupants = await db.select({ v: count() }).from(tourRoomOccupants).where(and(eq(tourRoomOccupants.workspaceId, workspaceId), eq(tourRoomOccupants.stayId, id)))
+    const occCount = Number(activeOccupants[0]?.v ?? 0)
+    if (occCount > 0) {
+      badRequest('Akomodasi masih memiliki kamar atau jamaah yang dialokasikan. Kosongkan rooming terlebih dahulu.')
+    }
+    badRequest('Akomodasi masih memiliki kamar. Hapus kamar terlebih dahulu sebelum menghapus akomodasi.')
+  }
+  // Also block if occupants exist even without rooms (should not happen, but safety)
+  const orphanOccupants = await db.select({ v: count() }).from(tourRoomOccupants).where(and(eq(tourRoomOccupants.workspaceId, workspaceId), eq(tourRoomOccupants.stayId, id)))
+  if (Number(orphanOccupants[0]?.v ?? 0) > 0) {
+    badRequest('Akomodasi masih memiliki kamar atau jamaah yang dialokasikan. Kosongkan rooming terlebih dahulu.')
+  }
+
   const rows = await db.update(tourAccommodationStays).set({ deletedAt: new Date(), updatedAt: new Date() }).where(and(eq(tourAccommodationStays.id, id), eq(tourAccommodationStays.workspaceId, workspaceId))).returning({ id: tourAccommodationStays.id })
   return rows[0] ?? null
 }

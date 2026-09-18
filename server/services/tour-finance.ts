@@ -563,25 +563,50 @@ export async function updateTourPayment(db: DbLike, id: number, workspaceId: num
   const existing = await getTourPayment(db, id, workspaceId)
   if (!existing) return null
 
-  // VOID is read-only historical, cannot edit financial fields
+  // VOID is terminal read-only historical, cannot edit financial fields, cannot restore
   if (existing.status === 'VOID') {
-    const financialFields = ['invoiceId','orderId','paymentDate','amountIdr','method','accountOrChannel','referenceNumber','proofUrl']
+    const financialFields = ['invoiceId','orderId','paymentDate','amountIdr','method','accountOrChannel','referenceNumber','proofUrl','verifiedBy','verifiedAt']
     for (const f of financialFields) {
       if ((patch as any)[f] !== undefined && String((patch as any)[f]) !== String((existing as any)[f])) {
         badRequest(`Payment VOID tidak bisa diubah field ${f}, buat payment baru untuk koreksi`)
       }
     }
     if ((patch as any).status && (patch as any).status !== 'VOID') {
-      badRequest('Payment VOID tidak bisa diubah statusnya')
+      badRequest('Payment VOID tidak bisa diubah statusnya. VOID adalah terminal.')
     }
   }
 
   // VERIFIED immutability – lock financially meaningful fields, and cannot change to another Invoice
+  // VERIFIED → VOID must be status-only (no financial field mutation)
   if (existing.status === 'VERIFIED') {
     const newStatus = (patch as any).status
     if (newStatus && newStatus !== 'VOID' && newStatus !== 'VERIFIED') {
       if (newStatus === 'DRAFT') badRequest('Pembayaran VERIFIED tidak bisa kembali ke DRAFT, gunakan VOID untuk koreksi')
       badRequest(`Pembayaran VERIFIED hanya bisa di-VOID, tidak bisa diubah ke ${newStatus}`)
+    }
+    if (newStatus === 'VOID') {
+      // Status-only transition: reject any financial field changes together with VOID
+      const lockedForVoid = ['invoiceId','orderId','paymentDate','amountIdr','method','accountOrChannel','referenceNumber','proofUrl','verifiedBy','verifiedAt']
+      for (const field of lockedForVoid) {
+        if ((patch as any)[field] !== undefined) {
+          const oldVal = (existing as any)[field]
+          const newVal = (patch as any)[field]
+          // Compare stringified, allow same value? For strict status-only, reject if provided even if same, but we check diff to give clearer msg
+          if (String(oldVal ?? '') !== String(newVal ?? '')) {
+            badRequest(`Pembayaran VERIFIED hanya bisa di-VOID tanpa mengubah ${field}. Field ${field} tidak boleh diubah saat Void.`)
+          } else {
+            // Even if same value provided, treat as mutation attempt – enforce status-only
+            badRequest(`Pembayaran VERIFIED hanya bisa di-VOID tanpa mengubah field lain. Hapus field ${field} dari request, hanya kirim status=VOID.`)
+          }
+        }
+      }
+      // Also block any other unexpected keys besides status (e.g. notes, description)
+      const allowedVoidKeys = new Set(['status'])
+      for (const k of Object.keys(patch)) {
+        if (!allowedVoidKeys.has(k)) {
+          badRequest(`Pembayaran VERIFIED hanya bisa di-VOID tanpa mengubah ${k}. Hanya status yang boleh berubah saat Void.`)
+        }
+      }
     }
     if (!newStatus || newStatus === 'VERIFIED') {
       const locked = ['invoiceId','orderId','paymentDate','amountIdr','method','accountOrChannel','referenceNumber','proofUrl']
@@ -889,26 +914,46 @@ export async function updateTourExpense(db: DbLike, id: number, workspaceId: num
   const existing = await getTourExpense(db, id, workspaceId)
   if (!existing) return null
 
-  // VOID is read-only
+  // VOID is terminal read-only
   if (existing.status === 'VOID') {
-    const locked = ['expenseDate','orderId','tripId','bookingId','vendorId','category','currency','amount','exchangeRateSnapshot','amountIdr','paymentMethod','referenceNumber']
+    const locked = ['expenseDate','orderId','tripId','bookingId','vendorId','category','description','currency','amount','exchangeRateSnapshot','amountIdr','paymentMethod','referenceNumber','proofUrl','verifiedBy','verifiedAt']
     for (const f of locked) {
       if ((patch as any)[f] !== undefined && String((patch as any)[f]) !== String((existing as any)[f])) {
         badRequest(`Expense VOID tidak bisa diubah field ${f}`)
       }
     }
-    if ((patch as any).status && (patch as any).status !== 'VOID') badRequest('Expense VOID tidak bisa diubah statusnya')
+    if ((patch as any).status && (patch as any).status !== 'VOID') badRequest('Expense VOID tidak bisa diubah statusnya. VOID adalah terminal.')
   }
 
-  // VERIFIED immutability
+  // VERIFIED immutability – VERIFIED → VOID must be status-only
   if (existing.status === 'VERIFIED') {
     const newStatus = (patch as any).status
     if (newStatus && newStatus !== 'VOID' && newStatus !== 'VERIFIED') {
       if (newStatus === 'DRAFT') badRequest('Expense VERIFIED tidak bisa kembali ke DRAFT, gunakan VOID')
       badRequest(`Expense VERIFIED hanya bisa di-VOID, tidak bisa diubah ke ${newStatus}`)
     }
+    if (newStatus === 'VOID') {
+      const lockedForVoid = ['expenseDate','orderId','tripId','bookingId','vendorId','category','description','currency','amount','exchangeRateSnapshot','amountIdr','paymentMethod','referenceNumber','proofUrl','verifiedBy','verifiedAt']
+      for (const field of lockedForVoid) {
+        if ((patch as any)[field] !== undefined) {
+          const oldVal = (existing as any)[field]
+          const newVal = (patch as any)[field]
+          if (String(oldVal ?? '') !== String(newVal ?? '')) {
+            badRequest(`Expense VERIFIED hanya bisa di-VOID tanpa mengubah ${field}. Field ${field} tidak boleh diubah saat Void.`)
+          } else {
+            badRequest(`Expense VERIFIED hanya bisa di-VOID tanpa mengubah field lain. Hapus field ${field} dari request, hanya kirim status=VOID.`)
+          }
+        }
+      }
+      const allowedVoidKeys = new Set(['status'])
+      for (const k of Object.keys(patch)) {
+        if (!allowedVoidKeys.has(k)) {
+          badRequest(`Expense VERIFIED hanya bisa di-VOID tanpa mengubah ${k}. Hanya status yang boleh berubah saat Void.`)
+        }
+      }
+    }
     if (!newStatus || newStatus === 'VERIFIED') {
-      const locked = ['expenseDate','orderId','tripId','bookingId','vendorId','category','currency','amount','exchangeRateSnapshot','amountIdr','paymentMethod','referenceNumber']
+      const locked = ['expenseDate','orderId','tripId','bookingId','vendorId','category','description','currency','amount','exchangeRateSnapshot','amountIdr','paymentMethod','referenceNumber','proofUrl']
       for (const field of locked) {
         if ((patch as any)[field] !== undefined) {
           if (String((patch as any)[field]) !== String((existing as any)[field])) {

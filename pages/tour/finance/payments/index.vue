@@ -247,7 +247,8 @@ async function removeDraft(p: any) {
     <TourModal :open="showVoidModal" title="Void Payment" subtitle="VOID historical retained excluded" max-width="max-w-md" @close="showVoidModal=false">
       <div class="space-y-3 text-sm">
         <p>Void Payment <span class="font-mono font-semibold">{{ voidTarget?.paymentCode }}</span>?</p>
-        <p class="text-xs text-neutral-charcoal/60">VOID retained excluded dari Cash Received, tidak bisa dihapus hard, semua field read-only setelah VOID.</p>
+        <p class="text-xs text-neutral-charcoal/60">Payment akan tetap tersimpan sebagai riwayat, tetapi tidak lagi dihitung dalam Finance. Amount asli tetap Rp{{ Number(voidTarget?.amountIdr||0).toLocaleString('id-ID') }}, Invoice tetap {{ voidTarget?.invoice?.invoiceCode || `#${voidTarget?.invoiceId}` }}, tidak di-zero atau dihapus.</p>
+        <p class="text-xs text-amber-700">Setelah VOID, Invoice outstanding kembali bertambah. Finance Cash Received akan berkurang. VOID adalah terminal, tidak bisa di-restore ke VERIFIED/DRAFT. Hanya status yang berubah, semua field transaksi tetap tidak berubah (status-only).</p>
       </div>
       <template #footer>
         <div class="flex justify-end gap-2">
