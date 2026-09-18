@@ -5,6 +5,17 @@ const email = ref("");
 const password = ref("");
 const error = ref<string | null>(null);
 const pending = ref(false);
+const route = useRoute();
+
+function isSafeRedirect(path: string): boolean {
+  if (!path) return false;
+  if (!path.startsWith('/')) return false;
+  if (path.startsWith('//')) return false;
+  if (path.startsWith('/login')) return false;
+  // Allow /workspaces, /media, /tour and their subpaths, /profile, /notifications
+  const allowedPrefixes = ['/workspaces', '/media', '/tour', '/profile', '/notifications', '/leads', '/estimations', '/hotels', '/flights', '/transport', '/services', '/pricing', '/settings'];
+  return allowedPrefixes.some(p => path === p || path.startsWith(p + '/')) || path === '/' || path === '/workspaces';
+}
 
 async function onSubmit() {
     error.value = null;
@@ -14,15 +25,15 @@ async function onSubmit() {
             method: "POST",
             body: { email: email.value, password: password.value },
         });
-        const response = await $fetch<{ data?: Array<{ key: string }> }>(
-            "/api/admin/workspaces",
-        );
-        const landing = response.data?.some(
-            (workspace) => workspace.key === "tour",
-        )
-            ? "/"
-            : "/media";
-        await navigateTo(landing);
+
+        const redirectQuery = route.query.redirect as string | undefined;
+        if (redirectQuery && isSafeRedirect(redirectQuery)) {
+          await navigateTo(redirectQuery);
+          return;
+        }
+
+        // Default landing is Workspace Hub
+        await navigateTo('/workspaces');
     } catch (err: unknown) {
         const e = err as { data?: { statusMessage?: string } };
         error.value =

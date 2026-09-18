@@ -1,5 +1,6 @@
 <script setup lang="ts">
 definePageMeta({ middleware: 'admin-auth' })
-navigateTo('/media', { replace: true })
+// Root now goes to Workspace Hub (handled in middleware), but keep fallback
+navigateTo('/workspaces', { replace: true })
 </script>
 <template><div /></template>
