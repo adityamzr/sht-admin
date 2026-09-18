@@ -275,6 +275,24 @@ function formatDate(d: any): string {
   return String(d).slice(0,10)
 }
 
+const overlappingPairs = computed(() => {
+  const list = stays.value || []
+  const pairs: any[] = []
+  for (let i=0;i<list.length;i++){
+    for (let j=i+1;j<list.length;j++){
+      const a = list[i], b = list[j]
+      const aIn = formatDate(a.checkInDate)
+      const aOut = formatDate(a.checkOutDate)
+      const bIn = formatDate(b.checkInDate)
+      const bOut = formatDate(b.checkOutDate)
+      if (aIn && bIn && aOut && bOut && aIn <= bOut && bIn <= aOut) {
+        pairs.push({ a, b })
+      }
+    }
+  }
+  return pairs
+})
+
 async function clearRoom(room: any, stayId: number) {
   if (!room.occupants?.length) return
   if (!confirm(`Kosongkan ${room.roomLabel}? Keluarkan ${room.occupants.length} Jamaah dari kamar ini?`)) return
@@ -370,6 +388,14 @@ async function unassignJamaahFromRoom(jamaahId: number, stayId: number) {
           <p class="mt-1 text-xs text-neutral-charcoal/60">Trip → HOTEL Booking → Accommodation Stay → Rooms → Jamaah Assignment. Actual room allocation di Trip, bukan permanen di Jamaah. Preferensi kamar di Jamaah hanya preferensi.</p>
         </div>
         <button type="button" class="min-h-[40px] rounded-xl bg-sht-olive px-4 py-2 text-sm font-semibold text-white flex items-center gap-1.5" @click="openCreateStay"><Plus class="h-4 w-4" /> Tambah Stay</button>
+      </div>
+
+      <div v-if="overlappingPairs.length" class="mt-4 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+        <p class="font-semibold">⚠️ Overlapping Stays terdeteksi (warning, tidak hard-block)</p>
+        <ul class="mt-1 list-disc pl-5 text-xs">
+          <li v-for="(pair, idx) in overlappingPairs" :key="idx">{{ pair.a.stayCode }} {{ formatDate(pair.a.checkInDate) }}→{{ formatDate(pair.a.checkOutDate) }} overlap dengan {{ pair.b.stayCode }} {{ formatDate(pair.b.checkInDate) }}→{{ formatDate(pair.b.checkOutDate) }}</li>
+        </ul>
+        <p class="mt-1 text-[11px] text-amber-700/80">Per spec, overlapping diijinkan tapi diberi warning — misal transit Jeddah 1 malam overlap Makkah.</p>
       </div>
 
       <div v-if="!stays.length" class="mt-4 rounded-2xl border border-dashed border-neutral-line bg-white p-10 text-center text-sm text-neutral-charcoal/50">
