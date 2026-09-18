@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Pencil, Trash2, Eye, Send, Ban, CircleSlash } from 'lucide-vue-next'
+import { Pencil, Trash2, Eye, Send, Ban, CircleSlash, FileDown, RefreshCw } from 'lucide-vue-next'
 definePageMeta({ layout: "admin", middleware: "admin-auth" });
 
 const search = ref("");
@@ -124,6 +124,32 @@ async function removeDraft(inv: any) {
   await adminDelete(`/api/admin/tour/invoices/${inv.id}`).catch(()=>{});
   await refresh();
 }
+
+const { success: toastSuccess, error: toastError } = useAdminToast()
+const pdfGeneratingId = ref<number | null>(null)
+
+async function downloadPdf(inv: any) {
+  if (pdfGeneratingId.value) return
+  pdfGeneratingId.value = inv.id
+  try {
+    const blob = await $fetch<Blob>(`/api/admin/tour/invoices/${inv.id}/pdf`, {
+      responseType: 'blob' as any,
+    })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `Invoice-${inv.invoiceCode}.pdf`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+    toastSuccess('PDF Invoice berhasil diunduh')
+  } catch (e: any) {
+    toastError(e?.data?.statusMessage || e?.message || 'Gagal mengunduh PDF')
+  } finally {
+    pdfGeneratingId.value = null
+  }
+}
 </script>
 
 <template>
@@ -217,7 +243,11 @@ async function removeDraft(inv: any) {
             <td class="px-5 py-3"><TourStatusBadge :status="inv.state" type="invoice" /></td>
           <td class="admin-table-actions px-5 py-3 text-right">
               <div class="flex justify-end gap-1">
-                <NuxtLink :to="`/tour/finance/payments?invoiceId=${inv.id}`" class="rounded-xl p-2 text-neutral-charcoal/50 hover:bg-neutral-warm hover:text-brand-green" title="Lihat Payments" aria-label="View payments"><Eye class="h-4 w-4" /></NuxtLink>
+                <NuxtLink :to="`/tour/finance/invoices/${inv.id}`" class="rounded-xl p-2 text-neutral-charcoal/50 hover:bg-neutral-warm hover:text-brand-green" title="Detail Invoice" aria-label="Detail"><Eye class="h-4 w-4" /></NuxtLink>
+                <button class="rounded-xl p-2 text-sht-olive hover:bg-sht-olive/10 disabled:opacity-50" :disabled="pdfGeneratingId===inv.id" title="Download PDF Invoice" aria-label="Download PDF" @click="downloadPdf(inv)">
+                  <FileDown v-if="pdfGeneratingId!==inv.id" class="h-4 w-4" />
+                  <RefreshCw v-else class="h-4 w-4 animate-spin" />
+                </button>
                 <button v-if="inv.state==='DRAFT'" class="rounded-xl p-2 text-neutral-charcoal/60 hover:bg-neutral-warm" title="Edit DRAFT" aria-label="Edit" @click="openEdit(inv)"><Pencil class="h-4 w-4" /></button>
                 <button v-if="inv.state==='DRAFT'" class="rounded-xl p-2 text-emerald-600 hover:bg-emerald-50" title="Issue → ISSUED (masuk piutang)" aria-label="Issue" @click="issueInvoice(inv)"><Send class="h-4 w-4" /></button>
                 <button v-if="inv.state==='DRAFT'" class="rounded-xl p-2 text-neutral-charcoal/40 hover:bg-red-50 hover:text-red-600" title="Delete DRAFT" aria-label="Delete draft" @click="removeDraft(inv)"><Trash2 class="h-4 w-4" /></button>

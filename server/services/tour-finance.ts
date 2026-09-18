@@ -12,6 +12,7 @@ import {
   workspaces,
 } from '../db/schema'
 import type { DbLike } from '../db'
+import { insertWithTimestampCodeRetry } from '../utils/tour-code-generator'
 
 function badRequest(msg: string): never {
   throw createError({ statusCode: 400, statusMessage: msg })
@@ -328,14 +329,14 @@ export async function createTourInvoice(db: DbLike, workspaceId: number, input: 
   const state = (input as any).state || 'DRAFT'
   if (state === 'CANCELLED') badRequest('Invoice tidak bisa dibuat langsung sebagai CANCELLED, buat sebagai DRAFT/ISSUED lalu Cancel')
 
-  const rows = await db.insert(tourInvoices).values({ ...input, workspaceId, createdBy } as never).returning()
-  return rows[0]
+  return await insertWithTimestampCodeRetry(db, tourInvoices, 'invoiceCode', 'INV', workspaceId, { ...input, createdBy } as any)
 }
 
 export async function updateTourInvoice(db: DbLike, id: number, workspaceId: number, patch: Record<string, unknown>, updatedBy?: number) {
   const existing = await getTourInvoice(db, id, workspaceId)
   if (!existing) return null
 
+  if ((patch as any).invoiceCode !== undefined) delete (patch as any).invoiceCode
   const newState = (patch as any).state
 
   // ── CANCELLED is terminal – read-only ──────────────────────────────────
@@ -608,13 +609,14 @@ export async function createTourPayment(db: DbLike, workspaceId: number, input: 
     extra.verifiedAt = now
   }
 
-  const rows = await db.insert(tourPayments).values({ ...input, orderId, workspaceId, createdBy, ...extra } as never).returning()
-  return rows[0]
+  return await insertWithTimestampCodeRetry(db, tourPayments, 'paymentCode', 'PAY', workspaceId, { ...input, orderId, workspaceId, createdBy, ...extra } as any)
 }
 
 export async function updateTourPayment(db: DbLike, id: number, workspaceId: number, patch: Record<string, unknown>, updatedBy?: number) {
   const existing = await getTourPayment(db, id, workspaceId)
   if (!existing) return null
+
+  if ((patch as any).paymentCode !== undefined) delete (patch as any).paymentCode
 
   // VOID is terminal read-only historical, cannot edit financial fields, cannot restore
   if (existing.status === 'VOID') {
@@ -971,13 +973,14 @@ export async function createTourExpense(db: DbLike, workspaceId: number, input: 
     extra.verifiedAt = now
   }
 
-  const rows = await db.insert(tourExpenses).values({ ...input, exchangeRateSnapshot: snapshot, amountIdr, workspaceId, createdBy, ...extra } as never).returning()
-  return rows[0]
+  return await insertWithTimestampCodeRetry(db, tourExpenses, 'expenseCode', 'EXP', workspaceId, { ...input, exchangeRateSnapshot: snapshot, amountIdr, ...extra, createdBy } as any)
 }
 
 export async function updateTourExpense(db: DbLike, id: number, workspaceId: number, patch: Record<string, unknown>, updatedBy?: number) {
   const existing = await getTourExpense(db, id, workspaceId)
   if (!existing) return null
+
+  if ((patch as any).expenseCode !== undefined) delete (patch as any).expenseCode
 
   // VOID is terminal read-only
   if (existing.status === 'VOID') {
