@@ -17,6 +17,7 @@ import {
   estimations,
 } from '../db/schema'
 import type { DbLike } from '../db'
+import { insertWithTimestampCodeRetry } from '../utils/tour-code-generator'
 
 function badRequest(msg: string): never {
   // Throw Nitro-compatible error that will become 400, not 500
@@ -80,11 +81,13 @@ export async function getTourCustomerIncludingDeleted(db: DbLike, id: number, wo
 }
 
 export async function createTourCustomer(db: DbLike, workspaceId: number, input: Record<string, unknown>) {
-  const rows = await db.insert(tourCustomers).values({ ...input, workspaceId } as never).returning()
-  return rows[0]
+  // Use timestamp code CUS + YYMMDDHHmm
+  return await insertWithTimestampCodeRetry(db, tourCustomers, 'customerCode', 'CUS', workspaceId, input as any)
 }
 
 export async function updateTourCustomer(db: DbLike, id: number, workspaceId: number, patch: Record<string, unknown>) {
+  // Code immutable after creation
+  if ((patch as any).customerCode !== undefined) delete (patch as any).customerCode
   const rows = await db.update(tourCustomers).set({ ...patch, updatedAt: new Date() } as never).where(and(eq(tourCustomers.id, id), eq(tourCustomers.workspaceId, workspaceId))).returning()
   return rows[0] ?? null
 }
@@ -191,8 +194,7 @@ export async function createTourOrder(db: DbLike, workspaceId: number, input: Re
     if (!estRows[0]) badRequest('Estimasi tidak ditemukan — biarkan kosong jika order manual tanpa estimasi, atau pilih dari daftar estimasi yang ada')
   }
 
-  const rows = await db.insert(tourOrders).values({ ...input, workspaceId } as never).returning()
-  return rows[0]
+  return await insertWithTimestampCodeRetry(db, tourOrders, 'orderCode', 'ORD', workspaceId, input as any)
 }
 
 export async function updateTourOrder(db: DbLike, id: number, workspaceId: number, patch: Record<string, unknown>) {
@@ -209,6 +211,7 @@ export async function updateTourOrder(db: DbLike, id: number, workspaceId: numbe
     if (!estRows[0]) badRequest('Estimasi tidak ditemukan — biarkan kosong jika order manual tanpa estimasi, atau pilih dari daftar estimasi yang ada')
   }
 
+  if ((patch as any).orderCode !== undefined) delete (patch as any).orderCode
   const rows = await db.update(tourOrders).set({ ...patch, updatedAt: new Date() } as never).where(and(eq(tourOrders.id, id), eq(tourOrders.workspaceId, workspaceId))).returning()
   return rows[0] ?? null
 }
@@ -315,8 +318,7 @@ export async function createTourJamaah(db: DbLike, workspaceId: number, input: R
   const orderId = Number((input as any).orderId)
   const order = await getTourOrder(db, orderId, workspaceId)
   if (!order) badRequest('Order tidak ditemukan atau bukan milik workspace ini')
-  const rows = await db.insert(tourJamaah).values({ ...input, workspaceId } as never).returning()
-  return rows[0]
+  return await insertWithTimestampCodeRetry(db, tourJamaah, 'jamaahCode', 'JMH', workspaceId, input as any)
 }
 
 export async function updateTourJamaah(db: DbLike, id: number, workspaceId: number, patch: Record<string, unknown>) {
@@ -324,6 +326,7 @@ export async function updateTourJamaah(db: DbLike, id: number, workspaceId: numb
     const order = await getTourOrder(db, Number((patch as any).orderId), workspaceId)
     if (!order) badRequest('Order tidak ditemukan atau bukan milik workspace ini')
   }
+  if ((patch as any).jamaahCode !== undefined) delete (patch as any).jamaahCode
   const rows = await db.update(tourJamaah).set({ ...patch, updatedAt: new Date() } as never).where(and(eq(tourJamaah.id, id), eq(tourJamaah.workspaceId, workspaceId))).returning()
   return rows[0] ?? null
 }
@@ -368,11 +371,11 @@ export async function getTourTrip(db: DbLike, id: number, workspaceId: number) {
 }
 
 export async function createTourTrip(db: DbLike, workspaceId: number, input: Record<string, unknown>) {
-  const rows = await db.insert(tourTrips).values({ ...input, workspaceId } as never).returning()
-  return rows[0]
+  return await insertWithTimestampCodeRetry(db, tourTrips, 'tripCode', 'TRP', workspaceId, input as any)
 }
 
 export async function updateTourTrip(db: DbLike, id: number, workspaceId: number, patch: Record<string, unknown>) {
+  if ((patch as any).tripCode !== undefined) delete (patch as any).tripCode
   const rows = await db.update(tourTrips).set({ ...patch, updatedAt: new Date() } as never).where(and(eq(tourTrips.id, id), eq(tourTrips.workspaceId, workspaceId))).returning()
   return rows[0] ?? null
 }
@@ -540,11 +543,11 @@ export async function getTourVendorIncludingDeleted(db: DbLike, id: number, work
 }
 
 export async function createTourVendor(db: DbLike, workspaceId: number, input: Record<string, unknown>) {
-  const rows = await db.insert(tourVendors).values({ ...input, workspaceId } as never).returning()
-  return rows[0]
+  return await insertWithTimestampCodeRetry(db, tourVendors, 'vendorCode', 'VND', workspaceId, input as any)
 }
 
 export async function updateTourVendor(db: DbLike, id: number, workspaceId: number, patch: Record<string, unknown>) {
+  if ((patch as any).vendorCode !== undefined) delete (patch as any).vendorCode
   const rows = await db.update(tourVendors).set({ ...patch, updatedAt: new Date() } as never).where(and(eq(tourVendors.id, id), eq(tourVendors.workspaceId, workspaceId))).returning()
   return rows[0] ?? null
 }
@@ -684,8 +687,7 @@ export async function createTourBooking(db: DbLike, workspaceId: number, input: 
     if (!order) badRequest('Order tidak ditemukan atau bukan milik workspace ini')
   }
 
-  const rows = await db.insert(tourBookings).values({ ...input, workspaceId } as never).returning()
-  return rows[0]
+  return await insertWithTimestampCodeRetry(db, tourBookings, 'bookingCode', 'BKG', workspaceId, input as any)
 }
 
 export async function updateTourBooking(db: DbLike, id: number, workspaceId: number, patch: Record<string, unknown>) {
@@ -702,6 +704,7 @@ export async function updateTourBooking(db: DbLike, id: number, workspaceId: num
     if (!order) badRequest('Order tidak ditemukan atau bukan milik workspace ini')
   }
 
+  if ((patch as any).bookingCode !== undefined) delete (patch as any).bookingCode
   const rows = await db.update(tourBookings).set({ ...patch, updatedAt: new Date() } as never).where(and(eq(tourBookings.id, id), eq(tourBookings.workspaceId, workspaceId))).returning()
   return rows[0] ?? null
 }

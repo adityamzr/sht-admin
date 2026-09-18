@@ -14,6 +14,7 @@ import {
   workspaces,
 } from '../db/schema'
 import type { DbLike } from '../db'
+import { insertWithTimestampCodeRetry } from '../utils/tour-code-generator'
 
 function badRequest(msg: string): never {
   throw createError({ statusCode: 400, statusMessage: msg })
@@ -326,8 +327,8 @@ export async function createAccommodationStay(db: DbLike, workspaceId: number, i
   }
 
   // Insert stay – Drizzle date mode:'date' expects Date object, not string
-  const stayRows = await db.insert(tourAccommodationStays).values({
-    workspaceId,
+  // Use timestamp code STY + YYMMDDHHmm
+  const stay = await insertWithTimestampCodeRetry(db, tourAccommodationStays, 'stayCode', 'STY', workspaceId, {
     tripId,
     bookingId,
     hotelName: String(input.hotelName).trim(),
@@ -335,8 +336,7 @@ export async function createAccommodationStay(db: DbLike, workspaceId: number, i
     checkInDate: new Date(checkIn) as any,
     checkOutDate: new Date(checkOut) as any,
     notes: input.notes || null,
-  } as any).returning()
-  const stay = stayRows[0]
+  } as any)
 
   // Insert stay_orders
   for (const oid of input.orderIds) {
@@ -358,9 +358,13 @@ export async function updateAccommodationStay(db: DbLike, id: number, workspaceI
   checkOutDate?: string
   notes?: string | null
   orderIds?: number[]
+  stayCode?: string
 }) {
   const existing = await getAccommodationStay(db, id, workspaceId)
   if (!existing) notFound('Accommodation Stay tidak ditemukan')
+
+  // Code immutable
+  if ((patch as any).stayCode !== undefined) delete (patch as any).stayCode
 
   const tripId = existing.tripId
 
@@ -535,8 +539,7 @@ export async function createAccommodationRoom(db: DbLike, workspaceId: number, i
     }
   }
 
-  const rows = await db.insert(tourAccommodationRooms).values({
-    workspaceId,
+  const room = await insertWithTimestampCodeRetry(db, tourAccommodationRooms, 'roomCode', 'ROM', workspaceId, {
     stayId,
     roomLabel,
     roomNumber: input.roomNumber || null,
@@ -545,8 +548,8 @@ export async function createAccommodationRoom(db: DbLike, workspaceId: number, i
     roomingMode,
     orderId,
     notes: input.notes || null,
-  } as any).returning()
-  return rows[0]
+  } as any)
+  return room
 }
 
 export async function updateAccommodationRoom(db: DbLike, id: number, workspaceId: number, patch: {
@@ -557,9 +560,12 @@ export async function updateAccommodationRoom(db: DbLike, id: number, workspaceI
   roomingMode?: string
   orderId?: number | null
   notes?: string | null
+  roomCode?: string
 }) {
   const existing = await getAccommodationRoom(db, id, workspaceId)
   if (!existing) notFound('Room tidak ditemukan')
+
+  if ((patch as any).roomCode !== undefined) delete (patch as any).roomCode
 
   const stay = await getAccommodationStay(db, existing.stayId, workspaceId)
   if (!stay) badRequest('Stay tidak ditemukan')
