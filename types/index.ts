@@ -189,6 +189,80 @@ export interface AdminSummary {
   totalTrips?: number
 }
 
+export interface TourDashboardKpis {
+  activeOrders: number
+  activePax: number
+  upcomingTrips: number
+  outstandingReceivables: number
+  overdueInvoices: number
+  currentCashPosition: number
+}
+
+export interface TourDashboardTrip {
+  id: number
+  tripCode: string
+  name: string
+  departureDate: string | null
+  daysUntilDeparture: number
+  capacity: number
+  totalPax: number
+  ordersCount: number
+  status: string
+  rooming: {
+    configured: boolean
+    assigned: number
+    eligible: number
+    complete: boolean
+  }
+  to: string
+}
+
+export interface TourDashboardAttention {
+  id: string
+  type: 'OVERDUE_INVOICE' | 'BOOKING_DUE' | 'ROOMING' | 'JAMAAH_DATA'
+  title: string
+  description: string
+  meta: string
+  tone: 'danger' | 'warning' | 'info'
+  to: string
+}
+
+export interface TourDashboardOrder {
+  id: number
+  orderCode: string
+  orderDate: string | null
+  createdAt: string
+  packageName: string | null
+  serviceSummary: string
+  orderType: string
+  paxCount: number
+  sellingPriceIdr: number
+  status: string
+  customerName: string | null
+}
+
+export interface TourDashboardFinanceActivity {
+  id: string
+  type: 'PAYMENT' | 'EXPENSE'
+  code: string
+  date: string | null
+  amountIdr: number
+  originalAmount: number | null
+  originalCurrency: string | null
+  context: string
+  to: string
+}
+
+export interface TourOperationalDashboard {
+  generatedAt: string
+  kpis: TourDashboardKpis
+  upcomingTrips: TourDashboardTrip[]
+  attention: TourDashboardAttention[]
+  recentOrders: TourDashboardOrder[]
+  financeActivity: TourDashboardFinanceActivity[]
+  warnings: string[]
+}
+
 export interface TourCustomer {
   id: number
   workspaceId: number

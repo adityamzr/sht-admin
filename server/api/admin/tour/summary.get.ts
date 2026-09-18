@@ -1,9 +1,9 @@
 import { useDb } from '~/server/db'
-import { getTourOpsSummary, getTourWorkspaceId } from '~/server/services/tour-operations'
+import { getTourWorkspaceId } from '~/server/services/tour-operations'
+import { getTourOperationalDashboard } from '~/server/services/tour-dashboard'
 
 export default defineEventHandler(async () => {
   const db = useDb()
   const workspaceId = await getTourWorkspaceId(db)
-  const summary = await getTourOpsSummary(db, workspaceId)
-  return { data: summary }
+  return { data: await getTourOperationalDashboard(db, workspaceId) }
 })

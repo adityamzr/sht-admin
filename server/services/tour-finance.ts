@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gte, ilike, isNull, lte, ne, or, sql, count, inArray } from 'drizzle-orm'
+import { and, asc, desc, eq, gte, ilike, isNull, lte, ne, notInArray, or, sql, count, inArray } from 'drizzle-orm'
 import {
   tourCustomers,
   tourOrders,
@@ -1065,31 +1065,59 @@ export async function softDeleteTourExpense(db: DbLike, id: number, workspaceId:
 export async function getFinanceOverview(db: DbLike, workspaceId: number) {
   const today = new Date().toISOString().slice(0, 10)
 
-  const [invoices, payments, expenses, bookings] = await Promise.all([
-    db.select().from(tourInvoices).where(and(eq(tourInvoices.workspaceId, workspaceId), notDeleted(tourInvoices))),
-    db.select().from(tourPayments).where(and(eq(tourPayments.workspaceId, workspaceId), notDeleted(tourPayments))),
-    db.select().from(tourExpenses).where(and(eq(tourExpenses.workspaceId, workspaceId), notDeleted(tourExpenses))),
+  const [cashRows, expenseRows, issuedInvoices, recentPayments, recentExpenses, upcomingBookingRows] = await Promise.all([
+    db.select({ total: sql<number>`coalesce(sum(${tourPayments.amountIdr}), 0)` }).from(tourPayments)
+      .where(and(eq(tourPayments.workspaceId, workspaceId), eq(tourPayments.status, 'VERIFIED'), notDeleted(tourPayments))),
+    db.select({ total: sql<number>`coalesce(sum(${tourExpenses.amountIdr}), 0)` }).from(tourExpenses)
+      .where(and(eq(tourExpenses.workspaceId, workspaceId), eq(tourExpenses.status, 'VERIFIED'), notDeleted(tourExpenses))),
+    db.select({
+      id: tourInvoices.id,
+      workspaceId: tourInvoices.workspaceId,
+      invoiceCode: tourInvoices.invoiceCode,
+      orderId: tourInvoices.orderId,
+      issueDate: tourInvoices.issueDate,
+      dueDate: tourInvoices.dueDate,
+      description: tourInvoices.description,
+      amountIdr: tourInvoices.amountIdr,
+      state: tourInvoices.state,
+      createdAt: tourInvoices.createdAt,
+      updatedAt: tourInvoices.updatedAt,
+      totalPaid: sql<number>`coalesce(sum(${tourPayments.amountIdr}), 0)`,
+    }).from(tourInvoices)
+      .leftJoin(tourPayments, and(
+        eq(tourPayments.invoiceId, tourInvoices.id),
+        eq(tourPayments.workspaceId, workspaceId),
+        eq(tourPayments.status, 'VERIFIED'),
+        notDeleted(tourPayments),
+      ))
+      .where(and(eq(tourInvoices.workspaceId, workspaceId), eq(tourInvoices.state, 'ISSUED'), notDeleted(tourInvoices)))
+      .groupBy(tourInvoices.id),
+    db.select().from(tourPayments)
+      .where(and(eq(tourPayments.workspaceId, workspaceId), eq(tourPayments.status, 'VERIFIED'), notDeleted(tourPayments)))
+      .orderBy(desc(tourPayments.paymentDate), desc(tourPayments.createdAt)).limit(5),
+    db.select().from(tourExpenses)
+      .where(and(eq(tourExpenses.workspaceId, workspaceId), eq(tourExpenses.status, 'VERIFIED'), notDeleted(tourExpenses)))
+      .orderBy(desc(tourExpenses.expenseDate), desc(tourExpenses.createdAt)).limit(5),
     db.select({
       booking: tourBookings,
       vendor: tourVendors,
     }).from(tourBookings)
       .leftJoin(tourVendors, and(eq(tourBookings.vendorId, tourVendors.id), eq(tourVendors.workspaceId, workspaceId)))
-      .where(and(eq(tourBookings.workspaceId, workspaceId), notDeleted(tourBookings))),
+      .where(and(
+        eq(tourBookings.workspaceId, workspaceId),
+        notDeleted(tourBookings),
+        gte(tourBookings.dueDate, today as any),
+        notInArray(tourBookings.status, ['CANCELLED', 'COMPLETED']),
+      ))
+      .orderBy(asc(tourBookings.dueDate), asc(tourBookings.id)).limit(5),
   ])
 
-  const cashReceived = payments.filter(p => p.status === 'VERIFIED').reduce((s, p) => s + Number(p.amountIdr ?? 0), 0)
-
-  const paidByInvoice: Record<number, number> = {}
-  for (const p of payments) {
-    if (p.status !== 'VERIFIED') continue
-    paidByInvoice[p.invoiceId] = (paidByInvoice[p.invoiceId] || 0) + Number(p.amountIdr ?? 0)
-  }
-
+  const cashReceived = Number(cashRows[0]?.total ?? 0)
+  const verifiedExpenses = Number(expenseRows[0]?.total ?? 0)
   let outstandingReceivables = 0
   let overdueInvoicesAll: any[] = []
-  for (const inv of invoices) {
-    if (inv.state !== 'ISSUED') continue
-    const paid = paidByInvoice[inv.id] || 0
+  for (const inv of issuedInvoices) {
+    const paid = Number(inv.totalPaid ?? 0)
     const outstanding = Math.max(Number(inv.amountIdr ?? 0) - paid, 0)
     if (outstanding > 0) {
       outstandingReceivables += outstanding
@@ -1102,49 +1130,15 @@ export async function getFinanceOverview(db: DbLike, workspaceId: number) {
     }
   }
 
-  const verifiedExpenses = expenses.filter(e => e.status === 'VERIFIED').reduce((s, e) => s + Number(e.amountIdr ?? 0), 0)
   const currentCashPosition = cashReceived - verifiedExpenses
-
-  const recentPayments = payments.filter(p => p.status === 'VERIFIED').sort((a, b) => {
-    const da = new Date(a.paymentDate as any).getTime()
-    const db = new Date(b.paymentDate as any).getTime()
-    return db - da
-  }).slice(0, 5)
-
-  const recentExpenses = expenses.filter(e => e.status === 'VERIFIED').sort((a, b) => {
-    const da = new Date(a.expenseDate as any).getTime()
-    const db = new Date(b.expenseDate as any).getTime()
-    return db - da
-  }).slice(0, 5)
-
   const overdueCount = overdueInvoicesAll.length
   const overdueInvoices = overdueInvoicesAll.sort((a, b) => b.daysOverdue - a.daysOverdue).slice(0, 10)
-
-  const upcomingBookings = bookings
-    .map(r => r.booking)
-    .filter((b: any) => {
-      if (!b.dueDate) return false
-      const due = toIsoDateString(b.dueDate)
-      if (!due) return false
-      if (due < today) return false
-      if (['CANCELLED', 'COMPLETED'].includes(b.status)) return false
-      return true
-    })
-    .sort((a: any, b: any) => {
-      const da = toIsoDateString(a.dueDate) || ''
-      const db = toIsoDateString(b.dueDate) || ''
-      return da.localeCompare(db)
-    })
-    .slice(0, 5)
-    .map((b: any) => {
-      const vendorRow = bookings.find((r: any) => r.booking.id === b.id)?.vendor
-      return {
-        ...b,
-        dueDate: toIsoDateString(b.dueDate),
-        bookingDate: toIsoDateString(b.bookingDate),
-        vendor: vendorRow ? { id: vendorRow.id, vendorCode: vendorRow.vendorCode, name: vendorRow.name } : null,
-      }
-    })
+  const upcomingBookings = upcomingBookingRows.map(({ booking, vendor }) => ({
+    ...booking,
+    dueDate: toIsoDateString(booking.dueDate),
+    bookingDate: toIsoDateString(booking.bookingDate),
+    vendor: vendor ? { id: vendor.id, vendorCode: vendor.vendorCode, name: vendor.name } : null,
+  }))
 
   return {
     cashReceived,
