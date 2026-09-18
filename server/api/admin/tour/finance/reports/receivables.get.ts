@@ -30,11 +30,25 @@ export default defineEventHandler(async (event) => {
   const startDate = q.startDate ? String(q.startDate).slice(0,10) : undefined
   const endDate = q.endDate ? String(q.endDate).slice(0,10) : undefined
 
+  function toPgDate(dateKey: string | undefined): Date | null {
+    if (!dateKey) return null
+    const s = dateKey.slice(0, 10)
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return null
+    const d = new Date(`${s}T00:00:00.000Z`)
+    return isNaN(d.getTime()) ? null : d
+  }
+
   // DB-level filtering for ISSUED invoices only
   const conds: any[] = [eq(tourInvoices.workspaceId, workspaceId), isNull(tourInvoices.deletedAt), eq(tourInvoices.state, 'ISSUED')]
   if (q.orderId) conds.push(eq(tourInvoices.orderId, Number(q.orderId)))
-  if (startDate) conds.push(gte(tourInvoices.issueDate, startDate as any))
-  if (endDate) conds.push(lte(tourInvoices.issueDate, endDate as any))
+  if (startDate) {
+    const d = toPgDate(startDate)
+    if (d) conds.push(gte(tourInvoices.issueDate, d as any))
+  }
+  if (endDate) {
+    const d = toPgDate(endDate)
+    if (d) conds.push(lte(tourInvoices.issueDate, d as any))
+  }
 
   // Fetch all ISSUED invoices matching filters (without pagination for accurate totals, but limit to reasonable)
   const invoices = await db.select().from(tourInvoices).where(and(...conds)).orderBy(tourInvoices.dueDate)

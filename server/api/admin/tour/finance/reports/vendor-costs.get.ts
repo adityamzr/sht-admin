@@ -3,6 +3,14 @@ import { getTourWorkspaceIdFinance } from '~/server/services/tour-finance'
 import { tourExpenses } from '~/server/db/schema'
 import { and, eq, gte, lte, isNull, sql, count } from 'drizzle-orm'
 
+function toPgDate(dateKey: string | undefined): Date | null {
+  if (!dateKey) return null
+  const s = dateKey.slice(0, 10)
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return null
+  const d = new Date(`${s}T00:00:00.000Z`)
+  return isNaN(d.getTime()) ? null : d
+}
+
 export default defineEventHandler(async (event) => {
   const q = getQuery(event)
   const db = useDb()
@@ -14,8 +22,14 @@ export default defineEventHandler(async (event) => {
   const conds: any[] = [eq(tourExpenses.workspaceId, workspaceId), isNull(tourExpenses.deletedAt), eq(tourExpenses.status, 'VERIFIED')]
   if (q.vendorId) conds.push(eq(tourExpenses.vendorId, Number(q.vendorId)))
   if (q.category) conds.push(eq(tourExpenses.category, String(q.category)))
-  if (startDate) conds.push(gte(tourExpenses.expenseDate, startDate as any))
-  if (endDate) conds.push(lte(tourExpenses.expenseDate, endDate as any))
+  if (startDate) {
+    const d = toPgDate(startDate)
+    if (d) conds.push(gte(tourExpenses.expenseDate, d as any))
+  }
+  if (endDate) {
+    const d = toPgDate(endDate)
+    if (d) conds.push(lte(tourExpenses.expenseDate, d as any))
+  }
 
   // Full filtered set for accurate totals – no pagination for aggregation
   const allExpenses = await db.select().from(tourExpenses).where(and(...conds)).orderBy(tourExpenses.vendorId)

@@ -711,6 +711,22 @@ export async function softDeleteTourBooking(db: DbLike, id: number, workspaceId:
   return rows[0] ?? null
 }
 
+// ─── Helpers for PgDate (mode 'date' expects Date object) ──────────────────
+function toPgDate(dateKey: string | Date | undefined | null): Date | null {
+  if (!dateKey) return null
+  if (dateKey instanceof Date) return isNaN(dateKey.getTime()) ? null : dateKey
+  if (typeof dateKey === 'string') {
+    const s = dateKey.slice(0, 10)
+    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
+      const d = new Date(`${s}T00:00:00.000Z`)
+      if (!isNaN(d.getTime())) return d
+    }
+    const d = new Date(dateKey)
+    if (!isNaN(d.getTime())) return d
+  }
+  return null
+}
+
 // ─── Dashboard summary for tour ops ─────────────────────────────────────────
 export async function getTourOpsSummary(db: DbLike, workspaceId: number) {
   const [customers, orders, jamaah, trips, bookings, vendors] = await Promise.all([
@@ -724,7 +740,13 @@ export async function getTourOpsSummary(db: DbLike, workspaceId: number) {
 
   const activeOrders = await db.select({ v: count() }).from(tourOrders).where(and(eq(tourOrders.workspaceId, workspaceId), notDeleted(tourOrders), or(eq(tourOrders.status, 'CONFIRMED'), eq(tourOrders.status, 'IN_PROGRESS'))))
   const today = new Date().toISOString().slice(0, 10)
-  const upcomingTrips = await db.select({ v: count() }).from(tourTrips).where(and(eq(tourTrips.workspaceId, workspaceId), notDeleted(tourTrips), gte(tourTrips.departureDate, today as any), or(eq(tourTrips.status, 'PLANNED'), eq(tourTrips.status, 'CONFIRMED'))))
+  const todayDate = toPgDate(today)
+  const upcomingTrips = await db.select({ v: count() }).from(tourTrips).where(and(
+    eq(tourTrips.workspaceId, workspaceId),
+    notDeleted(tourTrips),
+    ...(todayDate ? [gte(tourTrips.departureDate, todayDate as any)] : []),
+    or(eq(tourTrips.status, 'PLANNED'), eq(tourTrips.status, 'CONFIRMED')),
+  ))
   const confirmedBookings = await db.select({ v: count() }).from(tourBookings).where(and(eq(tourBookings.workspaceId, workspaceId), notDeleted(tourBookings), eq(tourBookings.status, 'CONFIRMED')))
   const totalPax = await db.select({ v: sql<number>`coalesce(sum(${tourOrders.paxCount}),0)` }).from(tourOrders).where(and(eq(tourOrders.workspaceId, workspaceId), notDeleted(tourOrders), ne(tourOrders.status, 'CANCELLED')))
 

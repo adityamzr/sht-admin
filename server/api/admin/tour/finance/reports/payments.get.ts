@@ -3,6 +3,14 @@ import { listTourPaymentsEnriched, getTourWorkspaceIdFinance } from '~/server/se
 import { tourPayments } from '~/server/db/schema'
 import { and, eq, gte, lte, isNull, sql, count } from 'drizzle-orm'
 
+function toPgDate(dateKey: string | undefined): Date | null {
+  if (!dateKey) return null
+  const s = dateKey.slice(0, 10)
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return null
+  const d = new Date(`${s}T00:00:00.000Z`)
+  return isNaN(d.getTime()) ? null : d
+}
+
 export default defineEventHandler(async (event) => {
   const q = getQuery(event)
   const db = useDb()
@@ -31,8 +39,14 @@ export default defineEventHandler(async (event) => {
   if (q.method) conds.push(eq(tourPayments.method, String(q.method)))
   if (q.orderId) conds.push(eq(tourPayments.orderId, Number(q.orderId)))
   if (q.invoiceId) conds.push(eq(tourPayments.invoiceId, Number(q.invoiceId)))
-  if (startDate) conds.push(gte(tourPayments.paymentDate, startDate as any))
-  if (endDate) conds.push(lte(tourPayments.paymentDate, endDate as any))
+  if (startDate) {
+    const d = toPgDate(startDate)
+    if (d) conds.push(gte(tourPayments.paymentDate, d as any))
+  }
+  if (endDate) {
+    const d = toPgDate(endDate)
+    if (d) conds.push(lte(tourPayments.paymentDate, d as any))
+  }
 
   const agg = await db.select({
     totalAmount: sql<number>`coalesce(sum(CASE WHEN ${tourPayments.status} = 'VERIFIED' THEN ${tourPayments.amountIdr} ELSE 0 END),0)`,

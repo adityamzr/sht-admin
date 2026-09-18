@@ -55,6 +55,21 @@ function safeToIsoDate(value: unknown): string | null {
   return null
 }
 
+function toDateForPg(dateKey: string): Date {
+  // Drizzle PgDate with mode 'date' expects a JS Date object.
+  // We parse as UTC midnight to avoid timezone shifts.
+  try {
+    const d = new Date(`${dateKey}T00:00:00.000Z`)
+    if (!isNaN(d.getTime())) return d
+  } catch {}
+  // Fallback: try Date constructor
+  try {
+    const d = new Date(dateKey)
+    if (!isNaN(d.getTime())) return d
+  } catch {}
+  return new Date()
+}
+
 function todayKey(now: Date | string | unknown) {
   const iso = safeToIsoDate(now)
   if (iso) return iso
@@ -182,10 +197,11 @@ async function getRecentFinanceActivity(db: DbLike, workspaceId: number) {
 
 export async function getTourOperationalDashboard(db: DbLike, workspaceId: number, now = new Date()) {
   const today = todayKey(now)
+  const todayDate = toDateForPg(today)
   const upcomingWhere = and(
     eq(tourTrips.workspaceId, workspaceId),
     notDeleted(tourTrips),
-    gte(tourTrips.departureDate, today as any),
+    gte(tourTrips.departureDate, todayDate as any),
     or(...UPCOMING_TRIP_STATUSES.map(status => eq(tourTrips.status, status))),
   )
   const activeOrderWhere = and(

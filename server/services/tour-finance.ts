@@ -40,6 +40,23 @@ function toIsoDateString(d: any): string | null {
   return String(d).slice(0, 10)
 }
 
+function toPgDate(dateKey: string | Date | undefined | null): Date | null {
+  if (!dateKey) return null
+  if (dateKey instanceof Date) {
+    return isNaN(dateKey.getTime()) ? null : dateKey
+  }
+  if (typeof dateKey === 'string') {
+    const s = dateKey.slice(0, 10)
+    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
+      const d = new Date(`${s}T00:00:00.000Z`)
+      if (!isNaN(d.getTime())) return d
+    }
+    const d = new Date(dateKey)
+    if (!isNaN(d.getTime())) return d
+  }
+  return null
+}
+
 export async function getTourWorkspaceIdFinance(db: DbLike): Promise<number> {
   const rows = await db.select({ id: workspaces.id }).from(workspaces).where(eq(workspaces.key, 'tour')).limit(1)
   if (!rows[0]) throw new Error('Tour workspace not found')
@@ -65,8 +82,14 @@ export async function listTourInvoices(db: DbLike, f: ListInvoicesFilter) {
   const conds: any[] = [eq(tourInvoices.workspaceId, f.workspaceId), notDeleted(tourInvoices)]
   if (f.state) conds.push(eq(tourInvoices.state, f.state))
   if (f.orderId) conds.push(eq(tourInvoices.orderId, f.orderId))
-  if (f.startDate) conds.push(gte(tourInvoices.issueDate, f.startDate as any))
-  if (f.endDate) conds.push(lte(tourInvoices.issueDate, f.endDate as any))
+  if (f.startDate) {
+    const d = toPgDate(f.startDate)
+    if (d) conds.push(gte(tourInvoices.issueDate, d as any))
+  }
+  if (f.endDate) {
+    const d = toPgDate(f.endDate)
+    if (d) conds.push(lte(tourInvoices.issueDate, d as any))
+  }
   if (f.search) {
     const s = `%${f.search}%`
     conds.push(or(ilike(tourInvoices.invoiceCode, s), ilike(tourInvoices.description, s)))
@@ -86,8 +109,14 @@ export async function listTourInvoicesEnriched(db: DbLike, f: ListInvoicesFilter
   const conds: any[] = [eq(tourInvoices.workspaceId, f.workspaceId), notDeleted(tourInvoices)]
   if (f.state) conds.push(eq(tourInvoices.state, f.state))
   if (f.orderId) conds.push(eq(tourInvoices.orderId, f.orderId))
-  if (f.startDate) conds.push(gte(tourInvoices.issueDate, f.startDate as any))
-  if (f.endDate) conds.push(lte(tourInvoices.issueDate, f.endDate as any))
+  if (f.startDate) {
+    const d = toPgDate(f.startDate)
+    if (d) conds.push(gte(tourInvoices.issueDate, d as any))
+  }
+  if (f.endDate) {
+    const d = toPgDate(f.endDate)
+    if (d) conds.push(lte(tourInvoices.issueDate, d as any))
+  }
   if (f.search) {
     const s = `%${f.search}%`
     conds.push(or(ilike(tourInvoices.invoiceCode, s), ilike(tourInvoices.description, s)))
@@ -433,8 +462,14 @@ export async function listTourPayments(db: DbLike, f: ListPaymentsFilter) {
   if (f.method) conds.push(eq(tourPayments.method, f.method))
   if (f.invoiceId) conds.push(eq(tourPayments.invoiceId, f.invoiceId))
   if (f.orderId) conds.push(eq(tourPayments.orderId, f.orderId))
-  if (f.startDate) conds.push(gte(tourPayments.paymentDate, f.startDate as any))
-  if (f.endDate) conds.push(lte(tourPayments.paymentDate, f.endDate as any))
+  if (f.startDate) {
+    const d = toPgDate(f.startDate)
+    if (d) conds.push(gte(tourPayments.paymentDate, d as any))
+  }
+  if (f.endDate) {
+    const d = toPgDate(f.endDate)
+    if (d) conds.push(lte(tourPayments.paymentDate, d as any))
+  }
   if (f.search) {
     const s = `%${f.search}%`
     conds.push(or(ilike(tourPayments.paymentCode, s), ilike(tourPayments.referenceNumber, s)))
@@ -456,8 +491,14 @@ export async function listTourPaymentsEnriched(db: DbLike, f: ListPaymentsFilter
   if (f.method) conds.push(eq(tourPayments.method, f.method))
   if (f.invoiceId) conds.push(eq(tourPayments.invoiceId, f.invoiceId))
   if (f.orderId) conds.push(eq(tourPayments.orderId, f.orderId))
-  if (f.startDate) conds.push(gte(tourPayments.paymentDate, f.startDate as any))
-  if (f.endDate) conds.push(lte(tourPayments.paymentDate, f.endDate as any))
+  if (f.startDate) {
+    const d = toPgDate(f.startDate)
+    if (d) conds.push(gte(tourPayments.paymentDate, d as any))
+  }
+  if (f.endDate) {
+    const d = toPgDate(f.endDate)
+    if (d) conds.push(lte(tourPayments.paymentDate, d as any))
+  }
   if (f.search) {
     const s = `%${f.search}%`
     conds.push(or(ilike(tourPayments.paymentCode, s), ilike(tourPayments.referenceNumber, s)))
@@ -759,8 +800,14 @@ export async function listTourExpenses(db: DbLike, f: ListExpensesFilter) {
   if (f.tripId) conds.push(eq(tourExpenses.tripId, f.tripId))
   if (f.vendorId) conds.push(eq(tourExpenses.vendorId, f.vendorId))
   if (f.bookingId) conds.push(eq(tourExpenses.bookingId, f.bookingId))
-  if (f.startDate) conds.push(gte(tourExpenses.expenseDate, f.startDate as any))
-  if (f.endDate) conds.push(lte(tourExpenses.expenseDate, f.endDate as any))
+  if (f.startDate) {
+    const d = toPgDate(f.startDate)
+    if (d) conds.push(gte(tourExpenses.expenseDate, d as any))
+  }
+  if (f.endDate) {
+    const d = toPgDate(f.endDate)
+    if (d) conds.push(lte(tourExpenses.expenseDate, d as any))
+  }
   if (f.search) {
     const s = `%${f.search}%`
     conds.push(or(ilike(tourExpenses.expenseCode, s), ilike(tourExpenses.description, s), ilike(tourExpenses.referenceNumber, s)))
@@ -784,8 +831,14 @@ export async function listTourExpensesEnriched(db: DbLike, f: ListExpensesFilter
   if (f.tripId) conds.push(eq(tourExpenses.tripId, f.tripId))
   if (f.vendorId) conds.push(eq(tourExpenses.vendorId, f.vendorId))
   if (f.bookingId) conds.push(eq(tourExpenses.bookingId, f.bookingId))
-  if (f.startDate) conds.push(gte(tourExpenses.expenseDate, f.startDate as any))
-  if (f.endDate) conds.push(lte(tourExpenses.expenseDate, f.endDate as any))
+  if (f.startDate) {
+    const d = toPgDate(f.startDate)
+    if (d) conds.push(gte(tourExpenses.expenseDate, d as any))
+  }
+  if (f.endDate) {
+    const d = toPgDate(f.endDate)
+    if (d) conds.push(lte(tourExpenses.expenseDate, d as any))
+  }
   if (f.search) {
     const s = `%${f.search}%`
     conds.push(or(ilike(tourExpenses.expenseCode, s), ilike(tourExpenses.description, s), ilike(tourExpenses.referenceNumber, s)))
@@ -1076,6 +1129,7 @@ export async function softDeleteTourExpense(db: DbLike, id: number, workspaceId:
 // ─── Finance Overview ───────────────────────────────────────────────────────
 export async function getFinanceOverview(db: DbLike, workspaceId: number) {
   const today = new Date().toISOString().slice(0, 10)
+  const todayDate = toPgDate(today)
 
   const [cashRows, expenseRows, issuedInvoices, recentPayments, recentExpenses, upcomingBookingRows] = await Promise.all([
     db.select({ total: sql<number>`coalesce(sum(${tourPayments.amountIdr}), 0)` }).from(tourPayments)
@@ -1118,7 +1172,7 @@ export async function getFinanceOverview(db: DbLike, workspaceId: number) {
       .where(and(
         eq(tourBookings.workspaceId, workspaceId),
         notDeleted(tourBookings),
-        gte(tourBookings.dueDate, today as any),
+        ...(todayDate ? [gte(tourBookings.dueDate, todayDate as any)] : []),
         notInArray(tourBookings.status, ['CANCELLED', 'COMPLETED']),
       ))
       .orderBy(asc(tourBookings.dueDate), asc(tourBookings.id)).limit(5),
