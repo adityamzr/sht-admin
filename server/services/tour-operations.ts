@@ -7,6 +7,10 @@ import {
   tourTripOrders,
   tourVendors,
   tourBookings,
+  tourAccommodationStays,
+  tourAccommodationStayOrders,
+  tourAccommodationRooms,
+  tourRoomOccupants,
   workspaces,
   adminUsers,
   leads,
@@ -443,6 +447,51 @@ export async function assignOrderToTrip(db: DbLike, workspaceId: number, tripId:
 }
 
 export async function unassignOrderFromTrip(db: DbLike, workspaceId: number, tripId: number, orderId: number) {
+  // ── Rooming integrity guard: block if Order still used in Accommodation for this Trip ──
+  // Check Stay order scope
+  const stayOrders = await db.select({ stayId: tourAccommodationStayOrders.stayId })
+    .from(tourAccommodationStayOrders)
+    .innerJoin(tourAccommodationStays, and(eq(tourAccommodationStayOrders.stayId, tourAccommodationStays.id), isNull(tourAccommodationStays.deletedAt)))
+    .where(and(eq(tourAccommodationStayOrders.workspaceId, workspaceId), eq(tourAccommodationStayOrders.orderId, orderId), eq(tourAccommodationStays.tripId, tripId), eq(tourAccommodationStays.workspaceId, workspaceId)))
+    .limit(1)
+  if (stayOrders[0]) {
+    badRequest('Order masih digunakan dalam Rooming Trip ini. Hapus alokasi kamar/Order dari Accommodation terlebih dahulu.')
+  }
+
+  // Check Rooms SAME_ORDER targeting this Order in this Trip
+  const sameOrderRooms = await db.select({ id: tourAccommodationRooms.id })
+    .from(tourAccommodationRooms)
+    .innerJoin(tourAccommodationStays, and(eq(tourAccommodationRooms.stayId, tourAccommodationStays.id), isNull(tourAccommodationStays.deletedAt)))
+    .where(and(
+      eq(tourAccommodationRooms.workspaceId, workspaceId),
+      eq(tourAccommodationRooms.orderId, orderId),
+      eq(tourAccommodationRooms.roomingMode, 'SAME_ORDER'),
+      isNull(tourAccommodationRooms.deletedAt),
+      eq(tourAccommodationStays.tripId, tripId),
+      eq(tourAccommodationStays.workspaceId, workspaceId),
+    )).limit(1)
+  if (sameOrderRooms[0]) {
+    badRequest('Order masih digunakan dalam Rooming Trip ini. Hapus alokasi kamar/Order dari Accommodation terlebih dahulu.')
+  }
+
+  // Check Room occupants from Jamaah belonging to this Order in this Trip
+  const jamaahIds = await db.select({ id: tourJamaah.id }).from(tourJamaah).where(and(eq(tourJamaah.workspaceId, workspaceId), eq(tourJamaah.orderId, orderId), isNull(tourJamaah.deletedAt))).limit(100)
+  if (jamaahIds.length) {
+    const ids = jamaahIds.map(j => j.id)
+    const occupants = await db.select({ id: tourRoomOccupants.id })
+      .from(tourRoomOccupants)
+      .innerJoin(tourAccommodationStays, and(eq(tourRoomOccupants.stayId, tourAccommodationStays.id), isNull(tourAccommodationStays.deletedAt)))
+      .where(and(
+        eq(tourRoomOccupants.workspaceId, workspaceId),
+        inArray(tourRoomOccupants.jamaahId, ids),
+        eq(tourAccommodationStays.tripId, tripId),
+        eq(tourAccommodationStays.workspaceId, workspaceId),
+      )).limit(1)
+    if (occupants[0]) {
+      badRequest('Order masih digunakan dalam Rooming Trip ini. Hapus alokasi kamar/Order dari Accommodation terlebih dahulu.')
+    }
+  }
+
   const rows = await db.delete(tourTripOrders).where(and(eq(tourTripOrders.workspaceId, workspaceId), eq(tourTripOrders.tripId, tripId), eq(tourTripOrders.orderId, orderId))).returning()
   return rows[0] ?? null
 }

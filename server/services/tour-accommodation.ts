@@ -51,10 +51,13 @@ async function ensureBookingValidForStay(db: DbLike, bookingId: number, tripId: 
   const b = rows[0]
   if (!b) badRequest(`Booking #${bookingId} tidak ditemukan`)
   if (b.bookingType !== 'HOTEL') badRequest(`Booking ${b.bookingCode} harus tipe HOTEL, bukan ${b.bookingType}`)
-  if (b.tripId && b.tripId !== tripId) badRequest(`Booking ${b.bookingCode} milik Trip #${b.tripId}, tidak cocok dengan Trip #${tripId}`)
-  // If booking has no tripId, allow but warn? Spec says prefer same Trip. For V1 require same Trip OR allow if booking.tripId null but still same workspace? We'll allow null but log.
-  // To enforce spec strictly: require booking belongs to same Trip. If booking.tripId is null, reject unless fallback allowed. We'll allow fallback but require explicit hotelName snapshot.
-  // Here we enforce: if booking.tripId is null, allow (manual fallback narrowly controlled) but still must be HOTEL.
+  // STRICT: must ref HOTEL Booking with tripId = stay tripId, reject null/mismatched
+  if (!b.tripId) {
+    badRequest(`Booking ${b.bookingCode} harus terikat ke Trip #${tripId}, tripId tidak boleh null. Pilih Booking HOTEL yang sudah ter-assign ke Trip ini.`)
+  }
+  if (b.tripId !== tripId) {
+    badRequest(`Booking ${b.bookingCode} milik Trip #${b.tripId}, tidak cocok dengan Trip #${tripId}. Stay HOTEL harus referensi Booking HOTEL dengan tripId sama.`)
+  }
   return b
 }
 
@@ -543,6 +546,55 @@ export async function updateAccommodationRoom(db: DbLike, id: number, workspaceI
   const stay = await getAccommodationStay(db, existing.stayId, workspaceId)
   if (!stay) badRequest('Stay tidak ditemukan')
 
+  // ── Compute final merged state for validation ───────────────────────────
+  const finalMode = (patch.roomingMode !== undefined ? patch.roomingMode : existing.roomingMode) as string
+  const finalOrderIdRaw = patch.orderId !== undefined ? patch.orderId : existing.orderId
+  const finalOrderId = finalOrderIdRaw ? Number(finalOrderIdRaw) : null
+
+  // SAME_ORDER requires orderId
+  if (finalMode === 'SAME_ORDER' && !finalOrderId) {
+    badRequest('SAME_ORDER wajib memiliki Order. Pilih Order yang termasuk di Stay ini.')
+  }
+  if (finalMode === 'SHARED_GROUP' && finalOrderId) {
+    // If final mode SHARED_GROUP but orderId present (and patch didn't explicitly clear), we will clear it, but if patch explicitly set orderId with SHARED_GROUP, reject
+    if (patch.orderId !== undefined && patch.orderId !== null) {
+      badRequest('SHARED_GROUP tidak boleh punya orderId, harus null')
+    }
+  }
+
+  // If final is SAME_ORDER, validate order belongs to same workspace, Trip, Stay, compatible occupants
+  if (finalMode === 'SAME_ORDER' && finalOrderId) {
+    await ensureOrderBelongsTrip(db, finalOrderId, stay.tripId, workspaceId)
+    const stayOrder = await db.select().from(tourAccommodationStayOrders).where(and(eq(tourAccommodationStayOrders.workspaceId, workspaceId), eq(tourAccommodationStayOrders.stayId, existing.stayId), eq(tourAccommodationStayOrders.orderId, finalOrderId))).limit(1)
+    if (!stayOrder[0]) badRequest(`Order #${finalOrderId} belum termasuk di Stay #${existing.stayId}. Tambahkan Order ke Stay dulu.`)
+
+    // If changing order (existing orderId != finalOrderId) and room has occupants, validate all occupants belong to new order
+    if (existing.orderId && Number(existing.orderId) !== finalOrderId) {
+      const occupants = await db.select().from(tourRoomOccupants).where(and(eq(tourRoomOccupants.workspaceId, workspaceId), eq(tourRoomOccupants.roomId, id)))
+      if (occupants.length) {
+        const jamaahIds = occupants.map(o=>o.jamaahId)
+        const jamaah = await db.select().from(tourJamaah).where(and(eq(tourJamaah.workspaceId, workspaceId), inArray(tourJamaah.id, jamaahIds)))
+        const invalid = jamaah.filter(j=>j.orderId !== finalOrderId)
+        if (invalid.length) {
+          const invalidNames = invalid.map(j=>j.fullName || j.jamaahCode).slice(0,3).join(', ')
+          badRequest(`Tidak bisa ganti Order Room ke #${finalOrderId} karena masih ada ${invalid.length} Jamaah dari Order lain (${invalidNames}). Keluarkan dulu.`)
+        }
+      }
+    }
+    // Also validate existing occupants compatibility even if orderId not changed but stay orders changed earlier – ensure all occupants still belong to finalOrderId
+    if (finalMode === 'SAME_ORDER') {
+      const occupants = await db.select().from(tourRoomOccupants).where(and(eq(tourRoomOccupants.workspaceId, workspaceId), eq(tourRoomOccupants.roomId, id)))
+      if (occupants.length) {
+        const jamaahIds = occupants.map(o=>o.jamaahId)
+        const jamaah = await db.select().from(tourJamaah).where(and(eq(tourJamaah.workspaceId, workspaceId), inArray(tourJamaah.id, jamaahIds)))
+        const invalid = jamaah.filter(j=>j.orderId !== finalOrderId)
+        if (invalid.length) {
+          badRequest(`Room ${existing.roomLabel} berisi Jamaah yang tidak kompatibel dengan Order #${finalOrderId}. Keluarkan dulu.`)
+        }
+      }
+    }
+  }
+
   const updatePayload: any = {}
 
   if (patch.roomLabel !== undefined) {
@@ -555,13 +607,11 @@ export async function updateAccommodationRoom(db: DbLike, id: number, workspaceI
     const validTypes = ['SINGLE','DOUBLE','TRIPLE','QUAD','QUINT','OTHER']
     if (!validTypes.includes(patch.roomType)) badRequest(`roomType tidak valid`)
     updatePayload.roomType = patch.roomType
-    // if capacity not provided, keep existing or default? Keep existing unless explicitly changed
   }
   if (patch.capacity !== undefined) {
     const cap = Number(patch.capacity)
     if (!cap || cap <=0) badRequest('capacity harus >0')
     if (cap > 10) badRequest('capacity maksimal 10')
-    // Check existing occupants not exceed new capacity
     const occupants = await db.select({ v: count() }).from(tourRoomOccupants).where(and(eq(tourRoomOccupants.workspaceId, workspaceId), eq(tourRoomOccupants.roomId, id)))
     const currentOccupied = occupants[0]?.v ?? 0
     if (currentOccupied > cap) badRequest(`Room ${existing.roomLabel} sudah terisi ${currentOccupied}, tidak bisa turunkan capacity ke ${cap}`)
@@ -570,37 +620,22 @@ export async function updateAccommodationRoom(db: DbLike, id: number, workspaceI
   if (patch.roomingMode !== undefined) {
     if (!['SAME_ORDER','SHARED_GROUP'].includes(patch.roomingMode)) badRequest('roomingMode harus SAME_ORDER atau SHARED_GROUP')
     updatePayload.roomingMode = patch.roomingMode
-    // If changing to SHARED_GROUP, clear orderId
     if (patch.roomingMode === 'SHARED_GROUP') {
       updatePayload.orderId = null
     }
   }
   if (patch.orderId !== undefined) {
-    // Only allowed if SAME_ORDER
-    const finalMode = patch.roomingMode ?? existing.roomingMode
-    if (finalMode === 'SHARED_GROUP' && patch.orderId) {
-      badRequest('SHARED_GROUP tidak boleh punya orderId, harus null')
-    }
-    if (finalMode === 'SAME_ORDER') {
-      if (!patch.orderId) badRequest('SAME_ORDER wajib orderId')
-      const oid = Number(patch.orderId)
-      await ensureOrderBelongsTrip(db, oid, stay.tripId, workspaceId)
-      const stayOrder = await db.select().from(tourAccommodationStayOrders).where(and(eq(tourAccommodationStayOrders.workspaceId, workspaceId), eq(tourAccommodationStayOrders.stayId, existing.stayId), eq(tourAccommodationStayOrders.orderId, oid))).limit(1)
-      if (!stayOrder[0]) badRequest(`Order #${oid} belum termasuk di Stay`)
-      // Check existing occupants belong to this order if changing orderId
-      const occupants = await db.select().from(tourRoomOccupants).where(and(eq(tourRoomOccupants.workspaceId, workspaceId), eq(tourRoomOccupants.roomId, id)))
-      if (occupants.length) {
-        const jamaahIds = occupants.map(o=>o.jamaahId)
-        const jamaah = await db.select().from(tourJamaah).where(and(eq(tourJamaah.workspaceId, workspaceId), inArray(tourJamaah.id, jamaahIds)))
-        const invalid = jamaah.filter(j=>j.orderId !== oid)
-        if (invalid.length) badRequest(`Room sudah berisi Jamaah dari Order lain, tidak bisa ganti ke Order #${oid}. Keluarkan dulu.`)
-      }
-      updatePayload.orderId = oid
-    } else {
+    if (finalMode === 'SHARED_GROUP') {
       updatePayload.orderId = null
+    } else {
+      // SAME_ORDER – finalOrderId already validated
+      updatePayload.orderId = finalOrderId
     }
   }
   if (patch.notes !== undefined) updatePayload.notes = patch.notes
+
+  // If mode changed to SAME_ORDER without orderId in patch but existing had orderId null, final validation already rejected above.
+  // If mode changed from SHARED to SAME and orderId not provided, we already rejected. But if patch provides mode SAME and orderId together, handled.
 
   if (Object.keys(updatePayload).length) {
     updatePayload.updatedAt = new Date()

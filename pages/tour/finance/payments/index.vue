@@ -18,8 +18,8 @@ const { data, refresh } = await useAdminFetch<{ data: any[]; meta: any }>("/api/
 const rows = computed(() => data.value?.data ?? []);
 const meta = computed(() => data.value?.meta ?? { page: 1, pageSize: 20, total: 0, pageCount: 1 });
 
-const { data: invoicesData } = await useAdminFetch<{ data: any[]; meta: any }>("/api/admin/tour/invoices", { query: { pageSize: 100, state: 'ISSUED' } });
-const invoices = computed(() => invoicesData.value?.data ?? []);
+const { data: invoicesData, refresh: refreshEligible } = await useAdminFetch<{ data: any[]; meta: any }>("/api/admin/tour/invoices/eligible", { query: { pageSize: 100 } });
+const eligibleInvoices = computed(() => invoicesData.value?.data ?? []);
 const { data: invoicesAllData } = await useAdminFetch<{ data: any[]; meta: any }>("/api/admin/tour/invoices", { query: { pageSize: 100 } });
 const invoicesAll = computed(() => invoicesAllData.value?.data ?? []);
 
@@ -43,7 +43,48 @@ const form = reactive({
 const formError = ref<string | null>(null);
 const formPending = ref(false);
 
-const selectedInvoice = computed(() => invoicesAll.value.find((i: any) => String(i.id) === String(form.invoiceId)));
+const selectedInvoice = computed(() => {
+  const all = [...eligibleInvoices.value, ...invoicesAll.value];
+  const uniq: Record<string, any> = {};
+  for (const inv of all) uniq[String(inv.id)] = inv;
+  return uniq[String(form.invoiceId)] || null;
+});
+
+const paymentInvoiceOptions = computed(() => {
+  const base = [...eligibleInvoices.value];
+  if (form.id && form.invoiceId) {
+    const currentId = String(form.invoiceId);
+    const already = base.some((inv: any) => String(inv.id) === currentId);
+    if (!already) {
+      const fromAll = invoicesAll.value.find((i: any) => String(i.id) === currentId);
+      if (fromAll) base.unshift(fromAll);
+      else if (selectedInvoice.value) base.unshift(selectedInvoice.value);
+    }
+  }
+  return base;
+});
+
+const outstandingForSelected = computed(() => {
+  if (!selectedInvoice.value) return null;
+  return Number(selectedInvoice.value.outstanding ?? 0);
+});
+
+const invoiceLabel = (inv: any) => {
+  const code = inv.invoiceCode || `INV-${inv.id}`;
+  const order = inv.order?.orderCode || (inv.orderId ? `ORD-${inv.orderId}` : '');
+  const cust = inv.customer?.name || inv.customerName || '';
+  const amount = `Rp${Number(inv.amountIdr).toLocaleString('id-ID')}`;
+  const outstanding = `Rp${Number(inv.outstanding ?? 0).toLocaleString('id-ID')}`;
+  const payStatus = inv.paymentStatus || inv.state || 'UNPAID';
+  // Human-readable: INV-xxx · ORD-xxx · Name · Invoice RpX · Outstanding RpY · UNPAID/PARTIAL
+  const parts = [code];
+  if (order) parts.push(order);
+  if (cust) parts.push(cust);
+  parts.push(`Invoice ${amount}`);
+  parts.push(`Outstanding ${outstanding}`);
+  parts.push(payStatus);
+  return parts.join(' · ');
+};
 
 function openCreate() {
   Object.assign(form, { id: null, invoiceId: "", paymentDate: new Date().toISOString().slice(0,10), amountIdr: null, method: "BANK_TRANSFER", accountOrChannel: "", referenceNumber: "", proofUrl: "", status: "DRAFT", notes: "" });
@@ -68,6 +109,14 @@ async function submit() {
   formPending.value = true; formError.value = null;
   try {
     if (form.status === 'VOID') throw new Error('VOID hanya via aksi Void explicit, tidak dari form create');
+    if (!form.invoiceId) throw new Error('Pilih Invoice ISSUED yang memiliki sisa tagihan');
+    if (!form.amountIdr || Number(form.amountIdr) <= 0) throw new Error('Nominal pembayaran harus > 0');
+    // Frontend validation: if VERIFIED, amount <= outstanding (informational, server authoritative)
+    if (form.status === 'VERIFIED' && outstandingForSelected.value !== null) {
+      if (Number(form.amountIdr) > outstandingForSelected.value) {
+        throw new Error(`Nominal pembayaran melebihi sisa tagihan Rp${outstandingForSelected.value.toLocaleString('id-ID')}.`);
+      }
+    }
     const body: any = {
       invoiceId: Number(form.invoiceId),
       paymentDate: form.paymentDate,
@@ -82,7 +131,7 @@ async function submit() {
     if (form.id) await adminPatch(`/api/admin/tour/payments/${form.id}`, body);
     else await adminPost("/api/admin/tour/payments", body);
     showForm.value = false;
-    await refresh();
+    await Promise.all([refresh(), refreshEligible()]);
   } catch (e: any) { formError.value = e?.data?.statusMessage || e.message || "Gagal menyimpan"; } finally { formPending.value = false; }
 }
 
@@ -94,7 +143,7 @@ function openVerify(p: any) { verifyTarget.value = p; showVerifyModal.value = tr
 async function confirmVerify() {
   if (!verifyTarget.value) return;
   verifyPending.value = true;
-  try { await adminPatch(`/api/admin/tour/payments/${verifyTarget.value.id}`, { status: 'VERIFIED' }); showVerifyModal.value = false; await refresh(); }
+  try { await adminPatch(`/api/admin/tour/payments/${verifyTarget.value.id}`, { status: 'VERIFIED' }); showVerifyModal.value = false; await Promise.all([refresh(), refreshEligible()]); }
   catch (e: any) { alert(e?.data?.statusMessage || e.message || 'Gagal verify'); } finally { verifyPending.value = false; }
 }
 const showVoidModal = ref(false);
@@ -104,13 +153,13 @@ function openVoid(p: any) { voidTarget.value = p; showVoidModal.value = true; }
 async function confirmVoid() {
   if (!voidTarget.value) return;
   voidPending.value = true;
-  try { await adminPatch(`/api/admin/tour/payments/${voidTarget.value.id}`, { status: 'VOID' }); showVoidModal.value = false; await refresh(); }
+  try { await adminPatch(`/api/admin/tour/payments/${voidTarget.value.id}`, { status: 'VOID' }); showVoidModal.value = false; await Promise.all([refresh(), refreshEligible()]); }
   catch (e: any) { alert(e?.data?.statusMessage || e.message || 'Gagal void'); } finally { voidPending.value = false; }
 }
 async function removeDraft(p: any) {
   if (p.status !== 'DRAFT') { alert('Hanya DRAFT bisa dihapus. VERIFIED harus Void.'); return; }
   if (!confirm(`Hapus DRAFT payment ${p.paymentCode}?`)) return;
-  await adminDelete(`/api/admin/tour/payments/${p.id}`).catch(()=>{}); await refresh();
+  await adminDelete(`/api/admin/tour/payments/${p.id}`).catch(()=>{}); await Promise.all([refresh(), refreshEligible()]);
 }
 </script>
 
@@ -127,35 +176,44 @@ async function removeDraft(p: any) {
     </div>
 
     <div class="mt-3 rounded-xl bg-emerald-50 border border-emerald-200 px-4 py-2.5 text-xs text-emerald-800">
-      <p><strong>Dependency:</strong> Invoice harus ISSUED sebelum Payment VERIFIED. <NuxtLink to="/tour/finance/invoices" class="font-semibold underline">Ke Invoices →</NuxtLink> DRAFT Invoice tidak bisa terima VERIFIED.</p>
-      <p class="mt-1"><strong>Workflow:</strong> DRAFT editable not totals → VERIFIED real money affects paid/cash/profitability/reports historical (immutable lock) → VOID retained excluded. Correction VERIFIED→VOID→create corrected.</p>
+      <p><strong>Dependency:</strong> Invoice harus ISSUED dan memiliki sisa tagihan. <NuxtLink to="/tour/finance/invoices" class="font-semibold underline">Ke Invoices →</NuxtLink> Hanya ISSUED + Outstanding>0 yang bisa dipilih. DRAFT/CANCELLED/PAID tidak tampil.</p>
+      <p class="mt-1"><strong>Workflow:</strong> DRAFT editable not totals → VERIFIED real money affects paid/cash/profitability/reports historical (immutable lock, server recalc outstanding at VERIFY) → VOID retained excluded. Correction VERIFIED→VOID→create corrected.</p>
     </div>
 
-    <TourModal :open="showForm" :title="form.id ? 'Edit Payment' : 'Catat Payment'" subtitle="PAYMENT = uang diterima. Hanya VERIFIED masuk finance. DRAFT excluded." max-width="max-w-2xl" @close="showForm=false">
+    <TourModal :open="showForm" :title="form.id ? 'Edit Payment' : 'Catat Payment'" subtitle="PAYMENT = uang diterima. Hanya VERIFIED masuk finance. Outstanding ditampilkan, validasi server authoritative." max-width="max-w-2xl" @close="showForm=false">
       <div class="space-y-5">
         <div>
           <h4 class="text-xs font-semibold uppercase tracking-wide text-neutral-charcoal/50">Invoice (required)</h4>
-          <label class="mt-3 block text-sm font-medium">Invoice ISSUED *
+          <label class="mt-3 block text-sm font-medium">Invoice ISSUED dengan sisa tagihan *
             <select v-model="form.invoiceId" class="mt-1 min-h-[44px] w-full rounded-xl border border-neutral-line px-3 text-sm">
               <option value="">Pilih Invoice ISSUED...</option>
-              <option v-for="inv in invoices" :key="inv.id" :value="inv.id">{{ inv.invoiceCode }} · {{ inv.order?.orderCode || `Order #${inv.orderId}` }} · {{ inv.customer?.name || '' }} · Rp{{ Number(inv.amountIdr).toLocaleString('id-ID') }} · Outstanding Rp{{ Number(inv.outstanding).toLocaleString('id-ID') }} · {{ inv.paymentStatus }}</option>
+              <option v-for="inv in paymentInvoiceOptions" :key="inv.id" :value="inv.id">{{ invoiceLabel(inv) }}</option>
             </select>
           </label>
-          <p v-if="!invoices.length" class="mt-2 text-xs text-amber-700">Belum ada Invoice ISSUED. <NuxtLink to="/tour/finance/invoices" class="underline">Buat Invoice ISSUED dulu.</NuxtLink> Invoice DRAFT tidak bisa terima VERIFIED.</p>
+          <p v-if="!paymentInvoiceOptions.length" class="mt-2 rounded-xl bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-800">
+            Belum ada Invoice ISSUED yang memiliki sisa tagihan. <br/>
+            <span class="text-amber-700">Invoice harus berstatus ISSUED dan memiliki outstanding tagihan &gt; 0 untuk bisa dipilih sebagai pembayaran.</span>
+            <NuxtLink to="/tour/finance/invoices" class="ml-1 font-semibold underline">Buat/ISSUE Invoice dulu →</NuxtLink>
+          </p>
           <div v-if="selectedInvoice" class="mt-3 rounded-xl bg-neutral-warm/60 px-4 py-3 text-xs">
-            <p>Invoice: <span class="font-semibold">{{ selectedInvoice.invoiceCode }} · Rp{{ Number(selectedInvoice.amountIdr).toLocaleString('id-ID') }}</span> State {{ selectedInvoice.state }}</p>
-            <p>Outstanding: <span class="font-semibold">Rp {{ Number(selectedInvoice.outstanding).toLocaleString('id-ID') }}</span> · Paid Rp{{ Number(selectedInvoice.totalPaid).toLocaleString('id-ID') }}</p>
+            <p class="font-medium">Invoice: <span class="font-semibold">{{ selectedInvoice.invoiceCode }} · {{ selectedInvoice.order?.orderCode || '' }} · {{ selectedInvoice.customer?.name || '' }}</span></p>
+            <p>Invoice <span class="font-semibold">Rp{{ Number(selectedInvoice.amountIdr).toLocaleString('id-ID') }}</span> · Paid Rp{{ Number(selectedInvoice.totalPaid ?? 0).toLocaleString('id-ID') }} · Outstanding <span class="font-semibold text-emerald-700">Rp{{ Number(selectedInvoice.outstanding ?? 0).toLocaleString('id-ID') }}</span> · {{ selectedInvoice.paymentStatus || selectedInvoice.state }}</p>
+            <p class="mt-1 text-[11px] text-neutral-charcoal/50">Outstanding = Invoice - SUM VERIFIED payments. Frontend hanya informasional, server recalc saat VERIFY.</p>
             <p v-if="selectedInvoice.state==='CANCELLED'" class="text-red-600">Invoice CANCELLED tidak bisa menerima pembayaran.</p>
-            <p v-if="selectedInvoice.state==='DRAFT'" class="text-amber-700">Invoice DRAFT: Payment boleh DRAFT tapi tidak bisa VERIFIED sampai Invoice ISSUED.</p>
+            <p v-if="selectedInvoice.state==='DRAFT'" class="text-amber-700">Invoice DRAFT tidak bisa dipilih untuk pembayaran baru. Hanya ISSUED dengan outstanding &gt;0.</p>
+            <p v-if="form.id && selectedInvoice.outstanding===0" class="text-amber-700">Invoice ini sudah lunas (Outstanding 0). Edit DRAFT mempertahankan Invoice saat ini, tapi VERIFY akan ditolak jika tidak ada sisa tagihan. VOID pembayaran lain dulu jika perlu.</p>
           </div>
         </div>
         <div>
           <h4 class="text-xs font-semibold uppercase tracking-wide text-neutral-charcoal/50">Pembayaran</h4>
           <div class="mt-3 grid gap-3 sm:grid-cols-2">
             <label class="text-sm font-medium">Tanggal *<input v-model="form.paymentDate" type="date" class="mt-1 min-h-[44px] w-full rounded-xl border border-neutral-line px-4 text-sm" /></label>
-            <label class="text-sm font-medium">Amount IDR *<TourMoneyInput v-model="form.amountIdr" currency="IDR" placeholder="0" /></label>
+            <label class="text-sm font-medium">Amount IDR *
+              <TourMoneyInput v-model="form.amountIdr" currency="IDR" placeholder="0" />
+              <span v-if="outstandingForSelected!==null" class="mt-1 block text-[11px] text-neutral-charcoal/60">Outstanding: Rp{{ outstandingForSelected.toLocaleString('id-ID') }} · Server akan validasi VERIFIED ≤ outstanding</span>
+            </label>
             <label class="text-sm font-medium">Method<select v-model="form.method" class="mt-1 min-h-[44px] w-full rounded-xl border border-neutral-line px-3 text-sm"><option v-for="m in METHODS" :key="m" :value="m">{{ m }}</option></select></label>
-            <label class="text-sm font-medium">Status (Create)<select v-model="form.status" class="mt-1 min-h-[44px] w-full rounded-xl border border-neutral-line px-3 text-sm"><option v-for="s in STATUSES_CREATE" :key="s" :value="s">{{ s }}</option><option v-if="form.id && form.status==='VOID'" value="VOID">VOID (read-only)</option></select><span class="mt-1 block text-[11px] text-neutral-charcoal/50">Create hanya DRAFT/VERIFIED. VOID via aksi explicit.</span></label>
+            <label class="text-sm font-medium">Status (Create)<select v-model="form.status" class="mt-1 min-h-[44px] w-full rounded-xl border border-neutral-line px-3 text-sm"><option v-for="s in STATUSES_CREATE" :key="s" :value="s">{{ s }}</option><option v-if="form.id && form.status==='VOID'" value="VOID">VOID (read-only)</option></select><span class="mt-1 block text-[11px] text-neutral-charcoal/50">Create hanya DRAFT/VERIFIED. VOID via aksi explicit. VERIFIED immutable tidak bisa pindah Invoice.</span></label>
             <label class="text-sm font-medium">Account / Channel<input v-model="form.accountOrChannel" class="mt-1 min-h-[44px] w-full rounded-xl border border-neutral-line px-4 text-sm" placeholder="BCA 123..." /></label>
             <label class="text-sm font-medium">Reference<input v-model="form.referenceNumber" class="mt-1 min-h-[44px] w-full rounded-xl border border-neutral-line px-4 text-sm" placeholder="TRX-..." /></label>
             <label class="sm:col-span-2 text-sm font-medium">Proof URL<input v-model="form.proofUrl" class="mt-1 min-h-[44px] w-full rounded-xl border border-neutral-line px-4 text-sm" placeholder="https://..." /></label>
@@ -172,11 +230,11 @@ async function removeDraft(p: any) {
       </template>
     </TourModal>
 
-    <TourModal :open="showVerifyModal" title="Verify Payment" subtitle="VERIFIED = uang nyata, immutable lock, masuk cash" max-width="max-w-md" @close="showVerifyModal=false">
+    <TourModal :open="showVerifyModal" title="Verify Payment" subtitle="VERIFIED = uang nyata, immutable lock, server recalc outstanding" max-width="max-w-md" @close="showVerifyModal=false">
       <div class="space-y-3 text-sm">
         <p>Verify Payment <span class="font-mono font-semibold">{{ verifyTarget?.paymentCode }}</span> Rp {{ Number(verifyTarget?.amountIdr).toLocaleString('id-ID') }}?</p>
-        <p class="text-xs text-neutral-charcoal/60">VERIFIED immutability lock: invoiceId/orderId/paymentDate/amountIdr/method/accountOrChannel/referenceNumber/proofUrl tidak bisa diubah setelah VERIFIED. Koreksi harus VOID dulu baru create corrected. verifiedBy/verifiedAt server-side.</p>
-        <p class="text-xs text-amber-700">Overpayment protection: jika total VERIFIED lain + ini > Invoice amount akan ditolak.</p>
+        <p class="text-xs text-neutral-charcoal/60">VERIFIED immutability lock: invoiceId/orderId/paymentDate/amountIdr/method/accountOrChannel/referenceNumber/proofUrl tidak bisa diubah setelah VERIFIED. Tidak bisa pindah Invoice. Koreksi harus VOID dulu baru create corrected. verifiedBy/verifiedAt server-side.</p>
+        <p class="text-xs text-amber-700">Concurrency: frontend outstanding hanya informasional, saat VERIFY server recalc SUM VERIFIED terbaru dan tolak jika melebihi sisa tagihan.</p>
       </div>
       <template #footer>
         <div class="flex justify-end gap-2">

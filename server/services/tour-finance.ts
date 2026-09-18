@@ -139,6 +139,89 @@ export async function listTourInvoicesEnriched(db: DbLike, f: ListInvoicesFilter
   return { data, total: totalRows[0]?.v ?? 0, page, pageSize }
 }
 
+// ─── Eligible Invoices for Payment (server-authoritative) ─────────────────
+// Returns only ISSUED invoices where outstanding > 0 (amount - SUM VERIFIED payments)
+// Valid for UI, n8n, direct API – not rely on frontend filter or label.
+export interface EligibleInvoicesFilter {
+  workspaceId: number
+  search?: string
+  orderId?: number
+  page?: number
+  pageSize?: number
+}
+
+export async function listEligibleInvoicesForPayment(db: DbLike, f: EligibleInvoicesFilter) {
+  const page = Math.max(1, f.page ?? 1)
+  const pageSize = Math.min(100, Math.max(1, f.pageSize ?? 20))
+
+  // Base: ISSUED only, not deleted, same workspace
+  const baseConds: any[] = [
+    eq(tourInvoices.workspaceId, f.workspaceId),
+    notDeleted(tourInvoices),
+    eq(tourInvoices.state, 'ISSUED'),
+  ]
+  if (f.orderId) baseConds.push(eq(tourInvoices.orderId, f.orderId))
+  if (f.search) {
+    const s = `%${f.search}%`
+    baseConds.push(or(ilike(tourInvoices.invoiceCode, s), ilike(tourInvoices.description, s)))
+  }
+  const baseWhere = and(...baseConds)
+
+  // Fetch ALL matching ISSUED invoices (without pagination first) to correctly filter by outstanding>0
+  // For V1, limit to 1000 to avoid heavy scan – eligible selector typically < 1000
+  const allRows = await db.select({
+    invoice: tourInvoices,
+    order: tourOrders,
+    customer: tourCustomers,
+  }).from(tourInvoices)
+    .leftJoin(tourOrders, and(eq(tourInvoices.orderId, tourOrders.id), eq(tourOrders.workspaceId, f.workspaceId)))
+    .leftJoin(tourCustomers, and(eq(tourOrders.customerId, tourCustomers.id), eq(tourCustomers.workspaceId, f.workspaceId)))
+    .where(baseWhere).orderBy(desc(tourInvoices.issueDate), desc(tourInvoices.createdAt)).limit(1000)
+
+  const invoiceIds = allRows.map(r => r.invoice.id)
+  let paymentsMap: Record<number, number> = {}
+  if (invoiceIds.length) {
+    const payments = await db.select({
+      invoiceId: tourPayments.invoiceId,
+      total: sql<number>`coalesce(sum(CASE WHEN ${tourPayments.status} = 'VERIFIED' THEN ${tourPayments.amountIdr} ELSE 0 END),0)`,
+    }).from(tourPayments).where(and(eq(tourPayments.workspaceId, f.workspaceId), inArray(tourPayments.invoiceId, invoiceIds), notDeleted(tourPayments))).groupBy(tourPayments.invoiceId)
+    for (const p of payments) {
+      paymentsMap[p.invoiceId] = Number(p.total ?? 0)
+    }
+  }
+
+  const eligibleAll = allRows.map(r => {
+    const totalPaid = paymentsMap[r.invoice.id] ?? 0
+    const amount = Number(r.invoice.amountIdr ?? 0)
+    const outstanding = Math.max(amount - totalPaid, 0)
+    let paymentStatus: string = 'UNPAID'
+    if (outstanding === 0 && totalPaid > 0) paymentStatus = 'PAID'
+    else if (totalPaid > 0 && outstanding > 0) paymentStatus = 'PARTIAL'
+    else {
+      if (r.invoice.dueDate) {
+        const today = new Date().toISOString().slice(0, 10)
+        const due = toIsoDateString(r.invoice.dueDate)
+        if (due && due < today && outstanding > 0) paymentStatus = 'OVERDUE'
+        else paymentStatus = 'UNPAID'
+      } else paymentStatus = 'UNPAID'
+    }
+    return {
+      ...r.invoice,
+      order: r.order ? { id: r.order.id, orderCode: r.order.orderCode, paxCount: r.order.paxCount, sellingPriceIdr: r.order.sellingPriceIdr, status: r.order.status } : null,
+      customer: r.customer ? { id: r.customer.id, customerCode: r.customer.customerCode, name: r.customer.name, deletedAt: r.customer.deletedAt } : null,
+      totalPaid,
+      outstanding,
+      paymentStatus,
+    }
+  }).filter(r => r.outstanding > 0)
+
+  const total = eligibleAll.length
+  const offset = (page - 1) * pageSize
+  const data = eligibleAll.slice(offset, offset + pageSize)
+
+  return { data, total, page, pageSize }
+}
+
 export async function getTourInvoice(db: DbLike, id: number, workspaceId: number) {
   const rows = await db.select().from(tourInvoices).where(and(eq(tourInvoices.id, id), eq(tourInvoices.workspaceId, workspaceId), notDeleted(tourInvoices))).limit(1)
   return rows[0] ?? null
@@ -212,11 +295,80 @@ export async function updateTourInvoice(db: DbLike, id: number, workspaceId: num
   const existing = await getTourInvoice(db, id, workspaceId)
   if (!existing) return null
 
-  // CANCELLED is terminal – cannot reopen via PATCH
+  const newState = (patch as any).state
+
+  // ── CANCELLED is terminal – read-only ──────────────────────────────────
   if (existing.state === 'CANCELLED') {
-    const newState = (patch as any).state
     if (newState && newState !== 'CANCELLED') {
       badRequest('Invoice CANCELLED tidak bisa dibuka kembali, buat Invoice baru untuk koreksi')
+    }
+    // Block any financial field edits when CANCELLED
+    const lockedForCancelled = ['orderId','amountIdr','issueDate','dueDate','description','notes']
+    for (const f of lockedForCancelled) {
+      if ((patch as any)[f] !== undefined && String((patch as any)[f]) !== String((existing as any)[f])) {
+        badRequest(`Invoice CANCELLED bersifat read-only, field ${f} tidak bisa diubah`)
+      }
+    }
+    // If patch only contains state=CANCELLED (no change), allow no-op
+    if (Object.keys(patch).length === 1 && newState === 'CANCELLED') {
+      return existing
+    }
+    if (Object.keys(patch).some(k => lockedForCancelled.includes(k))) {
+      badRequest('Invoice CANCELLED bersifat read-only terminal, buat Invoice baru untuk koreksi')
+    }
+  }
+
+  // ── ISSUED immutability ────────────────────────────────────────────────
+  // DRAFT editable, ISSUED historical only Cancel, CANCELLED read-only
+  // Lock: orderId, amountIdr, issueDate, dueDate, description (core billing)
+  if (existing.state === 'ISSUED') {
+    if (newState === 'DRAFT') {
+      badRequest('Invoice ISSUED tidak bisa kembali ke DRAFT, gunakan Cancel untuk koreksi')
+    }
+    // If trying to cancel, check VERIFIED payments guard below
+    if (newState === 'CANCELLED') {
+      // Will be validated after – allow only state change to CANCELLED, no other financial edits in same patch
+      const financialFields = ['orderId','amountIdr','issueDate','dueDate','description']
+      for (const f of financialFields) {
+        if ((patch as any)[f] !== undefined && String((patch as any)[f]) !== String((existing as any)[f])) {
+          badRequest(`Invoice ISSUED tidak bisa diubah field ${f} bersamaan dengan Cancel, field terkunci. Batalkan dulu atau buat koreksi via cancel/create.`)
+        }
+      }
+    } else if (newState && newState !== 'ISSUED') {
+      // Any other state transition from ISSUED besides CANCELLED is invalid
+      if (newState !== 'CANCELLED') badRequest(`Transisi Invoice dari ISSUED ke ${newState} tidak diizinkan`)
+    } else {
+      // No state change – trying to edit financial fields while ISSUED → block
+      const lockedFields = ['orderId','amountIdr','issueDate','dueDate','description']
+      for (const f of lockedFields) {
+        if ((patch as any)[f] !== undefined) {
+          const oldVal = (existing as any)[f]
+          const newVal = (patch as any)[f]
+          // Compare stringified for date etc – if different, reject
+          const oldStr = oldVal instanceof Date ? oldVal.toISOString().slice(0,10) : String(oldVal ?? '')
+          const newStr = newVal instanceof Date ? new Date(newVal as any).toISOString().slice(0,10) : String(newVal ?? '')
+          // For amountIdr compare numeric
+          if (f === 'amountIdr') {
+            if (Number(oldVal) !== Number(newVal)) badRequest(`Invoice ISSUED tidak bisa diubah field ${f}, buat Invoice baru untuk koreksi (cancel/create)`)
+          } else {
+            if (oldStr !== newStr) badRequest(`Invoice ISSUED tidak bisa diubah field ${f}, buat Invoice baru untuk koreksi (cancel/create)`)
+          }
+        }
+      }
+    }
+  }
+
+  // ── DRAFT → CANCELLED blocked (should delete, not cancel) ─────────────
+  if (existing.state === 'DRAFT' && newState === 'CANCELLED') {
+    badRequest('Invoice DRAFT tidak bisa di-Cancel, gunakan Hapus (delete) untuk membatalkan draft')
+  }
+
+  // ── Cannot cancel Invoice with VERIFIED Payment ────────────────────────
+  if (newState === 'CANCELLED' && existing.state === 'ISSUED') {
+    const verifiedPayments = await db.select({ id: tourPayments.id }).from(tourPayments)
+      .where(and(eq(tourPayments.workspaceId, workspaceId), eq(tourPayments.invoiceId, id), eq(tourPayments.status, 'VERIFIED'), notDeleted(tourPayments))).limit(1)
+    if (verifiedPayments[0]) {
+      badRequest('Invoice memiliki pembayaran terverifikasi. Void pembayaran terlebih dahulu sebelum membatalkan Invoice.')
     }
   }
 
@@ -352,24 +504,47 @@ export async function createTourPayment(db: DbLike, workspaceId: number, input: 
   const invoiceRows = await db.select().from(tourInvoices).where(and(eq(tourInvoices.id, invoiceId), eq(tourInvoices.workspaceId, workspaceId), notDeleted(tourInvoices))).limit(1)
   if (!invoiceRows[0]) badRequest('Invoice tidak ditemukan')
   if (invoiceRows[0].state === 'CANCELLED') badRequest('Invoice CANCELLED tidak bisa menerima pembayaran')
+  if (invoiceRows[0].state === 'DRAFT') {
+    // DRAFT cannot receive payment at all per spec – payment create only payable invoices ISSUED
+    // But allow DRAFT payment creation? Spec says eligibility ALL state=ISSUED, outstanding>0, not CANCELLED, not DRAFT.
+    // For hardening, block DRAFT invoice entirely for payment creation (even DRAFT payment)
+    badRequest('Hanya Invoice ISSUED yang bisa dipilih untuk pembayaran. Invoice masih DRAFT')
+  }
+
   const orderId = (input as any).orderId ? Number((input as any).orderId) : invoiceRows[0].orderId
   if (orderId !== invoiceRows[0].orderId) badRequest('OrderId pembayaran harus sama dengan Order Invoice')
 
   const status = (input as any).status || 'DRAFT'
   if (status === 'VOID') badRequest('Payment tidak bisa dibuat langsung sebagai VOID')
 
-  // DRAFT invoice cannot receive VERIFIED payment
+  const amount = Number((input as any).amountIdr ?? 0)
+  if (!amount || amount <= 0) badRequest('Nominal pembayaran harus > 0')
+
+  // Eligibility check: must be ISSUED and outstanding>0 – server authoritative
+  if (invoiceRows[0].state !== 'ISSUED') {
+    badRequest('Hanya Invoice ISSUED yang bisa menerima pembayaran')
+  }
+  // Compute outstanding for eligibility
+  const existingPaidForEligible = await db.select({ total: sql<number>`coalesce(sum(CASE WHEN ${tourPayments.status} = 'VERIFIED' THEN ${tourPayments.amountIdr} ELSE 0 END),0)` }).from(tourPayments).where(and(eq(tourPayments.workspaceId, workspaceId), eq(tourPayments.invoiceId, invoiceId), notDeleted(tourPayments)))
+  const totalPaidEligible = Number(existingPaidForEligible[0]?.total ?? 0)
+  const invoiceAmountEligible = Number(invoiceRows[0].amountIdr ?? 0)
+  const outstandingEligible = Math.max(invoiceAmountEligible - totalPaidEligible, 0)
+  if (outstandingEligible <= 0) {
+    badRequest('Invoice sudah lunas, tidak memiliki sisa tagihan')
+  }
+
+  // DRAFT invoice cannot receive VERIFIED payment (redundant after above but keep)
   if (status === 'VERIFIED' && invoiceRows[0].state !== 'ISSUED') {
     badRequest('Hanya Invoice ISSUED yang bisa menerima pembayaran VERIFIED. Invoice masih DRAFT')
   }
 
   if (status === 'VERIFIED') {
-    const existingPaid = await db.select({ total: sql<number>`coalesce(sum(CASE WHEN ${tourPayments.status} = 'VERIFIED' THEN ${tourPayments.amountIdr} ELSE 0 END),0)` }).from(tourPayments).where(and(eq(tourPayments.workspaceId, workspaceId), eq(tourPayments.invoiceId, invoiceId), notDeleted(tourPayments)))
-    const totalPaid = Number(existingPaid[0]?.total ?? 0)
-    const invoiceAmount = Number(invoiceRows[0].amountIdr ?? 0)
-    const newAmount = Number((input as any).amountIdr ?? 0)
+    const totalPaid = totalPaidEligible
+    const invoiceAmount = invoiceAmountEligible
+    const newAmount = amount
     if (totalPaid + newAmount > invoiceAmount) {
-      badRequest(`Nominal pembayaran melebihi sisa tagihan. Sudah dibayar Rp${totalPaid.toLocaleString('id-ID')}, tagihan Rp${invoiceAmount.toLocaleString('id-ID')}, sisa Rp${(invoiceAmount - totalPaid).toLocaleString('id-ID')}`)
+      const sisa = invoiceAmount - totalPaid
+      badRequest(`Nominal pembayaran melebihi sisa tagihan Rp${sisa.toLocaleString('id-ID')}. Sudah dibayar Rp${totalPaid.toLocaleString('id-ID')}, tagihan Rp${invoiceAmount.toLocaleString('id-ID')}, sisa Rp${sisa.toLocaleString('id-ID')}`)
     }
   }
 
@@ -396,13 +571,12 @@ export async function updateTourPayment(db: DbLike, id: number, workspaceId: num
         badRequest(`Payment VOID tidak bisa diubah field ${f}, buat payment baru untuk koreksi`)
       }
     }
-    // allow only notes maybe? For V1, block all except notes? Let's allow notes but lock financial
     if ((patch as any).status && (patch as any).status !== 'VOID') {
       badRequest('Payment VOID tidak bisa diubah statusnya')
     }
   }
 
-  // VERIFIED immutability – lock financially meaningful fields
+  // VERIFIED immutability – lock financially meaningful fields, and cannot change to another Invoice
   if (existing.status === 'VERIFIED') {
     const newStatus = (patch as any).status
     if (newStatus && newStatus !== 'VOID' && newStatus !== 'VERIFIED') {
@@ -410,53 +584,90 @@ export async function updateTourPayment(db: DbLike, id: number, workspaceId: num
       badRequest(`Pembayaran VERIFIED hanya bisa di-VOID, tidak bisa diubah ke ${newStatus}`)
     }
     if (!newStatus || newStatus === 'VERIFIED') {
-      // trying to edit financial fields while staying VERIFIED – block
       const locked = ['invoiceId','orderId','paymentDate','amountIdr','method','accountOrChannel','referenceNumber','proofUrl']
       for (const field of locked) {
         if ((patch as any)[field] !== undefined) {
           const oldVal = (existing as any)[field]
           const newVal = (patch as any)[field]
-          // compare as string for date etc
           if (String(oldVal) !== String(newVal)) {
+            // Special message for invoiceId change on VERIFIED
+            if (field === 'invoiceId') badRequest('Pembayaran VERIFIED tidak bisa dipindah ke Invoice lain, VOID dulu lalu buat baru')
             badRequest(`Field ${field} tidak bisa diubah setelah VERIFIED, VOID dulu lalu buat baru`)
           }
         }
       }
     }
-    // if transitioning VERIFIED -> VOID, allow
-    if (newStatus === 'VOID') {
-      // preserve verification history, allow void
+    // Explicit check: VERIFIED cannot change invoiceId at all
+    if ((patch as any).invoiceId !== undefined && Number((patch as any).invoiceId) !== Number(existing.invoiceId)) {
+      badRequest('Pembayaran VERIFIED tidak bisa dipindah ke Invoice lain, VOID dulu lalu buat baru')
     }
   }
 
-  // If patch tries to change invoiceId, validate new invoice
-  if ((patch as any).invoiceId) {
-    const invoiceRows = await db.select().from(tourInvoices).where(and(eq(tourInvoices.id, Number((patch as any).invoiceId)), eq(tourInvoices.workspaceId, workspaceId), notDeleted(tourInvoices))).limit(1)
+  // Determine final invoiceId and final orderId for consistency checks
+  const finalInvoiceId = (patch as any).invoiceId !== undefined ? Number((patch as any).invoiceId) : existing.invoiceId
+  let finalOrderId: number | null = null
+  if ((patch as any).orderId !== undefined) finalOrderId = (patch as any).orderId ? Number((patch as any).orderId) : null
+  else finalOrderId = existing.orderId ? Number(existing.orderId) : null
+
+  // If invoiceId changes, validate new invoice and enforce orderId == invoice orderId
+  if ((patch as any).invoiceId !== undefined) {
+    const invoiceRows = await db.select().from(tourInvoices).where(and(eq(tourInvoices.id, finalInvoiceId), eq(tourInvoices.workspaceId, workspaceId), notDeleted(tourInvoices))).limit(1)
     if (!invoiceRows[0]) badRequest('Invoice tidak ditemukan')
     if (invoiceRows[0].state === 'CANCELLED') badRequest('Invoice CANCELLED tidak bisa menerima pembayaran')
+    // DRAFT invoice cannot be selected for payment – block even for DRAFT payment per eligible rule
+    if (invoiceRows[0].state === 'DRAFT') badRequest('Hanya Invoice ISSUED yang bisa dipilih untuk pembayaran. Invoice masih DRAFT')
     // If trying to verify against non-ISSUED invoice, block
-    const newStatus = (patch as any).status || existing.status
-    if (newStatus === 'VERIFIED' && invoiceRows[0].state !== 'ISSUED') {
+    const newStatusTmp = (patch as any).status || existing.status
+    if (newStatusTmp === 'VERIFIED' && invoiceRows[0].state !== 'ISSUED') {
       badRequest('Hanya Invoice ISSUED yang bisa memiliki payment VERIFIED')
+    }
+    // Enforce orderId == invoice orderId invariant
+    // If orderId explicitly provided in patch, it must match new invoice orderId
+    // If not provided, we will derive orderId from invoice (set below)
+    if ((patch as any).orderId !== undefined) {
+      if (Number((patch as any).orderId) !== invoiceRows[0].orderId) {
+        badRequest('OrderId pembayaran harus sama dengan Order Invoice. Tidak boleh Order A + Invoice Order B')
+      }
+    } else {
+      // Derive orderId from new invoice
+      finalOrderId = invoiceRows[0].orderId
+    }
+    // Also ensure finalOrderId matches invoice orderId (covers case where existing orderId mismatched)
+    if (finalOrderId !== null && finalOrderId !== invoiceRows[0].orderId) {
+      badRequest('OrderId pembayaran harus sama dengan Order Invoice. Tidak boleh Order A + Invoice Order B')
+    }
+  } else {
+    // invoiceId not changing – ensure if orderId changes, it still matches existing invoice's orderId
+    if ((patch as any).orderId !== undefined) {
+      const invoiceRows = await db.select().from(tourInvoices).where(and(eq(tourInvoices.id, existing.invoiceId), eq(tourInvoices.workspaceId, workspaceId), notDeleted(tourInvoices))).limit(1)
+      if (invoiceRows[0] && Number((patch as any).orderId) !== invoiceRows[0].orderId) {
+        badRequest('OrderId pembayaran harus sama dengan Order Invoice')
+      }
     }
   }
 
-  // Overpayment check if status VERIFIED or patch makes VERIFIED
+  // Overpayment check if status VERIFIED or patch makes VERIFIED – server authoritative recalc
   const newStatus = (patch as any).status || existing.status
   const newAmount = (patch as any).amountIdr !== undefined ? Number((patch as any).amountIdr) : Number(existing.amountIdr)
-  const invoiceId = (patch as any).invoiceId ? Number((patch as any).invoiceId) : existing.invoiceId
+
+  if (newAmount !== undefined && newAmount !== null && newAmount <= 0) {
+    badRequest('Nominal pembayaran harus > 0')
+  }
 
   if (newStatus === 'VERIFIED') {
-    // Ensure invoice is ISSUED
-    const invoiceRows = await db.select().from(tourInvoices).where(and(eq(tourInvoices.id, invoiceId), eq(tourInvoices.workspaceId, workspaceId), notDeleted(tourInvoices))).limit(1)
+    const invoiceRows = await db.select().from(tourInvoices).where(and(eq(tourInvoices.id, finalInvoiceId), eq(tourInvoices.workspaceId, workspaceId), notDeleted(tourInvoices))).limit(1)
     if (!invoiceRows[0]) badRequest('Invoice tidak ditemukan')
     if (invoiceRows[0].state !== 'ISSUED') badRequest('Hanya Invoice ISSUED yang bisa di-VERIFIED')
 
-    const existingPaidRows = await db.select({ total: sql<number>`coalesce(sum(CASE WHEN ${tourPayments.status} = 'VERIFIED' AND ${tourPayments.id} != ${id} THEN ${tourPayments.amountIdr} ELSE 0 END),0)` }).from(tourPayments).where(and(eq(tourPayments.workspaceId, workspaceId), eq(tourPayments.invoiceId, invoiceId), notDeleted(tourPayments)))
+    const existingPaidRows = await db.select({ total: sql<number>`coalesce(sum(CASE WHEN ${tourPayments.status} = 'VERIFIED' AND ${tourPayments.id} != ${id} THEN ${tourPayments.amountIdr} ELSE 0 END),0)` }).from(tourPayments).where(and(eq(tourPayments.workspaceId, workspaceId), eq(tourPayments.invoiceId, finalInvoiceId), notDeleted(tourPayments)))
     const totalPaidExcludingThis = Number(existingPaidRows[0]?.total ?? 0)
     const invoiceAmount = Number(invoiceRows[0].amountIdr ?? 0)
+    const outstanding = Math.max(invoiceAmount - totalPaidExcludingThis, 0)
+    if (outstanding <= 0) {
+      badRequest('Invoice sudah lunas, tidak memiliki sisa tagihan')
+    }
     if (totalPaidExcludingThis + newAmount > invoiceAmount) {
-      badRequest(`Nominal pembayaran melebihi sisa tagihan. Sudah dibayar Rp${totalPaidExcludingThis.toLocaleString('id-ID')} (di luar record ini), tagihan Rp${invoiceAmount.toLocaleString('id-ID')}, sisa Rp${(invoiceAmount - totalPaidExcludingThis).toLocaleString('id-ID')}`)
+      badRequest(`Nominal pembayaran melebihi sisa tagihan Rp${outstanding.toLocaleString('id-ID')}. Sudah dibayar Rp${totalPaidExcludingThis.toLocaleString('id-ID')} (di luar record ini), tagihan Rp${invoiceAmount.toLocaleString('id-ID')}, sisa Rp${outstanding.toLocaleString('id-ID')}`)
     }
   }
 
@@ -466,7 +677,10 @@ export async function updateTourPayment(db: DbLike, id: number, workspaceId: num
     extra.verifiedBy = updatedBy || null
     extra.verifiedAt = new Date()
   }
-  // When VOID, preserve verification history – do not clear verifiedBy/At
+  // Ensure orderId consistency is persisted if we derived it
+  if ((patch as any).invoiceId !== undefined && (patch as any).orderId === undefined && finalOrderId !== null) {
+    extra.orderId = finalOrderId
+  }
 
   const rows = await db.update(tourPayments).set({ ...patch, ...extra, updatedBy, updatedAt: new Date() } as never).where(and(eq(tourPayments.id, id), eq(tourPayments.workspaceId, workspaceId))).returning()
   return rows[0] ?? null
