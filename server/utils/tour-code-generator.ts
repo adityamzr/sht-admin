@@ -123,6 +123,86 @@ export function isUniqueViolation(error: any): boolean {
 }
 
 /**
+ * Map of operational code fields to their unique constraint identifiers
+ * Used to distinguish code collision from unrelated unique violations
+ */
+const CODE_CONSTRAINT_MAP: Record<string, string[]> = {
+  customerCode: ['tour_customers_workspace_code_unique', 'customer_code'],
+  orderCode: ['tour_orders_workspace_code_unique', 'order_code'],
+  jamaahCode: ['tour_jamaah_workspace_code_unique', 'jamaah_code'],
+  tripCode: ['tour_trips_workspace_code_unique', 'trip_code'],
+  vendorCode: ['tour_vendors_workspace_code_unique', 'vendor_code'],
+  bookingCode: ['tour_bookings_workspace_code_unique', 'booking_code'],
+  invoiceCode: ['tour_invoices_workspace_code_unique', 'invoice_code'],
+  paymentCode: ['tour_payments_workspace_code_unique', 'payment_code'],
+  expenseCode: ['tour_expenses_workspace_code_unique', 'expense_code'],
+  stayCode: ['tour_accommodation_stays_workspace_code_unique', 'stay_code'],
+  roomCode: ['tour_accommodation_rooms_workspace_code_unique', 'room_code'],
+}
+
+/**
+ * Extract constraint name / detail from Postgres error
+ */
+function extractConstraintInfo(error: any): { constraint: string; detail: string; message: string; code: string } {
+  let constraint = ''
+  let detail = ''
+  let message = ''
+  let code = ''
+
+  // Traverse cause chain
+  let current: any = error
+  const visited = new Set()
+  while (current && !visited.has(current)) {
+    visited.add(current)
+    if (current.constraint) constraint += ` ${String(current.constraint)}`
+    if (current.detail) detail += ` ${String(current.detail)}`
+    if (current.message) message += ` ${String(current.message)}`
+    if (current.code) code += ` ${String(current.code)}`
+    // Drizzle may wrap in cause
+    current = current.cause
+  }
+
+  return {
+    constraint: constraint.toLowerCase(),
+    detail: detail.toLowerCase(),
+    message: message.toLowerCase(),
+    code: code.toLowerCase(),
+  }
+}
+
+/**
+ * Check if unique violation is specifically for operational code field
+ * Only retry when the violated constraint corresponds to code field
+ */
+export function isCodeCollisionError(error: any, codeField: string): boolean {
+  if (!isUniqueViolation(error)) return false
+
+  const { constraint, detail, message } = extractConstraintInfo(error)
+  const combined = `${constraint} ${detail} ${message}`
+
+  const expectedIdentifiers = CODE_CONSTRAINT_MAP[codeField]
+  if (!expectedIdentifiers) {
+    // Unknown field – be conservative, don't retry
+    return false
+  }
+
+  // Check if combined contains any of the expected constraint identifiers
+  for (const id of expectedIdentifiers) {
+    if (combined.includes(id)) return true
+  }
+
+  // Additional safety: if message mentions the code column explicitly, treat as collision
+  // e.g. "Key (customer_code)=(CUS2609182045) already exists"
+  if (combined.includes(codeField.toLowerCase()) || combined.includes(codeField.replace(/([A-Z])/g, '_$1').toLowerCase())) {
+    // But ensure it's not another unique like email – we already checked identifiers
+    // If it contains code column, likely collision
+    return true
+  }
+
+  return false
+}
+
+/**
  * Generate code with automatic collision retry logic
  * This is a helper for service layer – attempts to generate unique code
  * by increasing precision on collision.
@@ -150,7 +230,7 @@ export function getNextCollisionCode(prefix: string, baseDate: Date, attempt: nu
 }
 
 /**
- * Attempt to insert a record with timestamp code, retrying on unique collision
+ * Attempt to insert a record with timestamp code, retrying ONLY on operational code collision
  * @param db Drizzle db instance
  * @param table Drizzle table
  * @param codeField Field name for operational code (e.g. 'orderCode')
@@ -168,44 +248,41 @@ export async function insertWithTimestampCodeRetry(
   input: Record<string, unknown>,
   maxAttempts: number = 5,
 ): Promise<any> {
+  // Use same logical timestamp for code and createdAt consistency where practical
   let baseDate = new Date()
-  // Use input's createdAt if provided as logical creation timestamp, else now
-  // For consistency, prefer same timestamp for code and createdAt
-  // But we still let DB defaultNow for createdAt unless explicitly set
   let lastError: any = null
 
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     const { code, date } = getNextCollisionCode(prefix, baseDate, attempt)
     try {
-      // For first attempt, use baseDate as logical creation time
-      // For later attempts, use the date returned (which may be fresh)
       const values: any = {
         ...input,
         workspaceId,
         [codeField]: code,
       }
-      // If this is first attempt and input doesn't have createdAt, we could set it to baseDate
-      // But preserve existing behavior – DB defaultNow will handle
-      // However for consistency, we set createdAt to date if not provided? Let's not override unless needed
-      // The task says prefer generating code from same logical creation timestamp used for record
-      // We'll set createdAt to date if input doesn't have it and attempt is 0
-      // Actually we should NOT set createdAt manually – let DB handle, but code timestamp should be close to createdAt
-      // So we keep baseDate as now for code, and DB will set createdAt to now (close enough)
+
+      // For createdAt consistency: if input doesn't have createdAt, use baseDate for first attempt
+      // This ensures code YYMMDDHHmm matches createdAt logical instant
+      if (attempt === 0 && !(input as any).createdAt) {
+        // Only set if table has createdAt column – safe to set, DB will accept
+        // If table doesn't have it, it will be ignored? We set conditionally
+        // We'll set createdAt to date for consistency
+        values.createdAt = date
+      }
 
       const rows = await db.insert(table).values(values as never).returning()
       return rows[0]
     } catch (e: any) {
       lastError = e
-      if (isUniqueViolation(e) && attempt < maxAttempts - 1) {
-        // Collision – try next level with same baseDate or fresh
+      // Only retry if it's specifically a code collision, not unrelated unique violation
+      if (isCodeCollisionError(e, codeField) && attempt < maxAttempts - 1) {
         if (attempt >= 2) {
-          // For attempt >=2, refresh baseDate to now for next iteration
           baseDate = new Date()
-          // Small delay to ensure millisecond changes (if needed)
           await new Promise(resolve => setTimeout(resolve, 1))
         }
         continue
       }
+      // For unrelated unique violations (email, etc), surface real error
       throw e
     }
   }

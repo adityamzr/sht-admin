@@ -569,7 +569,7 @@ export const tourAccommodationRoomsSeq = pgSequence('tour_accommodation_rooms_se
 export const tourCustomers = pgTable('tour_customers', {
   id: serial('id').primaryKey(),
   workspaceId: integer('workspace_id').notNull().references(() => workspaces.id, { onDelete: 'restrict' }),
-  customerCode: text('customer_code').notNull().default(sql`'CUS-' || to_char(now(), 'YYYY') || '-' || lpad(nextval('tour_customers_seq')::text, 4, '0')`),
+  customerCode: text('customer_code').notNull(),
   name: text('name').notNull(),
   whatsapp: text('whatsapp').notNull(),
   email: text('email'),
@@ -595,7 +595,7 @@ export const tourCustomers = pgTable('tour_customers', {
 export const tourOrders = pgTable('tour_orders', {
   id: serial('id').primaryKey(),
   workspaceId: integer('workspace_id').notNull().references(() => workspaces.id, { onDelete: 'restrict' }),
-  orderCode: text('order_code').notNull().default(sql`'ORD-' || to_char(now(), 'YYYY') || '-' || lpad(nextval('tour_orders_seq')::text, 4, '0')`),
+  orderCode: text('order_code').notNull(),
   orderDate: date('order_date', { mode: 'date' }).notNull(),
   customerId: integer('customer_id').notNull().references(() => tourCustomers.id, { onDelete: 'restrict' }),
   leadId: integer('lead_id').references(() => leads.id, { onDelete: 'set null' }),
@@ -628,7 +628,7 @@ export const tourOrders = pgTable('tour_orders', {
 export const tourJamaah = pgTable('tour_jamaah', {
   id: serial('id').primaryKey(),
   workspaceId: integer('workspace_id').notNull().references(() => workspaces.id, { onDelete: 'restrict' }),
-  jamaahCode: text('jamaah_code').notNull().default(sql`'JMH-' || to_char(now(), 'YYYY') || '-' || lpad(nextval('tour_jamaah_seq')::text, 4, '0')`),
+  jamaahCode: text('jamaah_code').notNull(),
   orderId: integer('order_id').notNull().references(() => tourOrders.id, { onDelete: 'restrict' }),
   fullName: text('full_name').notNull(),
   gender: text('gender'),
@@ -657,7 +657,7 @@ export const tourJamaah = pgTable('tour_jamaah', {
 export const tourTrips = pgTable('tour_trips', {
   id: serial('id').primaryKey(),
   workspaceId: integer('workspace_id').notNull().references(() => workspaces.id, { onDelete: 'restrict' }),
-  tripCode: text('trip_code').notNull().default(sql`'TRIP-' || to_char(now(), 'YYYY') || '-' || lpad(nextval('tour_trips_seq')::text, 4, '0')`),
+  tripCode: text('trip_code').notNull(),
   name: text('name').notNull(),
   departureDate: date('departure_date', { mode: 'date' }).notNull(),
   returnDate: date('return_date', { mode: 'date' }).notNull(),
@@ -695,7 +695,7 @@ export const tourTripOrders = pgTable('tour_trip_orders', {
 export const tourVendors = pgTable('tour_vendors', {
   id: serial('id').primaryKey(),
   workspaceId: integer('workspace_id').notNull().references(() => workspaces.id, { onDelete: 'restrict' }),
-  vendorCode: text('vendor_code').notNull().default(sql`'VND-' || lpad(nextval('tour_vendors_seq')::text, 4, '0')`),
+  vendorCode: text('vendor_code').notNull(),
   name: text('name').notNull(),
   vendorType: text('vendor_type').notNull(),
   contactName: text('contact_name'),
@@ -723,7 +723,7 @@ export const tourVendors = pgTable('tour_vendors', {
 export const tourBookings = pgTable('tour_bookings', {
   id: serial('id').primaryKey(),
   workspaceId: integer('workspace_id').notNull().references(() => workspaces.id, { onDelete: 'restrict' }),
-  bookingCode: text('booking_code').notNull().default(sql`'BKG-' || to_char(now(), 'YYYY') || '-' || lpad(nextval('tour_bookings_seq')::text, 4, '0')`),
+  bookingCode: text('booking_code').notNull(),
   bookingDate: date('booking_date', { mode: 'date' }).notNull(),
   tripId: integer('trip_id').references(() => tourTrips.id, { onDelete: 'set null' }),
   orderId: integer('order_id').references(() => tourOrders.id, { onDelete: 'set null' }),
@@ -756,7 +756,7 @@ export const tourBookings = pgTable('tour_bookings', {
 export const tourInvoices = pgTable('tour_invoices', {
   id: serial('id').primaryKey(),
   workspaceId: integer('workspace_id').notNull().references(() => workspaces.id, { onDelete: 'restrict' }),
-  invoiceCode: text('invoice_code').notNull().default(sql`'INV-' || to_char(now(), 'YYYY') || '-' || lpad(nextval('tour_invoices_seq')::text, 4, '0')`),
+  invoiceCode: text('invoice_code').notNull(),
   orderId: integer('order_id').notNull().references(() => tourOrders.id, { onDelete: 'restrict' }),
   issueDate: date('issue_date', { mode: 'date' }).notNull(),
   dueDate: date('due_date', { mode: 'date' }),
@@ -782,7 +782,7 @@ export const tourInvoices = pgTable('tour_invoices', {
 export const tourPayments = pgTable('tour_payments', {
   id: serial('id').primaryKey(),
   workspaceId: integer('workspace_id').notNull().references(() => workspaces.id, { onDelete: 'restrict' }),
-  paymentCode: text('payment_code').notNull().default(sql`'PAY-' || to_char(now(), 'YYYY') || '-' || lpad(nextval('tour_payments_seq')::text, 4, '0')`),
+  paymentCode: text('payment_code').notNull(),
   invoiceId: integer('invoice_id').notNull().references(() => tourInvoices.id, { onDelete: 'restrict' }),
   orderId: integer('order_id').notNull().references(() => tourOrders.id, { onDelete: 'restrict' }),
   paymentDate: date('payment_date', { mode: 'date' }).notNull(),
@@ -813,7 +813,7 @@ export const tourPayments = pgTable('tour_payments', {
 export const tourExpenses = pgTable('tour_expenses', {
   id: serial('id').primaryKey(),
   workspaceId: integer('workspace_id').notNull().references(() => workspaces.id, { onDelete: 'restrict' }),
-  expenseCode: text('expense_code').notNull().default(sql`'EXP-' || to_char(now(), 'YYYY') || '-' || lpad(nextval('tour_expenses_seq')::text, 4, '0')`),
+  expenseCode: text('expense_code').notNull(),
   expenseDate: date('expense_date', { mode: 'date' }).notNull(),
   orderId: integer('order_id').references(() => tourOrders.id, { onDelete: 'set null' }),
   tripId: integer('trip_id').references(() => tourTrips.id, { onDelete: 'set null' }),
@@ -854,7 +854,7 @@ export const tourExpenses = pgTable('tour_expenses', {
 export const tourAccommodationStays = pgTable('tour_accommodation_stays', {
   id: serial('id').primaryKey(),
   workspaceId: integer('workspace_id').notNull().references(() => workspaces.id, { onDelete: 'restrict' }),
-  stayCode: text('stay_code').notNull().default(sql`'STAY-' || to_char(now(), 'YYYY') || '-' || lpad(nextval('tour_accommodation_stays_seq')::text, 4, '0')`),
+  stayCode: text('stay_code').notNull(),
   tripId: integer('trip_id').notNull().references(() => tourTrips.id, { onDelete: 'cascade' }),
   bookingId: integer('booking_id').notNull().references(() => tourBookings.id, { onDelete: 'restrict' }),
   hotelName: text('hotel_name').notNull(),
@@ -891,7 +891,7 @@ export const tourAccommodationRooms = pgTable('tour_accommodation_rooms', {
   id: serial('id').primaryKey(),
   workspaceId: integer('workspace_id').notNull().references(() => workspaces.id, { onDelete: 'restrict' }),
   stayId: integer('stay_id').notNull().references(() => tourAccommodationStays.id, { onDelete: 'cascade' }),
-  roomCode: text('room_code').notNull().default(sql`'ROOM-' || to_char(now(), 'YYYY') || '-' || lpad(nextval('tour_accommodation_rooms_seq')::text, 4, '0')`),
+  roomCode: text('room_code').notNull(),
   roomLabel: text('room_label').notNull(),
   roomNumber: text('room_number'),
   roomType: text('room_type').notNull().default('DOUBLE'),

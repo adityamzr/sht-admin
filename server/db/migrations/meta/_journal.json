@@ -169,6 +169,13 @@
       "when": 1789900000000,
       "tag": "0023_admin_attachments",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1790000000000,
+      "tag": "0024_drop_tour_code_defaults",
+      "breakpoints": true
     }
   ]
 }
