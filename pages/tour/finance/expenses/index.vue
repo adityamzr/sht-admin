@@ -2,6 +2,8 @@
 import { Pencil, Trash2, Eye, BadgeCheck, Ban, CircleSlash } from 'lucide-vue-next'
 definePageMeta({ layout: "admin", middleware: "admin-auth" });
 
+const { success, error: toastError } = useAdminToast()
+
 const search = ref("");
 const status = ref("");
 const category = ref("");
@@ -16,7 +18,7 @@ const query = computed(() => ({
   page: page.value,
   pageSize: pageSize.value,
 }));
-const { data, refresh } = await useAdminFetch<{ data: any[]; meta: any }>("/api/admin/tour/expenses", { query });
+const { data, refresh, pending: loadingRows } = await useAdminFetch<{ data: any[]; meta: any }>("/api/admin/tour/expenses", { query });
 const rows = computed(() => data.value?.data ?? []);
 const meta = computed(() => data.value?.meta ?? { page: 1, pageSize: 20, total: 0, pageCount: 1 });
 
@@ -28,9 +30,14 @@ const { data: tripsData } = await useAdminFetch<{ data: any[]; meta: any }>("/ap
 const trips = computed(() => tripsData.value?.data ?? []);
 const { data: bookingsData } = await useAdminFetch<{ data: any[]; meta: any }>("/api/admin/tour/bookings", { query: { pageSize: 100 } });
 const bookings = computed(() => bookingsData.value?.data ?? []);
+const { data: workspacesData } = await useAdminFetch<{ data: any[] }>("/api/admin/workspaces")
+const tourWorkspaceId = computed(() => {
+  const ws = workspacesData.value?.data?.find((w: any) => w.key === 'tour')
+  return ws?.id || null
+})
 
 const STATUSES_FILTER = ["DRAFT","VERIFIED","VOID"];
-const STATUSES_CREATE = ["DRAFT","VERIFIED"]; // no VOID on create
+const STATUSES_CREATE = ["DRAFT","VERIFIED"];
 const CATEGORIES = ["HOTEL","TRANSPORT","VISA","FLIGHT","SISKOPATUH","MUTHAWWIF","HANDLING","OTHER"];
 const CURRENCIES = ["IDR","SAR","USD"];
 
@@ -69,7 +76,6 @@ function onBookingChange() {
   if (!form.bookingId) return;
   const b: any = bookings.value.find((x: any) => String(x.id) === String(form.bookingId));
   if (!b) return;
-  // Auto-prefill read-only guidance per spec
   if (!form.vendorId) form.vendorId = b.vendorId || "";
   if (!form.orderId) form.orderId = b.orderId || "";
   if (!form.tripId) form.tripId = b.tripId || "";
@@ -120,13 +126,12 @@ function openEdit(e: any) {
   showForm.value = true;
 }
 async function submit() {
+  if (formPending.value) return
   formPending.value = true; formError.value = null;
   try {
     if (form.status === 'VOID') throw new Error('VOID hanya via aksi Void explicit, tidak dari form create');
-    // FX invariant validation client-side guidance
     if (form.currency === 'IDR' && form.exchangeRateSnapshot) throw new Error('IDR harus snapshot null (otomatis). Kosongkan kurs.');
     if (form.currency !== 'IDR' && !form.exchangeRateSnapshot) throw new Error('SAR/USD wajib isi kurs snapshot >0');
-    // Booking-linked consistency guidance
     if (form.bookingId && selectedBooking.value) {
       const b = selectedBooking.value;
       if (form.orderId && b.orderId && String(form.orderId) !== String(b.orderId)) throw new Error(`Expense orderId tidak cocok dengan Booking orderId #${b.orderId}`);
@@ -154,8 +159,13 @@ async function submit() {
     if (form.id) await adminPatch(`/api/admin/tour/expenses/${form.id}`, body);
     else await adminPost("/api/admin/tour/expenses", body);
     showForm.value = false;
+    success(form.id ? 'Expense berhasil diperbarui' : 'Expense berhasil dicatat')
     await refresh();
-  } catch (e: any) { formError.value = e?.data?.statusMessage || e.message || "Gagal menyimpan"; } finally { formPending.value = false; }
+  } catch (e: any) {
+    const msg = e?.data?.statusMessage || e.message || "Gagal menyimpan"
+    formError.value = msg
+    toastError(msg)
+  } finally { formPending.value = false; }
 }
 
 // Verify / Void modals
@@ -164,25 +174,43 @@ const verifyTarget = ref<any>(null);
 const verifyPending = ref(false);
 function openVerify(e: any) { verifyTarget.value = e; showVerifyModal.value = true; }
 async function confirmVerify() {
-  if (!verifyTarget.value) return;
+  if (!verifyTarget.value || verifyPending.value) return;
   verifyPending.value = true;
-  try { await adminPatch(`/api/admin/tour/expenses/${verifyTarget.value.id}`, { status: 'VERIFIED' }); showVerifyModal.value = false; await refresh(); }
-  catch (e: any) { alert(e?.data?.statusMessage || e.message || 'Gagal verify'); } finally { verifyPending.value = false; }
+  try {
+    await adminPatch(`/api/admin/tour/expenses/${verifyTarget.value.id}`, { status: 'VERIFIED' });
+    showVerifyModal.value = false;
+    success('Expense diverifikasi')
+    await refresh();
+  } catch (e: any) {
+    toastError(e?.data?.statusMessage || e.message || 'Gagal verify')
+  } finally { verifyPending.value = false; }
 }
 const showVoidModal = ref(false);
 const voidTarget = ref<any>(null);
 const voidPending = ref(false);
 function openVoid(e: any) { voidTarget.value = e; showVoidModal.value = true; }
 async function confirmVoid() {
-  if (!voidTarget.value) return;
+  if (!voidTarget.value || voidPending.value) return;
   voidPending.value = true;
-  try { await adminPatch(`/api/admin/tour/expenses/${voidTarget.value.id}`, { status: 'VOID' }); showVoidModal.value = false; await refresh(); }
-  catch (e: any) { alert(e?.data?.statusMessage || e.message || 'Gagal void'); } finally { voidPending.value = false; }
+  try {
+    await adminPatch(`/api/admin/tour/expenses/${voidTarget.value.id}`, { status: 'VOID' });
+    showVoidModal.value = false;
+    success('Expense di-void')
+    await refresh();
+  } catch (e: any) {
+    toastError(e?.data?.statusMessage || e.message || 'Gagal void')
+  } finally { voidPending.value = false; }
 }
 async function removeDraft(e: any) {
-  if (e.status !== 'DRAFT') { alert('Hanya DRAFT bisa dihapus. VERIFIED harus Void.'); return; }
+  if (e.status !== 'DRAFT') { toastError('Hanya DRAFT bisa dihapus. VERIFIED harus Void.'); return; }
   if (!confirm(`Hapus DRAFT expense ${e.expenseCode}?`)) return;
-  await adminDelete(`/api/admin/tour/expenses/${e.id}`).catch(()=>{}); await refresh();
+  try {
+    await adminDelete(`/api/admin/tour/expenses/${e.id}`)
+    success('Draft expense dihapus')
+    await refresh();
+  } catch (err: any) {
+    toastError(err?.data?.statusMessage || 'Gagal hapus')
+  }
 }
 
 if (typeof window !== 'undefined') {
@@ -193,7 +221,7 @@ if (typeof window !== 'undefined') {
 <template>
   <div>
     <PageHead title="Expenses" subtitle="EXPENSE = uang keluar aktual. Hanya VERIFIED masuk Overview/Profitability/Reports. DRAFT editable not actual, VOID historical excluded. FX: IDR snapshot null, SAR/USD snapshot>0 server authoritative.">
-      <template #actions><button type="button" class="min-h-[40px] rounded-xl bg-sht-olive px-4 py-2 text-sm font-semibold text-white" @click="openCreate()">+ Catat Expense</button></template>
+      <template #actions><AdminButton variant="primary" @click="openCreate()">+ Catat Expense</AdminButton></template>
     </PageHead>
 
     <div class="mt-6 flex flex-wrap gap-3">
@@ -204,9 +232,9 @@ if (typeof window !== 'undefined') {
     </div>
 
     <div class="mt-3 rounded-xl bg-amber-50 border border-amber-200 px-4 py-2.5 text-xs text-amber-800">
-      <p><strong>Dependency:</strong> Expense bisa standalone, tapi jika bookingId ada maka Booking authoritative: orderId/tripId/vendorId harus cocok. Tidak boleh Booking Vendor A + Expense Vendor B. Vendor sebelum Booking, Booking sebelum Booking-related Expense.</p>
-      <p class="mt-1"><strong>FX:</strong> IDR → snapshot null amountIdr=amount. SAR/USD → snapshot>0 amountIdr=amount*snapshot. PATCH ganti mata uang wajib kurs baru, jangan pakai kurs lama. Server authoritative recalc amountIdr.</p>
-      <p class="mt-1"><strong>Workflow:</strong> DRAFT editable not actual → VERIFIED actual immutable lock expenseDate/orderId/tripId/bookingId/vendorId/category/currency/amount/snapshot/amountIdr/paymentMethod/reference → VOID historical excluded. Correction VERIFIED→VOID→new.</p>
+      <p><strong>Dependency:</strong> Expense bisa standalone, tapi jika bookingId ada maka Booking authoritative: orderId/tripId/vendorId harus cocok.</p>
+      <p class="mt-1"><strong>FX:</strong> IDR → snapshot null amountIdr=amount. SAR/USD → snapshot>0 amountIdr=amount*snapshot.</p>
+      <p class="mt-1"><strong>Workflow:</strong> DRAFT editable not actual → VERIFIED actual immutable lock → VOID historical excluded.</p>
     </div>
 
     <TourModal :open="showForm" :title="form.id ? 'Edit Expense' : 'Catat Expense'" subtitle="EXPENSE = uang keluar aktual. Booking-linked inherits context, validasi Vendor/Order/Trip cocok." max-width="max-w-3xl" @close="showForm=false">
@@ -215,17 +243,15 @@ if (typeof window !== 'undefined') {
           <h4 class="text-xs font-semibold uppercase tracking-wide text-neutral-charcoal/50">Konteks (auto-prefill dari Booking, read-only guidance)</h4>
           <div v-if="selectedBooking" class="mt-2 rounded-xl bg-emerald-50 border border-emerald-200 px-4 py-2 text-xs text-emerald-800">
             <p>Booking: <span class="font-semibold">{{ selectedBooking.bookingCode }}</span> · {{ selectedBooking.bookingType }} · Vendor {{ selectedBooking.vendor?.name || selectedBooking.vendorId }} · Order {{ selectedBooking.order?.orderCode || selectedBooking.orderId || '—' }} · Trip {{ selectedBooking.trip?.tripCode || selectedBooking.tripId || '—' }}</p>
-            <p class="mt-1 text-[11px]">Expense Vendor/Order/Trip harus cocok dengan Booking. Tidak boleh Vendor A + Expense Vendor B.</p>
           </div>
           <div class="mt-3 grid gap-3 sm:grid-cols-2">
-            <label class="text-sm font-medium">Booking (opsional, untuk prefill authoritative)
+            <label class="text-sm font-medium">Booking (opsional)
               <select v-model="form.bookingId" class="mt-1 min-h-[44px] w-full rounded-xl border border-neutral-line px-3 text-sm" @change="onBookingChange">
                 <option value="">Tanpa Booking (standalone)</option>
                 <option v-for="b in bookings" :key="b.id" :value="b.id">{{ b.bookingCode }} · {{ b.bookingType }} · {{ b.vendor?.name || `Vendor #${b.vendorId}` }} · {{ b.currency }} {{ Number(b.amount).toLocaleString('id-ID') }}</option>
               </select>
-              <span class="mt-1 block text-[11px] text-neutral-charcoal/50">Jika pilih Booking, Vendor/Order/Trip auto-prefill dan harus cocok. Booking harus ada dulu.</span>
             </label>
-            <label class="text-sm font-medium">Order (opsional, wajib cocok jika Booking ada)
+            <label class="text-sm font-medium">Order (opsional)
               <select v-model="form.orderId" class="mt-1 min-h-[44px] w-full rounded-xl border border-neutral-line px-3 text-sm">
                 <option value="">Tanpa Order</option>
                 <option v-for="o in orders" :key="o.id" :value="o.id">{{ o.orderCode }} · {{ o.customer?.name || '' }} · {{ o.paxCount }} pax</option>
@@ -237,12 +263,11 @@ if (typeof window !== 'undefined') {
                 <option v-for="t in trips" :key="t.id" :value="t.id">{{ t.tripCode }} · {{ t.name }}</option>
               </select>
             </label>
-            <label class="text-sm font-medium">Vendor (opsional, wajib cocok jika Booking ada)
+            <label class="text-sm font-medium">Vendor (opsional)
               <select v-model="form.vendorId" class="mt-1 min-h-[44px] w-full rounded-xl border border-neutral-line px-3 text-sm">
                 <option value="">Tanpa Vendor</option>
                 <option v-for="v in vendors" :key="v.id" :value="v.id">{{ v.vendorCode }} · {{ v.name }}</option>
               </select>
-              <span v-if="!vendors.length" class="mt-1 block text-[11px] text-red-600">Belum ada Vendor. <NuxtLink to="/tour/vendors" class="underline">Buat Vendor dulu</NuxtLink> — Vendor sebelum Booking.</span>
             </label>
           </div>
         </div>
@@ -257,11 +282,10 @@ if (typeof window !== 'undefined') {
         <div>
           <h4 class="text-xs font-semibold uppercase tracking-wide text-neutral-charcoal/50">Biaya FX</h4>
           <div class="mt-3 grid gap-3 sm:grid-cols-2">
-            <label class="text-sm font-medium">Mata Uang<select v-model="form.currency" class="mt-1 min-h-[44px] w-full rounded-xl border border-neutral-line px-3 text-sm"><option v-for="c in CURRENCIES" :key="c" :value="c">{{ c }}</option></select><span class="mt-1 block text-[11px] text-neutral-charcoal/50">IDR snapshot null, SAR/USD snapshot>0 server authoritative</span></label>
+            <label class="text-sm font-medium">Mata Uang<select v-model="form.currency" class="mt-1 min-h-[44px] w-full rounded-xl border border-neutral-line px-3 text-sm"><option v-for="c in CURRENCIES" :key="c" :value="c">{{ c }}</option></select></label>
             <label class="text-sm font-medium">Jumlah<TourMoneyInput v-model="form.amount" :currency="form.currency" :allow-decimal="form.currency!=='IDR'" /></label>
             <label class="text-sm font-medium">Kurs ke IDR (SAR/USD wajib)
               <TourMoneyInput v-model="form.exchangeRateSnapshot" currency="" :allow-decimal="true" :disabled="form.currency==='IDR'" />
-              <span class="mt-1 block text-[11px] text-neutral-charcoal/50">IDR→SAR wajib kurs SAR baru, SAR→USD wajib kurs USD baru, USD→SAR wajib kurs SAR baru, SAR→IDR clear kurs. Jangan pakai kurs lama.</span>
             </label>
             <div class="text-sm"><p class="font-medium">Setara IDR (server authoritative)</p><div class="mt-1 min-h-[44px] rounded-xl border bg-neutral-warm/50 px-4 py-2.5 font-semibold"><span v-if="amountIdrPreview!==null">Rp {{ Number(amountIdrPreview).toLocaleString('id-ID') }}</span><span v-else class="text-neutral-charcoal/40">—</span></div></div>
           </div>
@@ -269,19 +293,41 @@ if (typeof window !== 'undefined') {
         <div>
           <h4 class="text-xs font-semibold uppercase tracking-wide text-neutral-charcoal/50">Administrasi</h4>
           <div class="mt-3 grid gap-3 sm:grid-cols-2">
-            <label class="text-sm font-medium">Status (Create)<select v-model="form.status" class="mt-1 min-h-[44px] w-full rounded-xl border border-neutral-line px-3 text-sm"><option v-for="s in STATUSES_CREATE" :key="s" :value="s">{{ s }}</option><option v-if="form.id && form.status==='VOID'" value="VOID">VOID (read-only)</option></select><span class="mt-1 block text-[11px] text-neutral-charcoal/50">Create hanya DRAFT/VERIFIED. VOID via aksi explicit.</span></label>
+            <label class="text-sm font-medium">Status (Create)<select v-model="form.status" class="mt-1 min-h-[44px] w-full rounded-xl border border-neutral-line px-3 text-sm"><option v-for="s in STATUSES_CREATE" :key="s" :value="s">{{ s }}</option><option v-if="form.id && form.status==='VOID'" value="VOID">VOID (read-only)</option></select></label>
             <label class="text-sm font-medium">Payment Method<input v-model="form.paymentMethod" class="mt-1 min-h-[44px] w-full rounded-xl border border-neutral-line px-4 text-sm" placeholder="Transfer, Cash..." /></label>
             <label class="text-sm font-medium">Reference<input v-model="form.referenceNumber" class="mt-1 min-h-[44px] w-full rounded-xl border border-neutral-line px-4 text-sm" /></label>
-            <label class="text-sm font-medium">Proof URL<input v-model="form.proofUrl" class="mt-1 min-h-[44px] w-full rounded-xl border border-neutral-line px-4 text-sm" placeholder="https://..." /></label>
             <label class="sm:col-span-2 text-sm font-medium">Notes<textarea v-model="form.notes" rows="2" class="mt-1 w-full rounded-xl border border-neutral-line px-4 py-2 text-sm" /></label>
+          </div>
+        </div>
+        <div>
+          <h4 class="text-xs font-semibold uppercase tracking-wide text-neutral-charcoal/50">Bukti Pengeluaran (Private Attachment)</h4>
+          <div class="mt-3">
+            <AdminAttachmentField
+              v-if="form.id && tourWorkspaceId"
+              :key="form.id"
+              entity-type="EXPENSE"
+              :entity-id="form.id"
+              :workspace-id="tourWorkspaceId"
+              label="Bukti Pengeluaran"
+              description="JPG, PNG, PDF • Maks 10 MB • Private, hanya workspace Tour"
+              :legacy-proof-url="form.proofUrl || null"
+            />
+            <div v-else class="rounded-xl border border-dashed border-sht-olive/20 bg-gray-50 p-4 text-center text-xs text-gray-500">
+              <p>Simpan Expense terlebih dahulu untuk mengunggah bukti.</p>
+              <div class="mt-3 text-left">
+                <label class="block text-[11px] font-medium text-gray-600">Legacy Proof URL (opsional, kompatibilitas)
+                  <input v-model="form.proofUrl" class="mt-1 min-h-[40px] w-full rounded-xl border border-neutral-line bg-white px-3 text-xs" placeholder="https://... (akan diganti attachment private)" />
+                </label>
+              </div>
+            </div>
           </div>
         </div>
         <p v-if="formError" class="rounded-xl bg-red-50 px-4 py-2 text-sm text-red-700">{{ formError }}</p>
       </div>
       <template #footer>
         <div class="flex justify-end gap-2">
-          <button type="button" class="min-h-[40px] rounded-xl border px-4 py-2 text-sm" @click="showForm=false">Batal</button>
-          <button type="button" class="min-h-[40px] rounded-xl bg-sht-olive px-5 py-2 text-sm font-semibold text-white" :disabled="formPending" @click="submit">Simpan Expense</button>
+          <AdminButton variant="secondary" :disabled="formPending" @click="showForm=false">Batal</AdminButton>
+          <AdminButton variant="primary" :loading="formPending" loading-label="Menyimpan..." @click="submit">Simpan Expense</AdminButton>
         </div>
       </template>
     </TourModal>
@@ -289,12 +335,11 @@ if (typeof window !== 'undefined') {
     <TourModal :open="showVerifyModal" title="Verify Expense" subtitle="VERIFIED actual masuk finance, immutable lock" max-width="max-w-md" @close="showVerifyModal=false">
       <div class="space-y-3 text-sm">
         <p>Verify Expense <span class="font-mono font-semibold">{{ verifyTarget?.expenseCode }}</span> Rp {{ Number(verifyTarget?.amountIdr).toLocaleString('id-ID') }}?</p>
-        <p class="text-xs text-neutral-charcoal/60">VERIFIED immutability lock: expenseDate/orderId/tripId/bookingId/vendorId/category/currency/amount/snapshot/amountIdr/paymentMethod/reference. Koreksi VERIFIED→VOID→new. verifiedBy/At server.</p>
       </div>
       <template #footer>
         <div class="flex justify-end gap-2">
-          <button class="min-h-[40px] rounded-xl border px-4 py-2 text-sm" @click="showVerifyModal=false">Batal</button>
-          <button class="min-h-[40px] rounded-xl bg-emerald-600 px-5 py-2 text-sm font-semibold text-white" :disabled="verifyPending" @click="confirmVerify">Ya, Verify</button>
+          <AdminButton variant="secondary" :disabled="verifyPending" @click="showVerifyModal=false">Batal</AdminButton>
+          <AdminButton variant="primary" :loading="verifyPending" loading-label="Memverifikasi..." @click="confirmVerify">Ya, Verify</AdminButton>
         </div>
       </template>
     </TourModal>
@@ -302,43 +347,45 @@ if (typeof window !== 'undefined') {
     <TourModal :open="showVoidModal" title="Void Expense" subtitle="VOID historical excluded" max-width="max-w-md" @close="showVoidModal=false">
       <div class="space-y-3 text-sm">
         <p>Void Expense <span class="font-mono font-semibold">{{ voidTarget?.expenseCode }}</span>?</p>
-        <p class="text-xs text-neutral-charcoal/60">Expense akan tetap tersimpan sebagai riwayat, tetapi tidak lagi dihitung sebagai pengeluaran aktual. {{ voidTarget?.currency }} {{ Number(voidTarget?.amount||0).toLocaleString('id-ID') }} tetap tampil sebagai histori, Vendor tetap {{ voidTarget?.vendor?.name || `#${voidTarget?.vendorId}` }}, tidak di-zero atau dihapus.</p>
-        <p class="text-xs text-amber-700">Setelah VOID, Booking actual expense kembali berkurang. Finance Verified Expenses, Profitability, Reports tidak lagi menghitungnya. VOID adalah terminal, tidak bisa di-restore ke VERIFIED/DRAFT. Hanya status yang berubah, semua field transaksi tetap tidak berubah (status-only).</p>
+        <p class="text-xs text-neutral-charcoal/60">Expense tetap tersimpan sebagai riwayat, tidak lagi dihitung sebagai pengeluaran aktual.</p>
       </div>
       <template #footer>
         <div class="flex justify-end gap-2">
-          <button class="min-h-[40px] rounded-xl border px-4 py-2 text-sm" @click="showVoidModal=false">Batal</button>
-          <button class="min-h-[40px] rounded-xl bg-red-600 px-5 py-2 text-sm font-semibold text-white" :disabled="voidPending" @click="confirmVoid">Ya, Void</button>
+          <AdminButton variant="secondary" :disabled="voidPending" @click="showVoidModal=false">Batal</AdminButton>
+          <AdminButton variant="destructive" :loading="voidPending" loading-label="Memproses..." @click="confirmVoid">Ya, Void</AdminButton>
         </div>
       </template>
     </TourModal>
 
-    <div class="mt-6 overflow-x-auto rounded-2xl border border-neutral-line bg-white">
-      <table class="w-full min-w-[1350px] text-left text-sm">
-        <thead class="border-b bg-neutral-warm text-xs uppercase text-neutral-charcoal/60"><tr><th class="px-5 py-3">Expense</th><th class="px-5 py-3">Date / Category</th><th class="px-5 py-3">Trip / Order</th><th class="px-5 py-3">Vendor / Booking</th><th class="px-5 py-3">Amount</th><th class="px-5 py-3">Setara IDR</th><th class="px-5 py-3">Status</th><th class="px-5 py-3 text-right">Aksi</th></tr></thead>
-        <tbody class="divide-y">
-          <tr v-for="e in rows" :key="e.id">
-            <td class="px-5 py-3"><p class="font-mono text-xs font-semibold">{{ e.expenseCode }}</p><p class="text-xs text-neutral-charcoal/50 truncate max-w-[200px]">{{ e.description || '—' }}</p></td>
-            <td class="px-5 py-3 text-xs">{{ e.expenseDate }}<br/><TourStatusBadge :status="e.category" type="bookingType" /></td>
-            <td class="px-5 py-3 text-xs"><p class="font-medium">{{ e.trip ? `${e.trip.tripCode} · ${e.trip.name}` : '—' }}</p><p class="text-neutral-charcoal/60">{{ e.order ? `${e.order.orderCode} · ${e.order.paxCount} pax` : '' }} {{ e.customer?.name ? `· ${e.customer.name}` : '' }}</p></td>
-            <td class="px-5 py-3 text-xs"><p class="font-medium">{{ e.vendor?.name || '—' }} <span class="font-mono text-[11px]">{{ e.vendor?.vendorCode || '' }}</span></p><p class="text-neutral-charcoal/60">{{ e.booking ? `${e.booking.bookingCode} · ${e.booking.bookingType}` : '' }}</p></td>
-            <td class="px-5 py-3 text-xs font-medium">{{ e.currency }} {{ Number(e.amount).toLocaleString('id-ID') }} <span v-if="e.exchangeRateSnapshot" class="text-neutral-charcoal/40">kurs {{ Number(e.exchangeRateSnapshot).toLocaleString('id-ID') }}</span></td>
-            <td class="px-5 py-3 text-xs font-semibold">Rp {{ Number(e.amountIdr).toLocaleString('id-ID') }}</td>
-            <td class="px-5 py-3"><TourStatusBadge :status="e.status" type="expense" /></td>
-            <td class="px-5 py-3 text-right">
-              <div class="flex justify-end gap-1">
-                <NuxtLink :to="`/tour/bookings/${e.bookingId}`" v-if="e.bookingId" class="rounded-xl p-2 text-neutral-charcoal/50 hover:bg-neutral-warm" title="Lihat Booking" aria-label="View booking"><Eye class="h-4 w-4" /></NuxtLink>
-                <button v-if="e.status==='DRAFT'" class="rounded-xl p-2 text-neutral-charcoal/60 hover:bg-neutral-warm" title="Edit DRAFT" aria-label="Edit" @click="openEdit(e)"><Pencil class="h-4 w-4" /></button>
-                <button v-if="e.status==='DRAFT'" class="rounded-xl p-2 text-emerald-600 hover:bg-emerald-50" title="Verify → VERIFIED" aria-label="Verify" @click="openVerify(e)"><BadgeCheck class="h-4 w-4" /></button>
-                <button v-if="e.status==='DRAFT'" class="rounded-xl p-2 text-neutral-charcoal/40 hover:bg-red-50 hover:text-red-600" title="Delete DRAFT" aria-label="Delete draft" @click="removeDraft(e)"><Trash2 class="h-4 w-4" /></button>
-                <button v-if="e.status==='VERIFIED'" class="rounded-xl p-2 text-red-600 hover:bg-red-50" title="Void → VOID" aria-label="Void" @click="openVoid(e)"><Ban class="h-4 w-4" /></button>
-                <span v-if="e.status==='VOID'" class="rounded-xl p-2 text-neutral-charcoal/30" title="Void historical" aria-label="Void"><CircleSlash class="h-4 w-4" /></span>
-              </div>
-            </td>
-          </tr>
-          <tr v-if="rows.length===0"><td colspan="8" class="px-5 py-10 text-center text-neutral-charcoal/50">Belum ada expense.</td></tr>
-        </tbody>
-      </table>
+    <div class="mt-6">
+      <AdminTableSkeleton v-if="loadingRows" :rows="5" :cols="8" />
+      <div v-else class="overflow-x-auto rounded-2xl border border-neutral-line bg-white">
+        <table class="w-full min-w-[1350px] text-left text-sm">
+          <thead class="border-b bg-neutral-warm text-xs uppercase text-neutral-charcoal/60"><tr><th class="px-5 py-3">Expense</th><th class="px-5 py-3">Date / Category</th><th class="px-5 py-3">Trip / Order</th><th class="px-5 py-3">Vendor / Booking</th><th class="px-5 py-3">Amount</th><th class="px-5 py-3">Setara IDR</th><th class="px-5 py-3">Status</th><th class="px-5 py-3 text-right">Aksi</th></tr></thead>
+          <tbody class="divide-y">
+            <tr v-for="e in rows" :key="e.id">
+              <td class="px-5 py-3"><p class="font-mono text-xs font-semibold">{{ e.expenseCode }}</p><p class="text-xs text-neutral-charcoal/50 truncate max-w-[200px]">{{ e.description || '—' }}</p></td>
+              <td class="px-5 py-3 text-xs">{{ e.expenseDate }}<br/><TourStatusBadge :status="e.category" type="bookingType" /></td>
+              <td class="px-5 py-3 text-xs"><p class="font-medium">{{ e.trip ? `${e.trip.tripCode} · ${e.trip.name}` : '—' }}</p><p class="text-neutral-charcoal/60">{{ e.order ? `${e.order.orderCode} · ${e.order.paxCount} pax` : '' }} {{ e.customer?.name ? `· ${e.customer.name}` : '' }}</p></td>
+              <td class="px-5 py-3 text-xs"><p class="font-medium">{{ e.vendor?.name || '—' }} <span class="font-mono text-[11px]">{{ e.vendor?.vendorCode || '' }}</span></p><p class="text-neutral-charcoal/60">{{ e.booking ? `${e.booking.bookingCode} · ${e.booking.bookingType}` : '' }}</p></td>
+              <td class="px-5 py-3 text-xs font-medium">{{ e.currency }} {{ Number(e.amount).toLocaleString('id-ID') }} <span v-if="e.exchangeRateSnapshot" class="text-neutral-charcoal/40">kurs {{ Number(e.exchangeRateSnapshot).toLocaleString('id-ID') }}</span></td>
+              <td class="px-5 py-3 text-xs font-semibold">Rp {{ Number(e.amountIdr).toLocaleString('id-ID') }}</td>
+              <td class="px-5 py-3"><TourStatusBadge :status="e.status" type="expense" /></td>
+              <td class="px-5 py-3 text-right">
+                <div class="flex justify-end gap-1">
+                  <NuxtLink :to="`/tour/bookings/${e.bookingId}`" v-if="e.bookingId" class="rounded-xl p-2 text-neutral-charcoal/50 hover:bg-neutral-warm" title="Lihat Booking" aria-label="View booking"><Eye class="h-4 w-4" /></NuxtLink>
+                  <button v-if="e.status==='DRAFT'" class="rounded-xl p-2 text-neutral-charcoal/60 hover:bg-neutral-warm" title="Edit DRAFT" aria-label="Edit" @click="openEdit(e)"><Pencil class="h-4 w-4" /></button>
+                  <button v-if="e.status==='DRAFT'" class="rounded-xl p-2 text-emerald-600 hover:bg-emerald-50" title="Verify → VERIFIED" aria-label="Verify" @click="openVerify(e)"><BadgeCheck class="h-4 w-4" /></button>
+                  <button v-if="e.status==='DRAFT'" class="rounded-xl p-2 text-neutral-charcoal/40 hover:bg-red-50 hover:text-red-600" title="Delete DRAFT" aria-label="Delete draft" @click="removeDraft(e)"><Trash2 class="h-4 w-4" /></button>
+                  <button v-if="e.status==='VERIFIED'" class="rounded-xl p-2 text-red-600 hover:bg-red-50" title="Void → VOID" aria-label="Void" @click="openVoid(e)"><Ban class="h-4 w-4" /></button>
+                  <span v-if="e.status==='VOID'" class="rounded-xl p-2 text-neutral-charcoal/30" title="Void historical" aria-label="Void"><CircleSlash class="h-4 w-4" /></span>
+                </div>
+              </td>
+            </tr>
+            <tr v-if="rows.length===0"><td colspan="8" class="px-5 py-10 text-center text-neutral-charcoal/50">Belum ada expense.</td></tr>
+          </tbody>
+        </table>
+      </div>
     </div>
     <div class="mt-4"><AdminPagination :page="meta.page" :page-count="meta.pageCount" :total="meta.total" @change="(n)=>page=n" /></div>
   </div>

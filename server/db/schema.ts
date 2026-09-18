@@ -927,3 +927,26 @@ export const tourRoomOccupants = pgTable('tour_room_occupants', {
   index('tour_room_occupants_room_idx').on(t.roomId),
   index('tour_room_occupants_jamaah_idx').on(t.jamaahId),
 ])
+
+// ─── Admin Private Attachments V1.1 ─────────────────────────────────────────
+export const ADMIN_ATTACHMENT_ENTITY_TYPES = ['PAYMENT', 'EXPENSE'] as const
+
+export const adminAttachments = pgTable('admin_attachments', {
+  id: serial('id').primaryKey(),
+  workspaceId: integer('workspace_id').notNull().references(() => workspaces.id, { onDelete: 'restrict' }),
+  entityType: text('entity_type').notNull(), // PAYMENT, EXPENSE, future: INVOICE, BOOKING, etc
+  entityId: integer('entity_id').notNull(),
+  fileName: text('file_name').notNull(),
+  originalName: text('original_name').notNull(),
+  storageKey: text('storage_key').notNull().unique(),
+  mimeType: text('mime_type').notNull(),
+  fileSize: integer('file_size').notNull(),
+  uploadedBy: integer('uploaded_by').references(() => adminUsers.id, { onDelete: 'set null' }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  deletedAt: timestamp('deleted_at', { withTimezone: true }),
+}, (t) => [
+  index('admin_attachments_workspace_idx').on(t.workspaceId),
+  index('admin_attachments_entity_idx').on(t.entityType, t.entityId),
+  index('admin_attachments_workspace_entity_idx').on(t.workspaceId, t.entityType, t.entityId),
+  index('admin_attachments_deleted_idx').on(t.deletedAt),
+])
