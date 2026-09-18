@@ -15,6 +15,7 @@ export interface CreateLeadInput {
   source?: string | null
   serviceId?: number | null
   estimationId?: number | null
+  paxEstimate?: number | null
   notes?: string | null
 }
 
@@ -29,9 +30,10 @@ export async function createLead(db: DbLike, input: CreateLeadInput) {
       source: input.source ?? null,
       serviceId: input.serviceId ?? null,
       estimationId: input.estimationId ?? null,
+      paxEstimate: input.paxEstimate ?? null,
       notes: input.notes ?? null,
       status: 'NEW',
-    })
+    } as never)
     .returning()
   return rows[0]
 }
@@ -73,4 +75,15 @@ export async function updateLeadStatus(db: DbLike, id: number, status: string, n
   if (notes !== undefined) patch.notes = notes
   const rows = await db.update(leads).set(patch as never).where(eq(leads.id, id)).returning()
   return rows[0] ?? null
+}
+
+export async function updateLead(db: DbLike, id: number, patch: Record<string, unknown>) {
+  const rows = await db.update(leads).set({ ...patch, updatedAt: new Date() } as never).where(eq(leads.id, id)).returning()
+  return rows[0] ?? null
+}
+
+export async function findCustomersByWhatsapp(db: DbLike, whatsapp: string) {
+  const { tourCustomers } = await import('../db/schema')
+  const { eq, isNull, and } = await import('drizzle-orm')
+  return db.select().from(tourCustomers).where(and(eq(tourCustomers.whatsapp, whatsapp), isNull(tourCustomers.deletedAt))).limit(5)
 }

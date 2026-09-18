@@ -10,6 +10,7 @@
     "postinstall": "nuxt prepare",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
+    "db:finance:fix": "tsx server/db/apply-finance-manual.ts",
     "db:seed": "tsx server/db/seed.ts",
     "admin:create": "tsx server/db/create-admin.ts",
     "test": "tsx --test tests/*.test.ts",
