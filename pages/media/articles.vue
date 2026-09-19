@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { List, Pencil, Plus } from "lucide-vue-next";
 import { articleEditorTranslation, isCompleteArticleTranslation, type ArticleBlock, type ArticleTranslationInput } from "~/shared/article-localization";
+import { normalizeTableBlock } from "~/shared/article-block-editor";
 import type { SupportedLocale } from "~/shared/locales";
 const { show: showGlobalToast } = useAdminToast();
 definePageMeta({ layout: "admin", middleware: "admin-auth" });
@@ -254,6 +255,9 @@ function normalizeBlock(block: ArticleBlock): ArticleBlock {
                 .map((item) => item.trim())
                 .filter(Boolean),
         };
+    if (block.type === "table") {
+        return normalizeTableBlock(block);
+    }
     return block;
 }
 function validateForm() {
@@ -272,6 +276,23 @@ function validateForm() {
         if (block.type === "image" && block.src && !block.alt?.trim())
             fieldErrors[`body-${index}`] =
                 "Alt text wajib diisi untuk image block.";
+        if (block.type === "table") {
+            const normalized = normalizeTableBlock(block);
+            const headers = normalized.headers ?? [];
+            const rows = normalized.rows ?? [];
+            const alignments = normalized.alignments ?? [];
+            if (headers.length < 2) {
+                fieldErrors[`body-${index}`] = "Tabel minimal 2 kolom.";
+            } else if (rows.length < 1) {
+                fieldErrors[`body-${index}`] = "Tabel minimal 1 baris.";
+            } else if (rows.some(r => !Array.isArray(r) || r.length !== headers.length)) {
+                fieldErrors[`body-${index}`] = "Baris tabel tidak konsisten dengan header.";
+            } else if (alignments.length !== headers.length) {
+                fieldErrors[`body-${index}`] = "Alignment tabel tidak konsisten.";
+            } else if (headers.every(h => !h.trim())) {
+                fieldErrors[`body-${index}`] = "Header tabel tidak boleh semua kosong.";
+            }
+        }
     });
     const first = Object.keys(fieldErrors)[0];
     if (first)
