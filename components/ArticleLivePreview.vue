@@ -19,7 +19,23 @@ defineProps<{ title?: string; excerpt?: string; heroImage?: string; heroAlt?: st
         <ol v-else-if="block.type === 'list'" class="mb-6 list-decimal space-y-2 pl-6 text-sm leading-7"><li v-for="(item,itemIndex) in block.items" :key="itemIndex">{{ item }}</li></ol>
         <aside v-else-if="block.type === 'callout'" class="mb-6 border-l-2 border-gold bg-gold-sand/50 px-4 py-3 text-sm leading-6">{{ block.text }}</aside>
         <figure v-else-if="block.type === 'image'" class="mx-auto mb-6 w-full" :style="articleImageFigureStyle(block)"><div class="overflow-hidden rounded-xl" :style="articleImageRatioStyle(block)"><img :src="block.src" :alt="block.alt" class="w-full" :style="articleImageObjectStyle(block)" /></div><figcaption v-if="block.caption" class="mt-2 text-xs leading-5 text-neutral-charcoal/50">{{ block.caption }}</figcaption></figure>
+        <div v-else-if="block.type === 'table'" class="mb-8 overflow-x-auto rounded-xl border border-neutral-line bg-white">
+          <table class="min-w-[480px] w-full border-collapse text-sm">
+            <caption v-if="block.caption" class="caption-top px-4 py-2 text-left text-xs font-medium text-neutral-charcoal/60">{{ block.caption }}</caption>
+            <thead>
+              <tr class="bg-neutral-soft/70">
+                <th v-for="(header, hIdx) in (block.headers ?? [])" :key="hIdx" scope="col" class="border-b border-neutral-line px-3 py-2 text-left font-semibold" :style="{ textAlign: (block.alignments?.[hIdx] ?? 'left') }">{{ header }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="(row, rIdx) in (block.rows ?? [])" :key="rIdx" class="border-b border-neutral-line last:border-0">
+                <td v-for="(cell, cIdx) in row" :key="cIdx" class="px-3 py-2 align-top" :style="{ textAlign: (block.alignments?.[cIdx] ?? 'left') }">{{ cell }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
       </template>
     </div>
   </section>
 </template>
+
