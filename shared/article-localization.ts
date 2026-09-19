@@ -1,7 +1,7 @@
 import { DEFAULT_LOCALE, SUPPORTED_LOCALES, type SupportedLocale } from './locales'
 
 export type ArticleBlock = {
-  type: 'paragraph' | 'heading' | 'image' | 'blockquote' | 'list' | 'callout'
+  type: 'paragraph' | 'heading' | 'image' | 'blockquote' | 'list' | 'callout' | 'table'
   level?: 2 | 3
   text?: string
   ordered?: boolean
@@ -12,6 +12,9 @@ export type ArticleBlock = {
   fileId?: string
   displaySize?: 'small' | 'medium' | 'wide' | 'full'
   aspectRatio?: 'auto' | '16:9' | '4:5' | '1:1'
+  headers?: string[]
+  rows?: string[][]
+  alignments?: Array<'left' | 'center' | 'right'>
 }
 
 export type ArticleTranslationInput = {

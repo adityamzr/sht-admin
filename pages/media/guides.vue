@@ -3,6 +3,7 @@ import { mediaEditorTranslation, isCompleteGuideTranslation, type GuideTranslati
 import type { SupportedLocale } from '~/shared/locales';
 import type { ArticleBlock } from '~/shared/article-localization';
 import { articleImageFigureStyle, articleImageRatioStyle, articleImageObjectStyle } from '~/shared/article-block-presentation';
+import { normalizeTableBlock } from '~/shared/article-block-editor';
 import { Plus } from "lucide-vue-next";
 const { show: showGlobalToast } = useAdminToast();
 definePageMeta({ layout: "admin", middleware: "admin-auth" });
@@ -149,14 +150,18 @@ function editGuide(guide: AdminGuide) {
     window.scrollTo({ top: 0, behavior: "smooth" });
 }
 function normalizeBlock(block: ArticleBlock): ArticleBlock {
-    return block.type === "list"
-        ? {
-              ...block,
-              items: (block.items ?? [])
-                  .map((item) => item.trim())
-                  .filter(Boolean),
-          }
-        : block;
+    if (block.type === "list") {
+        return {
+            ...block,
+            items: (block.items ?? [])
+                .map((item) => item.trim())
+                .filter(Boolean),
+        };
+    }
+    if (block.type === "table") {
+        return normalizeTableBlock(block);
+    }
+    return block;
 }
 function validateForm() {
     clearErrors();
@@ -174,6 +179,25 @@ function validateForm() {
         if (block.type === "image" && block.src && !block.alt?.trim())
             fieldErrors[`body-${index}`] =
                 "Alt text wajib diisi untuk image block.";
+        if (block.type === "table") {
+            const normalized = normalizeTableBlock(block);
+            const headers = normalized.headers ?? [];
+            const rows = normalized.rows ?? [];
+            const alignments = normalized.alignments ?? [];
+            if (headers.length < 2) {
+                fieldErrors[`body-${index}`] = "Tabel minimal 2 kolom.";
+            } else if (rows.length < 1) {
+                fieldErrors[`body-${index}`] = "Tabel minimal 1 baris.";
+            } else if (headers.some(h => typeof h !== 'string')) {
+                fieldErrors[`body-${index}`] = "Header tabel tidak valid.";
+            } else if (rows.some(r => !Array.isArray(r) || r.length !== headers.length)) {
+                fieldErrors[`body-${index}`] = "Baris tabel tidak konsisten dengan header.";
+            } else if (alignments.length !== headers.length) {
+                fieldErrors[`body-${index}`] = "Alignment tabel tidak konsisten.";
+            } else if (headers.every(h => !h.trim())) {
+                fieldErrors[`body-${index}`] = "Header tabel tidak boleh semua kosong.";
+            }
+        }
     });
     const first = Object.keys(fieldErrors)[0];
     if (first)
@@ -780,7 +804,21 @@ watch(currentPage, () => clear());
                         >
                             {{ block.caption }}
                         </figcaption>
-                    </figure></template
+                    </figure><div v-else-if="block.type === 'table'" class="mb-8 overflow-x-auto rounded-xl border border-neutral-line bg-white">
+                        <table class="min-w-[480px] w-full border-collapse text-sm">
+                            <caption v-if="block.caption" class="caption-top px-4 py-2 text-left text-xs font-medium text-neutral-charcoal/60">{{ block.caption }}</caption>
+                            <thead>
+                                <tr class="bg-neutral-soft/70">
+                                    <th v-for="(header, hIdx) in (block.headers ?? [])" :key="hIdx" scope="col" class="border-b border-neutral-line px-3 py-2 text-left font-semibold" :style="{ textAlign: (block.alignments?.[hIdx] ?? 'left') }">{{ header }}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr v-for="(row, rIdx) in (block.rows ?? [])" :key="rIdx" class="border-b border-neutral-line last:border-0">
+                                    <td v-for="(cell, cIdx) in row" :key="cIdx" class="px-3 py-2 align-top" :style="{ textAlign: (block.alignments?.[cIdx] ?? 'left') }">{{ cell }}</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div></template
                 >
             </div>
         </section>
