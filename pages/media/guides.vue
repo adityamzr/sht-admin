@@ -1,28 +1,20 @@
 <script setup lang="ts">
 import { mediaEditorTranslation, isCompleteGuideTranslation, type GuideTranslation } from '~/shared/media-localization';
 import type { SupportedLocale } from '~/shared/locales';
+import type { ArticleBlock } from '~/shared/article-localization';
+import { articleImageFigureStyle, articleImageRatioStyle, articleImageObjectStyle } from '~/shared/article-block-presentation';
 import { Plus } from "lucide-vue-next";
 const { show: showGlobalToast } = useAdminToast();
 definePageMeta({ layout: "admin", middleware: "admin-auth" });
 
 type GuideStatus = "DRAFT" | "PUBLISHED" | "ARCHIVED";
-type GuideBlock = {
-    type: "paragraph" | "heading" | "image" | "blockquote" | "list" | "callout";
-    level?: 2 | 3;
-    text?: string;
-    ordered?: boolean;
-    items?: string[];
-    src?: string;
-    alt?: string;
-    caption?: string;
-};
 type AdminGuide = {
     id: number;
     title: string;
     slug: string;
     group: string;
     summary: string | null;
-    body: GuideBlock[];
+    body: ArticleBlock[];
     sortOrder: number;
     status: GuideStatus;
     publishedAt: string | null;
@@ -61,7 +53,7 @@ let toastTimer: ReturnType<typeof setTimeout> | null = null;
 const localeTab = ref<SupportedLocale>('id');
 const previewLocale = ref<SupportedLocale>('id');
 const translationFilter = ref('');
-const emptyEnglish = () => ({ title: '', slug: '', summary: '', body: [] as GuideBlock[] });
+const emptyEnglish = () => ({ title: '', slug: '', summary: '', body: [] as ArticleBlock[] });
 const english = reactive(emptyEnglish());
 const form = reactive({
     title: "",
@@ -71,7 +63,7 @@ const form = reactive({
     sortOrder: 10,
     status: "DRAFT" as GuideStatus,
     publishedAt: null as string | null,
-    body: [] as GuideBlock[],
+    body: [] as ArticleBlock[],
 });
 const editorText = computed(() => localeTab.value === 'en' ? english : form);
 const previewText = computed(() => previewLocale.value === 'en' ? english : form);
@@ -131,7 +123,7 @@ function emptyForm() {
         sortOrder: 10,
         status: "DRAFT",
         publishedAt: null,
-        body: [{ type: "paragraph", text: "" }],
+        body: [{ type: "paragraph", text: "" } as ArticleBlock],
     });
     previewOpen.value = false;
 }
@@ -150,27 +142,13 @@ function editGuide(guide: AdminGuide) {
         summary: idText.summary ?? "",
         sortOrder: guide.sortOrder,
         status: guide.status,
-        body: idText.body,
+        body: idText.body as ArticleBlock[],
         publishedAt: guide.publishedAt,
     });
     previewOpen.value = false;
     window.scrollTo({ top: 0, behavior: "smooth" });
 }
-function addBlock(type: GuideBlock["type"]) {
-    form.body.push(
-        type === "heading"
-            ? { type, level: 2, text: "" }
-            : type === "list"
-              ? { type, ordered: false, items: [""] }
-              : type === "image"
-                ? { type, src: "", alt: "", caption: "" }
-                : { type, text: "" },
-    );
-}
-function removeBlock(index: number) {
-    form.body.splice(index, 1);
-}
-function normalizeBlock(block: GuideBlock): GuideBlock {
+function normalizeBlock(block: ArticleBlock): ArticleBlock {
     return block.type === "list"
         ? {
               ...block,
@@ -651,149 +629,19 @@ watch(currentPage, () => clear());
                         ></label
                     >
                     <div v-if="localeTab === 'id'" class="border-t border-neutral-line pt-4">
-                        <div class="flex items-center justify-between">
-                            <div>
-                                <h3 class="font-semibold">Body Blocks</h3>
-                                <p
-                                    class="mt-1 text-xs text-neutral-charcoal/55"
-                                >
-                                    Menggunakan structured block editor dan
-                                    ImageKit uploader.
-                                </p>
-                            </div>
-                            <select
-                                class="min-h-[36px] rounded-full border border-neutral-line px-3 text-xs"
-                                @change="
-                                    (event) => {
-                                        const select =
-                                            event.target as HTMLSelectElement;
-                                        if (select.value)
-                                            addBlock(
-                                                select.value as GuideBlock['type'],
-                                            );
-                                        select.value = '';
-                                    }
-                                "
-                            >
-                                <option value="">Tambah block...</option>
-                                <option value="paragraph">Paragraph</option>
-                                <option value="heading">H2 / H3</option>
-                                <option value="image">Image</option>
-                                <option value="blockquote">Quote</option>
-                                <option value="list">
-                                    Bullet / Numbered List
-                                </option>
-                                <option value="callout">Info / Callout</option>
-                            </select>
-                        </div>
-                        <div class="mt-4 space-y-3">
-                            <div
-                                v-for="(block, index) in form.body"
-                                :key="index"
-                                class="rounded-xl border border-neutral-line p-3"
-                            >
-                                <div class="flex items-center justify-between">
-                                    <span
-                                        class="text-xs font-semibold uppercase tracking-[0.12em] text-gold"
-                                        >{{
-                                            block.type === "heading"
-                                                ? `H${block.level}`
-                                                : block.type
-                                        }}</span
-                                    ><button
-                                        type="button"
-                                        class="text-xs text-red-700"
-                                        @click="removeBlock(index)"
-                                    >
-                                        Hapus
-                                    </button>
-                                </div>
-                                <textarea
-                                    v-if="
-                                        [
-                                            'paragraph',
-                                            'blockquote',
-                                            'callout',
-                                        ].includes(block.type)
-                                    "
-                                    :data-field="`body-${index}`"
-                                    v-model="block.text"
-                                    rows="3"
-                                    class="mt-2 w-full rounded-lg border px-3 py-2 text-sm"
-                                    :class="
-                                        fieldErrors[`body-${index}`]
-                                            ? 'border-red-400'
-                                            : 'border-neutral-line'
-                                    "
-                                />
-                                <div
-                                    v-else-if="block.type === 'heading'"
-                                    class="mt-2 grid gap-2 sm:grid-cols-[90px_1fr]"
-                                >
-                                    <select
-                                        v-model.number="block.level"
-                                        class="rounded-lg border border-neutral-line px-2 text-sm"
-                                    >
-                                        <option :value="2">H2</option>
-                                        <option :value="3">H3</option></select
-                                    ><input
-                                        :data-field="`body-${index}`"
-                                        v-model="block.text"
-                                        type="text"
-                                        class="rounded-lg border border-neutral-line px-3 text-sm"
-                                    />
-                                </div>
-                                <div
-                                    v-else-if="block.type === 'list'"
-                                    class="mt-2"
-                                >
-                                    <select
-                                        v-model="block.ordered"
-                                        class="rounded-lg border border-neutral-line px-2 py-1 text-xs"
-                                    >
-                                        <option :value="false">Bullet</option>
-                                        <option :value="true">
-                                            Numbered
-                                        </option></select
-                                    ><textarea
-                                        :value="(block.items ?? []).join('\n')"
-                                        rows="3"
-                                        class="mt-2 w-full rounded-lg border border-neutral-line px-3 py-2 text-sm"
-                                        @input="
-                                            block.items = (
-                                                $event.target as HTMLTextAreaElement
-                                            ).value.split('\n')
-                                        "
-                                    />
-                                </div>
-                                <div v-else class="mt-2 grid gap-2">
-                                    <MediaImageUploader
-                                        v-model="block.src"
-                                        label="Guide image"
-                                        folder="guides"
-                                    /><input
-                                        v-model="block.alt"
-                                        type="text"
-                                        class="rounded-lg border border-neutral-line px-3 py-2 text-sm"
-                                        placeholder="Alt text"
-                                    /><input
-                                        v-model="block.caption"
-                                        type="text"
-                                        class="rounded-lg border border-neutral-line px-3 py-2 text-sm"
-                                        placeholder="Caption (opsional)"
-                                    />
-                                </div>
-                                <p
-                                    v-if="fieldErrors[`body-${index}`]"
-                                    class="mt-1 text-xs text-red-700"
-                                >
-                                    {{ fieldErrors[`body-${index}`] }}
-                                </p>
-                            </div>
-                        </div>
+                        <MediaStructuredBlockEditor
+                            v-model="form.body"
+                            folder="guides"
+                            :errors="fieldErrors"
+                        />
                     </div>
-                    <MediaStructuredBlockEditor v-else v-model="english.body" folder="guides" />
-                    <p v-if="localeTab === 'en'" class="text-xs text-neutral-charcoal/55">Publik English membutuhkan judul, slug, dan body. Group dan urutan berlaku untuk kedua bahasa.</p>
+                    <div v-else class="border-t border-neutral-line pt-4">
+                        <MediaStructuredBlockEditor
+                            v-model="english.body"
+                            folder="guides"
+                        />
+                        <p class="mt-3 text-xs text-neutral-charcoal/55">Publik English membutuhkan judul, slug, dan body. Group dan urutan berlaku untuk kedua bahasa.</p>
+                    </div>
                     <div
                         class="flex flex-wrap gap-2 border-t border-neutral-line pt-4"
                     >
@@ -917,12 +765,15 @@ watch(currentPage, () => clear());
                     >
                         {{ block.text }}
                     </aside>
-                    <figure v-else-if="block.type === 'image'" class="mb-6">
-                        <img
-                            :src="block.src"
-                            :alt="block.alt"
-                            class="w-full rounded-xl object-cover"
-                        />
+                    <figure v-else-if="block.type === 'image'" class="mx-auto mb-6 w-full" :style="articleImageFigureStyle(block as any)">
+                        <div class="overflow-hidden rounded-xl" :style="articleImageRatioStyle(block as any)">
+                            <img
+                                :src="block.src"
+                                :alt="block.alt"
+                                class="w-full"
+                                :style="articleImageObjectStyle(block as any)"
+                            />
+                        </div>
                         <figcaption
                             v-if="block.caption"
                             class="mt-2 text-xs text-neutral-charcoal/50"
