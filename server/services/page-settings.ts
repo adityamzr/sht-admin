@@ -114,7 +114,7 @@ export async function saveHomePageSettings(db: DbLike, input: HomePageSettingsIn
     return getHomeSettings(tx)
   })
 }
-function defaultSettings(pageKey: string) {
+function defaultSettings(pageKey: string): any {
   if (pageKey === 'link-bio') {
     return {
       pageKey,
@@ -127,7 +127,30 @@ function defaultSettings(pageKey: string) {
     heroTopicOverride: null as Array<{ id: string; label: string; isActive: boolean; sortOrder: number }> | null,
     featuredArticleId: null as number | null, supportingArticleIds: [] as number[], editorialArticleIds: [] as number[] }
 }
-export async function publicPageSettings(db: DbLike, pageKey: string, locale: SupportedLocale = DEFAULT_LOCALE) {
+// Overloads for type-safe public settings
+export async function publicPageSettings(db: DbLike, pageKey: 'link-bio', locale?: SupportedLocale): Promise<{
+  pageKey: string
+  title: string
+  description: string | null
+  links: LinkBioInput['links']
+  locale: SupportedLocale
+  translationAvailable: boolean
+  availableLocales: string[]
+}>
+export async function publicPageSettings(db: DbLike, pageKey: string, locale?: SupportedLocale): Promise<{
+  pageKey: string
+  heroImageUrl: string | null
+  heroHeadline: string | null
+  heroSubheadline: string | null
+  heroTopicOverride: Array<{ id: string; label: string; isActive: boolean; sortOrder: number }> | null
+  featuredArticleId: number | null
+  supportingArticleIds: number[]
+  editorialArticleIds: number[]
+  locale: SupportedLocale
+  translationAvailable: boolean
+  availableLocales: string[]
+}>
+export async function publicPageSettings(db: DbLike, pageKey: string, locale: SupportedLocale = DEFAULT_LOCALE): Promise<any> {
   const row = await getPageSettings(db, pageKey)
   if (pageKey === 'link-bio') {
     const defaults = defaultSettings(pageKey) as { pageKey: string; title: string; description: string | null; links: LinkBioInput['links'] }
