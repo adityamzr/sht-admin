@@ -35,6 +35,7 @@ import {
     Wallet,
     BarChart3,
     LineChart,
+    Link2,
 } from "lucide-vue-next";
 
 const route = useRoute();
@@ -106,6 +107,7 @@ const mediaMenu: { label: string; to: string; icon: any; section?: string }[] = 
     { label: "Home", to: "/media/settings/home", icon: House, section: "PAGE SETTINGS" },
     { label: "Makkah", to: "/media/settings/makkah", icon: MapPinned },
     { label: "Madinah", to: "/media/settings/madinah", icon: Landmark },
+    { label: "Link Bio", to: "/media/link-bio", icon: Link2 },
     { label: "Kontribusi Pengguna", to: "/media/contributions", icon: Inbox, section: "INTERAKSI" },
     { label: "Feedback Artikel", to: "/media/article-feedback", icon: MessageSquareHeart },
     { label: "Artikel", to: "/media/articles", icon: Newspaper, section: "CONTENT LIBRARY" },

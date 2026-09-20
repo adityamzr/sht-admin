@@ -436,7 +436,46 @@ export const contributionAdminPatch=z.object({status:z.enum(CONTRIBUTION_STATUSE
 
 export const articleFeedbackInput=z.object({value:z.enum(ARTICLE_FEEDBACK_VALUES)})
 
-export const pageSettingsKeys=['home','makkah','madinah'] as const
+export const pageSettingsKeys=['home','makkah','madinah','link-bio'] as const
+
+// ─── Link Bio / Link Hub ───────────────────────────────────────────────────
+export const LINK_BIO_TYPES = ['website','whatsapp','instagram','youtube','tiktok','telegram','form','article','guide','community','external','custom'] as const
+
+const safeLinkUrl = z.string().trim().min(1).max(1000).superRefine((val, ctx) => {
+  const lower = val.toLowerCase()
+  if (lower.startsWith('javascript:') || lower.startsWith('data:') || lower.startsWith('vbscript:')) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Protokol URL tidak aman' })
+    return
+  }
+  if (lower.startsWith('https://') || lower.startsWith('http://')) {
+    try { new URL(val) } catch { ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'URL tidak valid' }) }
+    return
+  }
+  if (lower.startsWith('mailto:') || lower.startsWith('tel:')) {
+    if (val.length < 7) ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'URL mailto/tel tidak valid' })
+    return
+  }
+  ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'URL harus diawali https://, http://, mailto:, atau tel:' })
+})
+
+export const linkBioLinkInput = z.object({
+  id: z.string().trim().min(1).max(80),
+  label: z.string().trim().min(1).max(120),
+  description: z.string().trim().max(300).nullable().optional().transform((v) => (v as string) || null),
+  url: safeLinkUrl,
+  type: z.enum(LINK_BIO_TYPES),
+  featured: z.boolean().default(false),
+  isActive: z.boolean().default(true),
+  sortOrder: z.number().int().min(0).max(9999).default(0),
+  group: z.string().trim().max(80).nullable().optional().transform((v) => (v as string) || null),
+})
+
+export const linkBioInput = z.object({
+  title: z.string().trim().min(1).max(120).default('Sudut Haramain'),
+  description: z.string().trim().max(600).nullable().optional().transform((v) => (v as string) || null),
+  links: z.array(linkBioLinkInput).max(50).default([]),
+})
+
 export const pageSettingsInput=z.object({heroImageUrl:z.string().url().max(1000).nullable().optional(),heroImageFileId:z.string().max(255).nullable().optional(),heroHeadline:z.string().max(240).nullable().optional(),heroSubheadline:z.string().max(600).nullable().optional(),heroTopicOverride:z.array(z.object({id:z.string().min(1).max(80),label:z.string().trim().min(1).max(80),isActive:z.boolean(),sortOrder:z.number().int().min(0).max(9999)})).max(40).nullable().optional(),featuredArticleId:z.number().int().positive().nullable().optional(),supportingArticleIds:z.array(z.number().int().positive()).max(3),editorialArticleIds:z.array(z.number().int().positive()).max(6)})
 // Home alone is localized in this phase; Makkah/Madinah settings keep their contract.
 const homeText = z.object({ heroHeadline: nullableText(240), heroSubheadline: nullableText(600), heroTopicLabels: z.record(z.string().min(1).max(80), z.string().trim().max(80)).default({}) })
