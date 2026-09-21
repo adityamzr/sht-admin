@@ -2,6 +2,7 @@
 import { List, Pencil, Plus } from "lucide-vue-next";
 import { articleEditorTranslation, isCompleteArticleTranslation, type ArticleBlock, type ArticleTranslationInput } from "~/shared/article-localization";
 import { normalizeTableBlock } from "~/shared/article-block-editor";
+import { createEmptyRichTextDocument, isRichTextDocumentEmpty, legacyBlocksToHybridBody, normalizeRichTextDocument } from "~/shared/rich-text";
 import type { SupportedLocale } from "~/shared/locales";
 const { show: showGlobalToast } = useAdminToast();
 definePageMeta({ layout: "admin", middleware: "admin-auth" });
@@ -195,7 +196,7 @@ function emptyForm() {
         tags: "",
         status: "DRAFT",
         priority: 0,
-        body: [{ type: "paragraph", text: "" }],
+        body: [{ type: "richText", content: createEmptyRichTextDocument() }],
     });
     previewOpen.value = true;
     articleListOpen.value = false;
@@ -219,13 +220,14 @@ function editArticle(article: AdminArticle) {
         tags: article.tags.join(", "),
         status: article.status,
         priority: article.priority,
-        body: idTranslation.body,
+        body: legacyBlocksToHybridBody(idTranslation.body),
         seoTitle: idTranslation.seoTitle,
         seoDescription: idTranslation.seoDescription,
         ogImage: article.ogImage ?? "",
         publishedAt: article.publishedAt,
     });
-    Object.assign(enTranslation, articleEditorTranslation(article, 'en'));
+    const enText = articleEditorTranslation(article, 'en');
+    Object.assign(enTranslation, enText, { body: legacyBlocksToHybridBody(enText.body) });
     localeTab.value = 'id';
     previewLocale.value = 'id';
     previewOpen.value = true;
@@ -233,21 +235,9 @@ function editArticle(article: AdminArticle) {
     mobileWorkspaceTab.value = 'edit';
     window.scrollTo({ top: 0, behavior: "smooth" });
 }
-function addBlock(type: ArticleBlock["type"]) {
-    form.body.push(
-        type === "heading"
-            ? { type, level: 2, text: "" }
-            : type === "list"
-              ? { type, ordered: false, items: [""] }
-              : type === "image"
-                ? { type, src: "", alt: "", caption: "" }
-                : { type, text: "" },
-    );
-}
-function removeBlock(index: number) {
-    form.body.splice(index, 1);
-}
 function normalizeBlock(block: ArticleBlock): ArticleBlock {
+    if (block.type === "richText")
+        return { ...block, content: normalizeRichTextDocument(block.content) };
     if (block.type === "list")
         return {
             ...block,
@@ -266,6 +256,8 @@ function validateForm() {
     if (!form.slug.trim()) fieldErrors.slug = "Slug wajib diisi.";
     if (!form.category.trim()) fieldErrors.category = "Kategori wajib dipilih.";
     form.body.forEach((block, index) => {
+        if (block.type === "richText" && isRichTextDocumentEmpty(block.content))
+            fieldErrors[`body-${index}`] = "Isi teks masih kosong.";
         if (
             ["paragraph", "heading", "blockquote", "callout"].includes(
                 block.type,

@@ -20,6 +20,10 @@
   "dependencies": {
     "@imagekit/nodejs": "^7.11.0",
     "@pinia/nuxt": "^0.5.5",
+    "@tiptap/extension-link": "^3.31.3",
+    "@tiptap/extension-placeholder": "^3.31.3",
+    "@tiptap/starter-kit": "^3.31.3",
+    "@tiptap/vue-3": "^3.31.3",
     "dotenv": "^16.6.1",
     "drizzle-orm": "^0.36.4",
     "lucide-vue-next": "^1.0.0",

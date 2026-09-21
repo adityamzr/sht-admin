@@ -6,6 +6,7 @@ import type { DbLike } from '../db'
 import type { articleInput } from '../utils/validators'
 import { DEFAULT_LOCALE, type SupportedLocale } from '../../shared/locales'
 import { isCompleteArticleTranslation, type ArticleTranslationInput } from '../../shared/article-localization'
+import { nonEmptyBody } from '../utils/media-localization'
 
 export { isCompleteArticleTranslation, type ArticleTranslationInput } from '../../shared/article-localization'
 export type ArticleInput = Omit<z.output<typeof articleInput>, 'publishedAt'> & { publishedAt?: Date | null }
@@ -35,8 +36,7 @@ function completeTranslationCondition() {
     length(btrim(${articleTranslations.title}, ${whitespace})) > 0
     and length(btrim(${articleTranslations.slug}, ${whitespace})) > 0
     and length(btrim(${articleTranslations.excerpt}, ${whitespace})) > 0
-    and case when jsonb_typeof(${articleTranslations.body}) = 'array'
-      then jsonb_array_length(${articleTranslations.body}) > 0 else false end,
+    and ${nonEmptyBody(articleTranslations.body)},
     false)`
 }
 

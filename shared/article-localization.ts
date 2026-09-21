@@ -1,7 +1,9 @@
 import { DEFAULT_LOCALE, SUPPORTED_LOCALES, type SupportedLocale } from './locales'
+import type { RichTextDocument } from './rich-text'
+import { isMeaningfulArticleBody } from './rich-text'
 
 export type ArticleBlock = {
-  type: 'paragraph' | 'heading' | 'image' | 'blockquote' | 'list' | 'callout' | 'table'
+  type: 'paragraph' | 'heading' | 'image' | 'blockquote' | 'list' | 'callout' | 'table' | 'richText'
   level?: 2 | 3
   text?: string
   ordered?: boolean
@@ -15,6 +17,7 @@ export type ArticleBlock = {
   headers?: string[]
   rows?: string[][]
   alignments?: Array<'left' | 'center' | 'right'>
+  content?: RichTextDocument
 }
 
 export type ArticleTranslationInput = {
@@ -28,7 +31,7 @@ export type ArticleTranslationInput = {
 }
 
 export function isCompleteArticleTranslation(t: ArticleTranslationInput | null | undefined) {
-  return Boolean(t?.title?.trim() && t.slug?.trim() && t.excerpt?.trim() && Array.isArray(t.body) && t.body.length > 0)
+  return Boolean(t?.title?.trim() && t.slug?.trim() && t.excerpt?.trim() && isMeaningfulArticleBody(t.body))
 }
 
 export function articleLocaleLinks(translations: Array<ArticleTranslationInput & { locale: string }>) {

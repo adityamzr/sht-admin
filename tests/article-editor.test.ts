@@ -8,6 +8,7 @@ import { parse, compileScript } from 'vue/compiler-sfc'
 import { createSSRApp, defineComponent, h } from 'vue'
 import { renderToString } from 'vue/server-renderer'
 import { articleEditorTranslation } from '../shared/article-localization'
+import { extractRichTextDocumentText } from '../shared/rich-text'
 
 const original = {
   id: 1, title: 'Stale legacy title', slug: 'stale-slug', excerpt: 'Stale excerpt',
@@ -30,6 +31,8 @@ describe('Article editor and preview regression', () => {
   let Page: any
   let Badge: any
   let Blocks: any
+  let ContentBlocks: any
+  let RichTextRenderer: any
   let Preview: any
   const autoImports = `import { ref, reactive, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue';\n`
   before(async () => {
@@ -55,6 +58,8 @@ describe('Article editor and preview regression', () => {
     `)
     Badge = await compile('components/AdminStatusBadge.vue')
     Blocks = await compile('components/MediaStructuredBlockEditor.vue')
+    ContentBlocks = await compile('components/MediaContentBlocks.vue')
+    RichTextRenderer = await compile('components/MediaRichTextRenderer.vue')
     Preview = await compile('components/ArticleLivePreview.vue')
   })
   after(async () => { if (directory) await rm(directory, { recursive: true, force: true }) })
@@ -70,6 +75,12 @@ describe('Article editor and preview regression', () => {
     const Stub = defineComponent({ setup: (_, { slots }) => () => h('div', slots.default?.()) })
     for (const name of ['PageHead', 'BulkActionBar', 'MediaImageUploader']) app.component(name, Stub)
     app.component('AdminStatusBadge', Badge)
+    app.component('MediaRichTextEditor', defineComponent({
+      props: ['modelValue'],
+      setup(props) { return () => h('div', extractRichTextDocumentText(props.modelValue)) },
+    }))
+    app.component('MediaRichTextRenderer', RichTextRenderer)
+    app.component('MediaContentBlocks', ContentBlocks)
     app.component('MediaStructuredBlockEditor', Blocks)
     app.component('ArticleLivePreview', Preview)
     return renderToString(app)
