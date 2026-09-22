@@ -89,8 +89,9 @@ describe('Media localization database regression', { concurrency: false }, () =>
           const { translations, ...master } = c.fixture()
           await db.insert(c.table as any).values({ ...master, ...translations.id, latitude: '21.42', longitude: '39.82' })
         }
-        await db.insert(schema.mediaPageSettings).values({ pageKey: 'home', heroHeadline: 'Backfill Home', heroTopicOverride: [{ id: 'one', label: 'Label Indonesia', isActive: true, sortOrder: 0 }], supportingArticleIds: [], editorialArticleIds: [] })
-        await db.insert(schema.mediaPageSettings).values({ pageKey: 'makkah', heroHeadline: 'City unchanged', supportingArticleIds: [], editorialArticleIds: [] })
+        // Use raw SQL to avoid requiring link_bio columns that are added later (0025)
+        await client.exec(`INSERT INTO "media_page_settings" ("page_key", "hero_headline", "hero_topic_override", "supporting_article_ids", "editorial_article_ids") VALUES ('home', 'Backfill Home', '[{"id":"one","label":"Label Indonesia","isActive":true,"sortOrder":0}]', '[]', '[]') ON CONFLICT ("page_key") DO NOTHING;`)
+        await client.exec(`INSERT INTO "media_page_settings" ("page_key", "hero_headline", "supporting_article_ids", "editorial_article_ids") VALUES ('makkah', 'City unchanged', '[]', '[]') ON CONFLICT ("page_key") DO NOTHING;`)
       }
       await client.exec(await readFile(new URL(`../server/db/migrations/${entry.tag}.sql`, import.meta.url), 'utf8'))
     }

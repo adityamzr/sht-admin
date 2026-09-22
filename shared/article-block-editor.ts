@@ -1,4 +1,5 @@
 import type { ArticleBlock } from './article-localization'
+import { createEmptyRichTextDocument } from './rich-text'
 
 export type TableAlignment = 'left' | 'center' | 'right'
 
@@ -168,6 +169,7 @@ export function updateTableCaption(block: ArticleBlock, caption: string): Articl
 }
 
 export function createArticleBlock(type: ArticleBlock['type']): ArticleBlock {
+  if (type === 'richText') return { type, content: createEmptyRichTextDocument() }
   if (type === 'heading') return { type, level: 2, text: '' }
   if (type === 'list') return { type, ordered: false, items: [''] }
   if (type === 'image') return { type, src: '', alt: '', caption: '', displaySize: 'medium', aspectRatio: 'auto' }

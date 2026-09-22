@@ -7,7 +7,28 @@ export function nonBlank(column: AnyColumn) {
   return sql<boolean>`coalesce(length(btrim(${column}, ${whitespace})) > 0, false)`
 }
 export function nonEmptyBody(column: AnyColumn) {
-  return sql<boolean>`case when jsonb_typeof(${column}) = 'array' then jsonb_array_length(${column}) > 0 else false end`
+  const whitespace = ' \t\n\r\f\v\u00a0\ufeff\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200a\u2028\u2029\u202f\u205f\u3000'
+  return sql<boolean>`case when jsonb_typeof(${column}) = 'array' then exists (
+    select 1 from jsonb_array_elements(${column}) as block
+    where
+      (block->>'type' = 'richText' and exists (
+        select 1 from jsonb_path_query(block->'content', '$.**.text') as value
+        where length(btrim(value #>> '{}', ${whitespace})) > 0
+      ))
+      or (block->>'type' in ('paragraph', 'heading', 'blockquote', 'callout') and length(btrim(coalesce(block->>'text', ''), ${whitespace})) > 0)
+      or (block->>'type' = 'list' and exists (
+        select 1 from jsonb_array_elements_text(coalesce(block->'items', '[]'::jsonb)) as value
+        where length(btrim(value, ${whitespace})) > 0
+      ))
+      or (block->>'type' = 'image' and length(btrim(coalesce(block->>'src', ''), ${whitespace})) > 0)
+      or (block->>'type' = 'table' and (
+        length(btrim(coalesce(block->>'caption', ''), ${whitespace})) > 0
+        or exists (
+          select 1 from jsonb_path_query(block, '$.rows[*][*]') as value
+          where length(btrim(value #>> '{}', ${whitespace})) > 0
+        )
+      ))
+  ) else false end`
 }
 export function readinessCondition(readiness: TranslationReadiness | undefined, complete: SQL) {
   return readiness === 'complete' ? complete : readiness === 'incomplete' ? not(complete) : undefined

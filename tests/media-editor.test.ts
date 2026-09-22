@@ -7,6 +7,7 @@ import { build } from 'esbuild'
 import { parse, compileScript } from 'vue/compiler-sfc'
 import { createSSRApp, defineComponent, h } from 'vue'
 import { renderToString } from 'vue/server-renderer'
+import { extractArticleBodyText, extractRichTextDocumentText } from '../shared/rich-text'
 
 const blocks = (text: string) => [{ type: 'paragraph', text }]
 const common = { id: 1, city: 'MAKKAH', category: 'MASJID', tags: ['shared'], latitude: 21.42, longitude: 39.82, status: 'PUBLISHED', publishedAt: '2026-08-01T00:00:00.000Z', updatedAt: '2026-08-02T00:00:00.000Z', imageUrl: 'https://example.com/shared.jpg', imageFileId: 'shared-file', isActive: true, priority: 0, sortOrder: 10 }
@@ -50,7 +51,7 @@ describe('Media editors render their actual Vue templates', () => {
     pages.gallery = await compile('pages/media/gallery.vue', `${stubs} defineExpose({ form, english, edit, reset, payload: body, localeTab, previewOpen, items, pending });`)
     pages.locations = await compile('pages/media/locations.vue', `${stubs} defineExpose({ form, english, edit, reset, payload, localeTab, previewOpen, items, pending });`)
     pages.home = await compile('components/HomePageSettingsEditor.vue', `${stubs} defineExpose({ hero, english, applySettings, payload, localeTab, preview, pending, heroTopics, editTopic, articles, previewItem });`)
-    for (const name of ['AdminStatusBadge', 'MediaStructuredBlockEditor', 'MediaLocaleTabs', 'MediaTranslationBadges', 'MediaTranslationFilter']) components[name] = await compile(`components/${name}.vue`)
+    for (const name of ['AdminStatusBadge', 'MediaStructuredBlockEditor', 'MediaLocaleTabs', 'MediaTranslationBadges', 'MediaTranslationFilter', 'MediaContentBlocks', 'MediaRichTextRenderer']) components[name] = await compile(`components/${name}.vue`)
   })
   after(async () => { if (directory) await rm(directory, { force: true, recursive: true }) })
   async function render(name: string, arrange: (state: any) => void) {
@@ -61,6 +62,10 @@ describe('Media editors render their actual Vue templates', () => {
     } })
     const Stub = defineComponent({ setup: (_, { slots }) => () => h('div', [slots.default?.(), slots.actions?.()]) })
     for (const component of ['PageHead', 'BulkActionBar', 'MediaImageUploader', 'AdminConfirmDialog']) app.component(component, Stub)
+    app.component('MediaRichTextEditor', defineComponent({
+      props: ['modelValue'],
+      setup(props) { return () => h('div', extractRichTextDocumentText(props.modelValue)) },
+    }))
     for (const [component, value] of Object.entries(components)) app.component(component, value)
     return renderToString(app)
   }
@@ -70,12 +75,17 @@ describe('Media editors render their actual Vue templates', () => {
         s.edit(rows[name]); const payload = s.payload(s.form.status)
         for (const key of Object.keys(rows[name].translations.id)) {
           assert.equal(key in payload, false)
+          if (name === 'guides' && key === 'body') {
+            assert.equal(extractArticleBodyText(payload.translations.id.body), 'Isi khusus Indonesia')
+            assert.equal(extractArticleBodyText(payload.translations.en.body), 'English body')
+            continue
+          }
           assert.deepEqual(payload.translations.id[key], rows[name].translations.id[key])
           assert.deepEqual(payload.translations.en[key], rows[name].translations.en[key])
         }
         if (name !== 'locations') { assert.equal(payload.status, 'PUBLISHED'); assert.equal(payload.publishedAt, common.publishedAt) }
         if (name !== 'guides') { assert.equal(payload.imageFileId, 'shared-file'); assert.equal(payload.latitude, 21.42) }
-        if (name === 'guides') { s.form.body[0].text = 'Edited'; assert.equal(rows[name].translations.id.body[0].text, 'Isi khusus Indonesia') }
+        if (name === 'guides') { s.form.body[0].content.content[0].content[0].text = 'Edited'; assert.equal(rows[name].translations.id.body[0].text, 'Isi khusus Indonesia') }
         s.reset(); assert.equal(s.localeTab.value, 'id'); assert.equal(s.english.title ?? s.english.name, '')
       })
     })
