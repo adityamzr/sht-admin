@@ -2,8 +2,8 @@
 import { mediaEditorTranslation, isCompleteGuideTranslation, type GuideTranslation } from '~/shared/media-localization';
 import type { SupportedLocale } from '~/shared/locales';
 import type { ArticleBlock } from '~/shared/article-localization';
-import { articleImageFigureStyle, articleImageRatioStyle, articleImageObjectStyle } from '~/shared/article-block-presentation';
 import { normalizeTableBlock } from '~/shared/article-block-editor';
+import { createEmptyRichTextDocument, isRichTextDocumentEmpty, legacyBlocksToHybridBody, normalizeRichTextDocument } from '~/shared/rich-text';
 import { Plus } from "lucide-vue-next";
 const { show: showGlobalToast } = useAdminToast();
 definePageMeta({ layout: "admin", middleware: "admin-auth" });
@@ -124,7 +124,7 @@ function emptyForm() {
         sortOrder: 10,
         status: "DRAFT",
         publishedAt: null,
-        body: [{ type: "paragraph", text: "" } as ArticleBlock],
+        body: [{ type: "richText", content: createEmptyRichTextDocument() } as ArticleBlock],
     });
     previewOpen.value = false;
 }
@@ -134,7 +134,7 @@ function editGuide(guide: AdminGuide) {
     clearErrors();
     const idText = mediaEditorTranslation<GuideTranslation>(guide, 'id', { title: guide.title, slug: guide.slug, summary: guide.summary, body: guide.body }, { title: '', slug: null, summary: null, body: [] });
     const enText = mediaEditorTranslation<GuideTranslation>(guide, 'en', idText, { title: '', slug: null, summary: null, body: [] });
-    Object.assign(english, enText, { slug: enText.slug ?? '', summary: enText.summary ?? '' });
+    Object.assign(english, enText, { slug: enText.slug ?? '', summary: enText.summary ?? '', body: legacyBlocksToHybridBody(enText.body) });
     localeTab.value = previewLocale.value = 'id';
     Object.assign(form, {
         title: idText.title,
@@ -143,13 +143,16 @@ function editGuide(guide: AdminGuide) {
         summary: idText.summary ?? "",
         sortOrder: guide.sortOrder,
         status: guide.status,
-        body: idText.body as ArticleBlock[],
+        body: legacyBlocksToHybridBody(idText.body as ArticleBlock[]),
         publishedAt: guide.publishedAt,
     });
     previewOpen.value = false;
     window.scrollTo({ top: 0, behavior: "smooth" });
 }
 function normalizeBlock(block: ArticleBlock): ArticleBlock {
+    if (block.type === "richText") {
+        return { ...block, content: normalizeRichTextDocument(block.content) };
+    }
     if (block.type === "list") {
         return {
             ...block,
@@ -169,6 +172,8 @@ function validateForm() {
     if (!form.slug.trim()) fieldErrors.slug = "Slug wajib diisi.";
     if (!form.group) fieldErrors.group = "Group wajib dipilih.";
     form.body.forEach((block, index) => {
+        if (block.type === "richText" && isRichTextDocumentEmpty(block.content))
+            fieldErrors[`body-${index}`] = "Isi teks masih kosong.";
         if (
             ["paragraph", "heading", "blockquote", "callout"].includes(
                 block.type,
@@ -739,88 +744,7 @@ watch(currentPage, () => clear());
             >
                 {{ previewText.summary }}
             </p>
-            <div class="mt-8 max-w-2xl text-neutral-charcoal/80">
-                <template v-for="(block, index) in previewText.body" :key="index"
-                    ><p
-                        v-if="block.type === 'paragraph'"
-                        class="mb-5 text-sm leading-7"
-                    >
-                        {{ block.text }}
-                    </p>
-                    <h2
-                        v-else-if="
-                            block.type === 'heading' && block.level === 2
-                        "
-                        class="mb-4 mt-9 text-2xl font-bold leading-tight"
-                    >
-                        {{ block.text }}
-                    </h2>
-                    <h3
-                        v-else-if="block.type === 'heading'"
-                        class="mb-3 mt-7 text-xl font-semibold leading-tight"
-                    >
-                        {{ block.text }}
-                    </h3>
-                    <blockquote
-                        v-else-if="block.type === 'blockquote'"
-                        class="mb-6 border-l-2 border-gold pl-4 text-base italic leading-7"
-                    >
-                        {{ block.text }}
-                    </blockquote>
-                    <ul
-                        v-else-if="block.type === 'list' && !block.ordered"
-                        class="mb-6 list-disc space-y-2 pl-6 text-sm leading-7"
-                    >
-                        <li v-for="item in block.items" :key="item">
-                            {{ item }}
-                        </li>
-                    </ul>
-                    <ol
-                        v-else-if="block.type === 'list'"
-                        class="mb-6 list-decimal space-y-2 pl-6 text-sm leading-7"
-                    >
-                        <li v-for="item in block.items" :key="item">
-                            {{ item }}
-                        </li>
-                    </ol>
-                    <aside
-                        v-else-if="block.type === 'callout'"
-                        class="mb-6 border-l-2 border-gold bg-gold-sand/50 px-4 py-3 text-sm leading-6"
-                    >
-                        {{ block.text }}
-                    </aside>
-                    <figure v-else-if="block.type === 'image'" class="mx-auto mb-6 w-full" :style="articleImageFigureStyle(block as any)">
-                        <div class="overflow-hidden rounded-xl" :style="articleImageRatioStyle(block as any)">
-                            <img
-                                :src="block.src"
-                                :alt="block.alt"
-                                class="w-full"
-                                :style="articleImageObjectStyle(block as any)"
-                            />
-                        </div>
-                        <figcaption
-                            v-if="block.caption"
-                            class="mt-2 text-xs text-neutral-charcoal/50"
-                        >
-                            {{ block.caption }}
-                        </figcaption>
-                    </figure><div v-else-if="block.type === 'table'" class="mb-8 overflow-x-auto rounded-xl border border-neutral-line bg-white">
-                        <table class="min-w-[480px] w-full border-collapse text-sm">
-                            <caption v-if="block.caption" class="caption-top px-4 py-2 text-left text-xs font-medium text-neutral-charcoal/60">{{ block.caption }}</caption>
-                            <thead>
-                                <tr class="bg-neutral-soft/70">
-                                    <th v-for="(header, hIdx) in (block.headers ?? [])" :key="hIdx" scope="col" class="border-b border-neutral-line px-3 py-2 text-left font-semibold" :style="{ textAlign: (block.alignments?.[hIdx] ?? 'left') }">{{ header }}</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <tr v-for="(row, rIdx) in (block.rows ?? [])" :key="rIdx" class="border-b border-neutral-line last:border-0">
-                                    <td v-for="(cell, cIdx) in row" :key="cIdx" class="px-3 py-2 align-top" :style="{ textAlign: (block.alignments?.[cIdx] ?? 'left') }">{{ cell }}</td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div></template
-                >
-            </div>
+            <div class="mt-8 max-w-2xl text-neutral-charcoal/80"><MediaContentBlocks :body="previewText.body" /></div>
         </section>
         <div
             v-if="deleteConfirmOpen"

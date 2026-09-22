@@ -1,5 +1,6 @@
 import { DEFAULT_LOCALE, SUPPORTED_LOCALES, type SupportedLocale } from './locales'
 import type { ArticleBlock } from './article-localization'
+import { isMeaningfulArticleBody } from './rich-text'
 
 export type GuideTranslation = { title: string; slug: string | null; summary: string | null; body: ArticleBlock[] }
 export type GalleryTranslation = { title: string | null; description: string | null; altText: string; locationName: string | null }
@@ -9,7 +10,7 @@ export type TopicStructure = { id: string; isActive: boolean; sortOrder: number 
 export type TranslationReadiness = 'complete' | 'incomplete'
 
 export function isCompleteGuideTranslation(t: { title?: string; slug?: string | null; body?: unknown[] } | null | undefined) {
-  return Boolean(t?.title?.trim() && t.slug?.trim() && Array.isArray(t.body) && t.body.length)
+  return Boolean(t?.title?.trim() && t.slug?.trim() && isMeaningfulArticleBody(t.body))
 }
 export function isCompleteGalleryTranslation(t: { altText?: string | null } | null | undefined) {
   // Title, description and location caption are optional in the existing Gallery.

@@ -17,6 +17,7 @@ import {
   GUIDE_GROUPS,
   GALLERY_CITIES, GALLERY_CATEGORIES, GALLERY_STATUSES, LOCATION_CITIES, LOCATION_CATEGORIES, CONTRIBUTION_TYPES, CONTRIBUTION_STATUSES, ARTICLE_FEEDBACK_VALUES,
 } from '../db/schema'
+import { RICH_TEXT_LIMITS, sanitizeRichTextLink } from '../../shared/rich-text'
 
 /** Validasi server untuk SEMUA write — client validation tidak dipercaya. */
 
@@ -334,12 +335,54 @@ export const serviceInquiryInput = z.object({
 
 // ─── Media Article ──────────────────────────────────────────────────────────
 const articleSlug = z.string().trim().min(3).max(180).regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, 'Slug hanya boleh berisi huruf kecil, angka, dan tanda hubung.')
+const richTextMark = z.discriminatedUnion('type', [
+  z.object({ type: z.literal('bold') }).strict(),
+  z.object({ type: z.literal('italic') }).strict(),
+  z.object({ type: z.literal('link'), attrs: z.object({ href: z.string().max(2_000).refine(value => Boolean(sanitizeRichTextLink(value)), 'URL tautan tidak aman.') }).strict() }).strict(),
+])
+const richTextNode: z.ZodType<any> = z.lazy(() => z.discriminatedUnion('type', [
+  z.object({ type: z.literal('text'), text: z.string().max(RICH_TEXT_LIMITS.maxTextLength), marks: z.array(richTextMark).max(3).optional() }).strict(),
+  z.object({ type: z.literal('hardBreak') }).strict(),
+  z.object({ type: z.literal('paragraph'), content: z.array(richTextNode).optional() }).strict(),
+  z.object({ type: z.literal('heading'), attrs: z.object({ level: z.union([z.literal(2), z.literal(3)]) }).strict(), content: z.array(richTextNode).optional() }).strict(),
+  z.object({ type: z.literal('bulletList'), content: z.array(richTextNode).optional() }).strict(),
+  z.object({ type: z.literal('orderedList'), content: z.array(richTextNode).optional() }).strict(),
+  z.object({ type: z.literal('listItem'), content: z.array(richTextNode).optional() }).strict(),
+  z.object({ type: z.literal('blockquote'), content: z.array(richTextNode).optional() }).strict(),
+]))
+const richTextDocument = z.object({ type: z.literal('doc'), content: z.array(richTextNode) }).strict().superRefine((document, ctx) => {
+  let nodes = 1
+  let textLength = 0
+  let maxDepth = 0
+  const visit = (node: any, depth: number) => {
+    nodes += 1
+    maxDepth = Math.max(maxDepth, depth)
+    if (node.type === 'text') textLength += node.text.length
+    for (const child of node.content ?? []) visit(child, depth + 1)
+  }
+  for (const node of document.content) visit(node, 1)
+  if (nodes > RICH_TEXT_LIMITS.maxNodes) ctx.addIssue({ code: 'custom', message: 'Isi teks terlalu kompleks.' })
+  if (textLength > RICH_TEXT_LIMITS.maxTextLength) ctx.addIssue({ code: 'custom', message: 'Isi teks terlalu panjang.' })
+  if (maxDepth > RICH_TEXT_LIMITS.maxDepth) ctx.addIssue({ code: 'custom', message: 'Struktur teks terlalu dalam.' })
+})
+const knownArticleBlockTypes = new Set(['richText', 'paragraph', 'heading', 'image', 'blockquote', 'list', 'callout', 'table'])
+const articleBlock = z.union([
+  z.object({ type: z.literal('richText'), content: richTextDocument }).strict(),
+  z.object({ type: z.literal('paragraph'), text: z.string().max(100_000) }).strict(),
+  z.object({ type: z.literal('heading'), level: z.union([z.literal(2), z.literal(3)]).optional(), text: z.string().max(10_000) }).strict(),
+  z.object({ type: z.literal('blockquote'), text: z.string().max(100_000) }).strict(),
+  z.object({ type: z.literal('callout'), text: z.string().max(100_000) }).strict(),
+  z.object({ type: z.literal('list'), ordered: z.boolean().optional(), items: z.array(z.string().max(10_000)).max(500) }).strict(),
+  z.object({ type: z.literal('image'), src: z.string().max(1_000), fileId: z.string().max(255).optional(), alt: z.string().max(300).optional(), caption: z.string().max(1_000).optional(), displaySize: z.enum(['small', 'medium', 'wide', 'full']).optional(), aspectRatio: z.enum(['auto', '16:9', '4:5', '1:1']).optional() }).strict(),
+  z.object({ type: z.literal('table'), caption: z.string().max(1_000).optional(), headers: z.array(z.string().max(2_000)).min(2).max(12), rows: z.array(z.array(z.string().max(10_000)).max(12)).min(1).max(100), alignments: z.array(z.enum(['left', 'center', 'right'])).min(2).max(12) }).strict(),
+  z.object({ type: z.string().refine(type => !knownArticleBlockTypes.has(type), 'Tipe block tidak valid.') }).passthrough(),
+])
 const articleText = z.object({
   title: z.string().trim().min(3).max(240),
   slug: articleSlug,
   excerpt: z.string().trim().max(600),
   heroAlt: z.string().trim().max(300),
-  body: z.array(z.record(z.unknown())).max(100),
+  body: z.array(articleBlock).max(100),
   seoTitle: z.string().trim().max(240).nullable().optional().transform((v) => v || null),
   seoDescription: z.string().trim().max(600).nullable().optional().transform((v) => v || null),
 })
@@ -401,7 +444,7 @@ const nullableText = (max: number) => z.string().trim().max(max).nullable().opti
 const optionalLocalizedSlug = z.preprocess((v) => v === undefined || v === null || (typeof v === 'string' && !v.trim()) ? null : v, articleSlug.nullable())
 
 // ─── Media Guide ──────────────────────────────────────────────────────────
-const guideText = z.object({ title: z.string().trim().min(3).max(240), slug: articleSlug, summary: nullableText(600), body: z.array(z.record(z.unknown())).max(100) })
+const guideText = z.object({ title: z.string().trim().min(3).max(240), slug: articleSlug, summary: nullableText(600), body: z.array(articleBlock).max(100) })
 const guideBase = z.object({
   group: z.enum(GUIDE_GROUPS), sortOrder: int(0, 9999), status: z.enum(['DRAFT', 'PUBLISHED', 'ARCHIVED']),
   publishedAt: z.string().datetime().nullable().optional(),
