@@ -188,6 +188,10 @@ export const mediaAnalyticsEvents = pgTable('media_analytics_events', {
 export const mediaPageSettings = pgTable('media_page_settings', {
   id: serial('id').primaryKey(), pageKey: text('page_key').notNull().unique(), heroImageUrl: text('hero_image_url'), heroImageFileId: text('hero_image_file_id'), heroHeadline: text('hero_headline'), heroSubheadline: text('hero_subheadline'), heroTopicOverride: jsonb('hero_topic_override').$type<Array<{ id: string; label: string; isActive: boolean; sortOrder: number }> | null>(), featuredArticleId: integer('featured_article_id').references(() => articles.id, { onDelete: 'set null' }),
   supportingArticleIds: jsonb('supporting_article_ids').$type<number[]>().notNull().default(sql`'[]'::jsonb`), editorialArticleIds: jsonb('editorial_article_ids').$type<number[]>().notNull().default(sql`'[]'::jsonb`),
+  // Link Bio / Link Hub
+  linkBioTitle: text('link_bio_title'),
+  linkBioDescription: text('link_bio_description'),
+  linkBioLinks: jsonb('link_bio_links').$type<Array<{ id: string; label: string; description?: string | null; url: string; type: string; featured?: boolean; isActive?: boolean; sortOrder?: number; group?: string | null }> | null>(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(), updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 })
 

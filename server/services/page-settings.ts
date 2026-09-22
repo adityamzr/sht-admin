@@ -3,13 +3,14 @@ import { and, eq, inArray } from 'drizzle-orm'
 import type { z } from 'zod'
 import { articles, articleTranslations, mediaPageSettings, mediaPageSettingsTranslations } from '../db/schema'
 import type { DbLike } from '../db'
-import { type pageSettingsInput, homePageSettingsInput } from '../utils/validators'
+import { type pageSettingsInput, homePageSettingsInput, type linkBioInput } from '../utils/validators'
 import { DEFAULT_LOCALE, type SupportedLocale } from '../../shared/locales'
 import { isCompleteHomeTranslation, type HomeTranslation } from '../../shared/media-localization'
 import { isCompleteArticleTranslation } from '../../shared/article-localization'
 
 export type PageSettingsInput = z.output<typeof pageSettingsInput>
 export type HomePageSettingsInput = z.output<typeof homePageSettingsInput>
+export type LinkBioInput = z.output<typeof linkBioInput>
 export async function getPageSettings(db: DbLike, pageKey: string) {
   const [row] = await db.select().from(mediaPageSettings).where(eq(mediaPageSettings.pageKey, pageKey)).limit(1)
   return row ?? null
@@ -40,10 +41,56 @@ async function validateSlots(db: DbLike, input: Pick<PageSettingsInput, 'feature
 // Existing Makkah/Madinah writers remain Indonesian-only.
 export async function savePageSettings(db: DbLike, pageKey: string, input: PageSettingsInput) {
   if (pageKey === 'home') return saveHomePageSettings(db, homePageSettingsInput.parse(input))
+  if (pageKey === 'link-bio') {
+    // link-bio uses dedicated handler, but keep fallback
+    const values = { ...(input as any), updatedAt: new Date() }
+    const [row] = await db.insert(mediaPageSettings).values({ ...values, pageKey }).onConflictDoUpdate({ target: mediaPageSettings.pageKey, set: values }).returning()
+    return row
+  }
   await validateSlots(db, input)
   const values = { ...input, featuredArticleId: input.featuredArticleId ?? null, updatedAt: new Date() }
   const [row] = await db.insert(mediaPageSettings).values({ ...values, pageKey }).onConflictDoUpdate({ target: mediaPageSettings.pageKey, set: values }).returning()
   return row
+}
+
+export async function saveLinkBioSettings(db: DbLike, input: LinkBioInput) {
+  const values = {
+    linkBioTitle: input.title,
+    linkBioDescription: input.description ?? null,
+    linkBioLinks: input.links,
+    updatedAt: new Date(),
+  }
+  const [row] = await db.insert(mediaPageSettings).values({ ...values, pageKey: 'link-bio' }).onConflictDoUpdate({ target: mediaPageSettings.pageKey, set: values }).returning()
+  return {
+    id: row.id,
+    pageKey: row.pageKey,
+    title: row.linkBioTitle ?? input.title,
+    description: row.linkBioDescription ?? null,
+    links: (row.linkBioLinks as any) ?? input.links,
+    updatedAt: row.updatedAt,
+  }
+}
+
+export async function getLinkBioSettings(db: DbLike) {
+  const row = await getPageSettings(db, 'link-bio')
+  if (!row) {
+    return {
+      id: null,
+      pageKey: 'link-bio',
+      title: 'Sudut Haramain',
+      description: 'Informasi, panduan, dan cerita dari Makkah & Madinah.',
+      links: [] as LinkBioInput['links'],
+      updatedAt: null,
+    }
+  }
+  return {
+    id: row.id,
+    pageKey: row.pageKey,
+    title: row.linkBioTitle ?? 'Sudut Haramain',
+    description: row.linkBioDescription ?? null,
+    links: (row.linkBioLinks as any) ?? [],
+    updatedAt: row.updatedAt,
+  }
 }
 export async function saveHomePageSettings(db: DbLike, input: HomePageSettingsInput) {
   return db.transaction(async (tx) => {
@@ -67,13 +114,60 @@ export async function saveHomePageSettings(db: DbLike, input: HomePageSettingsIn
     return getHomeSettings(tx)
   })
 }
-function defaultSettings(pageKey: string) {
+function defaultSettings(pageKey: string): any {
+  if (pageKey === 'link-bio') {
+    return {
+      pageKey,
+      title: 'Sudut Haramain' as string,
+      description: 'Informasi, panduan, dan cerita dari Makkah & Madinah.' as string | null,
+      links: [] as LinkBioInput['links'],
+    }
+  }
   return { pageKey, heroImageUrl: null as string | null, heroHeadline: null as string | null, heroSubheadline: null as string | null,
     heroTopicOverride: null as Array<{ id: string; label: string; isActive: boolean; sortOrder: number }> | null,
     featuredArticleId: null as number | null, supportingArticleIds: [] as number[], editorialArticleIds: [] as number[] }
 }
-export async function publicPageSettings(db: DbLike, pageKey: string, locale: SupportedLocale = DEFAULT_LOCALE) {
+// Overloads for type-safe public settings
+export async function publicPageSettings(db: DbLike, pageKey: 'link-bio', locale?: SupportedLocale): Promise<{
+  pageKey: string
+  title: string
+  description: string | null
+  links: LinkBioInput['links']
+  locale: SupportedLocale
+  translationAvailable: boolean
+  availableLocales: string[]
+}>
+export async function publicPageSettings(db: DbLike, pageKey: string, locale?: SupportedLocale): Promise<{
+  pageKey: string
+  heroImageUrl: string | null
+  heroHeadline: string | null
+  heroSubheadline: string | null
+  heroTopicOverride: Array<{ id: string; label: string; isActive: boolean; sortOrder: number }> | null
+  featuredArticleId: number | null
+  supportingArticleIds: number[]
+  editorialArticleIds: number[]
+  locale: SupportedLocale
+  translationAvailable: boolean
+  availableLocales: string[]
+}>
+export async function publicPageSettings(db: DbLike, pageKey: string, locale: SupportedLocale = DEFAULT_LOCALE): Promise<any> {
   const row = await getPageSettings(db, pageKey)
+  if (pageKey === 'link-bio') {
+    const defaults = defaultSettings(pageKey) as { pageKey: string; title: string; description: string | null; links: LinkBioInput['links'] }
+    if (!row) return { ...defaults, locale, translationAvailable: true, availableLocales: [DEFAULT_LOCALE] }
+    // Only return active links sorted by sortOrder, public does not need inactive
+    const allLinks = ((row.linkBioLinks as any) ?? []) as LinkBioInput['links']
+    const activeLinks = allLinks.filter((l) => l.isActive !== false).sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
+    return {
+      ...defaults,
+      title: row.linkBioTitle ?? defaults.title,
+      description: row.linkBioDescription ?? defaults.description,
+      links: activeLinks,
+      locale,
+      translationAvailable: true,
+      availableLocales: [DEFAULT_LOCALE],
+    }
+  }
   const defaults = defaultSettings(pageKey)
   if (!row) return { ...defaults, locale, translationAvailable: locale === DEFAULT_LOCALE, availableLocales: [DEFAULT_LOCALE] }
   const ids = Array.from(new Set([...(row.featuredArticleId ? [row.featuredArticleId] : []), ...row.supportingArticleIds, ...row.editorialArticleIds]))
